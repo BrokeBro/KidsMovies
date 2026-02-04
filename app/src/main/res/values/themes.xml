@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.KidsMovies" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSecondaryVariant">@color/primary_dark</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background_dark</item>
+        <item name="colorSurface">@color/background_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/primary_dark</item>
+        <item name="android:navigationBarColor">@color/background_dark</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+
+        <!-- Window -->
+        <item name="android:windowBackground">@color/background_dark</item>
+
+        <!-- Card style -->
+        <item name="cardBackgroundColor">@color/background_card</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">4dp</item>
+
+        <!-- Button style -->
+        <item name="materialButtonStyle">@style/Widget.KidsMovies.Button</item>
+
+        <!-- EditText style -->
+        <item name="editTextStyle">@style/Widget.KidsMovies.EditText</item>
+    </style>
+
+    <!-- Splash screen theme -->
+    <style name="Theme.KidsMovies.Splash" parent="Theme.KidsMovies">
+        <item name="android:windowBackground">@color/background_dark</item>
+    </style>
+
+    <!-- Video player theme (immersive) -->
+    <style name="Theme.KidsMovies.Player" parent="Theme.KidsMovies">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
+
+    <!-- Custom Button style -->
+    <style name="Widget.KidsMovies.Button" parent="Widget.MaterialComponents.Button">
+        <item name="android:textColor">@color/white</item>
+        <item name="backgroundTint">@color/primary</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:paddingStart">24dp</item>
+        <item name="android:paddingEnd">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="Widget.KidsMovies.Button.Large" parent="Widget.KidsMovies.Button">
+        <item name="android:textSize">20sp</item>
+        <item name="android:paddingStart">32dp</item>
+        <item name="android:paddingEnd">32dp</item>
+        <item name="android:paddingTop">16dp</item>
+        <item name="android:paddingBottom">16dp</item>
+    </style>
+
+    <style name="Widget.KidsMovies.Button.Outlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textColor">@color/primary</item>
+        <item name="strokeColor">@color/primary</item>
+        <item name="cornerRadius">24dp</item>
+    </style>
+
+    <!-- Custom EditText style -->
+    <style name="Widget.KidsMovies.EditText" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/background_card</item>
+        <item name="boxStrokeColor">@color/primary</item>
+        <item name="hintTextColor">@color/text_hint</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <!-- Card style -->
+    <style name="Widget.KidsMovies.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/background_card</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">8dp</item>
+    </style>
+
+    <style name="Widget.KidsMovies.Card.Video" parent="Widget.KidsMovies.Card">
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">4dp</item>
+    </style>
+
+    <!-- Text styles -->
+    <style name="TextAppearance.KidsMovies.Title" parent="TextAppearance.MaterialComponents.Headline5">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="TextAppearance.KidsMovies.Title.Large" parent="TextAppearance.MaterialComponents.Headline4">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="TextAppearance.KidsMovies.Subtitle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="TextAppearance.KidsMovies.Body" parent="TextAppearance.MaterialComponents.Body1">
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="TextAppearance.KidsMovies.Caption" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <!-- Bottom Navigation style -->
+    <style name="Widget.KidsMovies.BottomNavigation" parent="Widget.MaterialComponents.BottomNavigationView.Colored">
+        <item name="backgroundTint">@color/background_card</item>
+        <item name="itemIconTint">@color/bottom_nav_colors</item>
+        <item name="itemTextColor">@color/bottom_nav_colors</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <!-- Tab Layout style -->
+    <style name="Widget.KidsMovies.TabLayout" parent="Widget.MaterialComponents.TabLayout">
+        <item name="tabBackground">@color/background_dark</item>
+        <item name="tabIndicatorColor">@color/primary</item>
+        <item name="tabSelectedTextColor">@color/primary</item>
+        <item name="tabTextColor">@color/text_secondary</item>
+        <item name="tabIconTint">@color/tab_icon_colors</item>
+    </style>
+
+    <!-- Toolbar style -->
+    <style name="Widget.KidsMovies.Toolbar" parent="Widget.MaterialComponents.Toolbar">
+        <item name="android:background">@color/background_dark</item>
+        <item name="titleTextColor">@color/text_primary</item>
+        <item name="subtitleTextColor">@color/text_secondary</item>
+    </style>
+
+    <!-- Dialog style -->
+    <style name="Theme.KidsMovies.Dialog" parent="Theme.MaterialComponents.Dialog">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSurface">@color/background_card</item>
+        <item name="android:windowBackground">@color/background_card</item>
+        <item name="dialogCornerRadius">16dp</item>
+    </style>
+
+    <!-- BottomSheet style -->
+    <style name="Theme.KidsMovies.BottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.KidsMovies.BottomSheet</item>
+    </style>
+
+    <style name="Widget.KidsMovies.BottomSheet" parent="Widget.MaterialComponents.BottomSheet">
+        <item name="backgroundTint">@color/background_card</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.KidsMovies.BottomSheet</item>
+    </style>
+
+    <style name="ShapeAppearance.KidsMovies.BottomSheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+    </style>
+</resources>

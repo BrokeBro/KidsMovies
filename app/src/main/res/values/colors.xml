@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Default theme colors (Blue) -->
+    <color name="primary">#2196F3</color>
+    <color name="primary_dark">#1976D2</color>
+    <color name="primary_light">#64B5F6</color>
+    <color name="accent">#03A9F4</color>
+
+    <!-- Background colors -->
+    <color name="background_dark">#1A1A2E</color>
+    <color name="background_card">#16213E</color>
+    <color name="background_surface">#0F3460</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#757575</color>
+
+    <!-- Status colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
+    <color name="info">#2196F3</color>
+
+    <!-- Favourite heart -->
+    <color name="favourite_active">#E91E63</color>
+    <color name="favourite_inactive">#757575</color>
+
+    <!-- Color scheme: Blue -->
+    <color name="scheme_blue_primary">#2196F3</color>
+    <color name="scheme_blue_primary_dark">#1976D2</color>
+    <color name="scheme_blue_accent">#03A9F4</color>
+    <color name="scheme_blue_background">#1A1A2E</color>
+    <color name="scheme_blue_card">#16213E</color>
+
+    <!-- Color scheme: Green -->
+    <color name="scheme_green_primary">#4CAF50</color>
+    <color name="scheme_green_primary_dark">#388E3C</color>
+    <color name="scheme_green_accent">#8BC34A</color>
+    <color name="scheme_green_background">#1A2E1A</color>
+    <color name="scheme_green_card">#213E21</color>
+
+    <!-- Color scheme: Purple -->
+    <color name="scheme_purple_primary">#9C27B0</color>
+    <color name="scheme_purple_primary_dark">#7B1FA2</color>
+    <color name="scheme_purple_accent">#E040FB</color>
+    <color name="scheme_purple_background">#2E1A2E</color>
+    <color name="scheme_purple_card">#3E2140</color>
+
+    <!-- Color scheme: Orange -->
+    <color name="scheme_orange_primary">#FF9800</color>
+    <color name="scheme_orange_primary_dark">#F57C00</color>
+    <color name="scheme_orange_accent">#FFB74D</color>
+    <color name="scheme_orange_background">#2E2A1A</color>
+    <color name="scheme_orange_card">#3E3521</color>
+
+    <!-- Color scheme: Pink -->
+    <color name="scheme_pink_primary">#E91E63</color>
+    <color name="scheme_pink_primary_dark">#C2185B</color>
+    <color name="scheme_pink_accent">#FF4081</color>
+    <color name="scheme_pink_background">#2E1A24</color>
+    <color name="scheme_pink_card">#3E2130</color>
+
+    <!-- Color scheme: Red -->
+    <color name="scheme_red_primary">#F44336</color>
+    <color name="scheme_red_primary_dark">#D32F2F</color>
+    <color name="scheme_red_accent">#FF5252</color>
+    <color name="scheme_red_background">#2E1A1A</color>
+    <color name="scheme_red_card">#3E2121</color>
+
+    <!-- Tag colors -->
+    <color name="tag_red">#F44336</color>
+    <color name="tag_pink">#E91E63</color>
+    <color name="tag_purple">#9C27B0</color>
+    <color name="tag_deep_purple">#673AB7</color>
+    <color name="tag_indigo">#3F51B5</color>
+    <color name="tag_blue">#2196F3</color>
+    <color name="tag_light_blue">#03A9F4</color>
+    <color name="tag_cyan">#00BCD4</color>
+    <color name="tag_teal">#009688</color>
+    <color name="tag_green">#4CAF50</color>
+    <color name="tag_light_green">#8BC34A</color>
+    <color name="tag_lime">#CDDC39</color>
+    <color name="tag_yellow">#FFEB3B</color>
+    <color name="tag_amber">#FFC107</color>
+    <color name="tag_orange">#FF9800</color>
+    <color name="tag_deep_orange">#FF5722</color>
+
+    <!-- Overlay colors -->
+    <color name="overlay_dark">#80000000</color>
+    <color name="overlay_light">#40FFFFFF</color>
+
+    <!-- Ripple -->
+    <color name="ripple_color">#40FFFFFF</color>
+</resources>

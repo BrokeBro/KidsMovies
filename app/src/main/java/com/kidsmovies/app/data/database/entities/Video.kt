@@ -1,0 +1,57 @@
+package com.kidsmovies.app.data.database.entities
+
+import android.os.Parcelable
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
+@Entity(tableName = "videos")
+data class Video(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val title: String,
+    val filePath: String,
+    val thumbnailPath: String? = null,
+    val customThumbnailPath: String? = null,
+    val duration: Long = 0, // in milliseconds
+    val size: Long = 0, // in bytes
+    val dateAdded: Long = System.currentTimeMillis(),
+    val dateModified: Long = System.currentTimeMillis(),
+    val lastPlayed: Long? = null,
+    val playCount: Int = 0,
+    val isFavourite: Boolean = false,
+    val isEnabled: Boolean = true, // For parental control
+    val folderPath: String = "",
+    val mimeType: String = "video/*"
+) : Parcelable {
+
+    fun getDisplayThumbnail(): String? {
+        return customThumbnailPath ?: thumbnailPath
+    }
+
+    fun getFormattedDuration(): String {
+        val totalSeconds = duration / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%d:%02d", minutes, seconds)
+        }
+    }
+
+    fun getFormattedSize(): String {
+        val kb = size / 1024.0
+        val mb = kb / 1024.0
+        val gb = mb / 1024.0
+
+        return when {
+            gb >= 1 -> String.format("%.1f GB", gb)
+            mb >= 1 -> String.format("%.1f MB", mb)
+            else -> String.format("%.1f KB", kb)
+        }
+    }
+}

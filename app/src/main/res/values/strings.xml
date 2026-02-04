@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kids Movies</string>
+
+    <!-- Setup -->
+    <string name="setup_welcome">Welcome!</string>
+    <string name="setup_welcome_message">Let\'s set up your movie library</string>
+    <string name="setup_enter_name">What\'s your name?</string>
+    <string name="setup_name_hint">Your name</string>
+    <string name="setup_choose_color">Pick your favorite color!</string>
+    <string name="setup_scanning">Finding your movies…</string>
+    <string name="setup_complete">All done!</string>
+    <string name="setup_movies_found">%d movies found!</string>
+    <string name="setup_no_movies">No movies found yet</string>
+    <string name="setup_next">Next</string>
+    <string name="setup_start">Let\'s Go!</string>
+    <string name="setup_skip">Skip</string>
+
+    <!-- Main -->
+    <string name="all_movies">All Movies</string>
+    <string name="my_favourites">My Favourites</string>
+    <string name="recently_watched">Recently Watched</string>
+    <string name="online_videos">Online Videos</string>
+    <string name="no_movies">No movies yet</string>
+    <string name="no_favourites">No favourites yet</string>
+    <string name="tap_heart">Tap the heart on any movie to add it here!</string>
+    <string name="search_hint">Search movies…</string>
+    <string name="refresh">Refresh</string>
+    <string name="settings">Settings</string>
+
+    <!-- Video Player -->
+    <string name="now_playing">Now Playing</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="rewind">Rewind</string>
+    <string name="forward">Forward</string>
+    <string name="fullscreen">Fullscreen</string>
+    <string name="exit_fullscreen">Exit Fullscreen</string>
+
+    <!-- Video Details -->
+    <string name="add_to_favourites">Add to Favourites</string>
+    <string name="remove_from_favourites">Remove from Favourites</string>
+    <string name="video_duration">Duration: %s</string>
+    <string name="video_size">Size: %s</string>
+    <string name="play_video">Play Video</string>
+    <string name="edit_tags">Edit Tags</string>
+    <string name="change_thumbnail">Change Thumbnail</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="appearance">Appearance</string>
+    <string name="color_scheme">Color Scheme</string>
+    <string name="grid_columns">Grid Columns</string>
+    <string name="library">Library</string>
+    <string name="scan_folders">Scan Folders</string>
+    <string name="scan_folders_desc">Choose which folders to scan for videos</string>
+    <string name="scan_now">Scan Now</string>
+    <string name="auto_scan">Auto-scan on startup</string>
+    <string name="manage_tags">Manage Tags</string>
+    <string name="data">Data</string>
+    <string name="export_data">Export Data</string>
+    <string name="import_data">Import Data</string>
+    <string name="clear_thumbnails">Clear Thumbnails</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="online_section">Online</string>
+    <string name="onedrive_settings">OneDrive Settings</string>
+    <string name="onedrive_desc">Connect to OneDrive for online videos</string>
+
+    <!-- Folder Picker -->
+    <string name="select_folder">Select Folder</string>
+    <string name="add_folder">Add Folder</string>
+    <string name="include_subfolders">Include subfolders</string>
+    <string name="folder_path">Folder path</string>
+    <string name="no_folders">No folders configured</string>
+    <string name="add_your_first_folder">Add your first folder to scan for videos</string>
+
+    <!-- Tags -->
+    <string name="tags">Tags</string>
+    <string name="add_tag">Add Tag</string>
+    <string name="edit_tag">Edit Tag</string>
+    <string name="tag_name">Tag name</string>
+    <string name="tag_color">Tag color</string>
+    <string name="delete_tag">Delete Tag</string>
+    <string name="no_tags">No tags</string>
+
+    <!-- Dialogs -->
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="ok">OK</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="error">Error</string>
+    <string name="success">Success</string>
+
+    <!-- Export/Import -->
+    <string name="export_success">Export completed successfully</string>
+    <string name="import_success">Imported %d videos, %d tags, %d folders</string>
+    <string name="export_error">Error exporting data</string>
+    <string name="import_error">Error importing data</string>
+    <string name="clear_before_import">Clear existing data before import?</string>
+
+    <!-- Parental Control -->
+    <string name="app_blocked">App Blocked</string>
+    <string name="app_blocked_message">Ask your parent to enable video time!</string>
+    <string name="outside_schedule">Outside viewing time</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">Permission Required</string>
+    <string name="storage_permission_message">This app needs storage access to find your videos</string>
+    <string name="grant_permission">Grant Permission</string>
+
+    <!-- Scanning -->
+    <string name="scanning_videos">Scanning for videos…</string>
+    <string name="scan_complete">Scan complete</string>
+    <string name="videos_found">%d videos found</string>
+    <string name="videos_added">%d new videos added</string>
+    <string name="videos_removed">%d videos removed</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_video_thumbnail">Video thumbnail</string>
+    <string name="cd_favourite_button">Favourite button</string>
+    <string name="cd_play_button">Play button</string>
+    <string name="cd_settings_button">Settings button</string>
+    <string name="cd_refresh_button">Refresh button</string>
+    <string name="cd_search_button">Search button</string>
+    <string name="cd_back_button">Back button</string>
+    <string name="cd_color_option">Color option</string>
+</resources>
