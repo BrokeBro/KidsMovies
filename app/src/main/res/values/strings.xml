@@ -97,7 +97,7 @@
 
     <!-- Export/Import -->
     <string name="export_success">Export completed successfully</string>
-    <string name="import_success">Imported %d videos, %d tags, %d folders</string>
+    <string name="import_success">Imported %1$d videos, %2$d tags, %3$d folders</string>
     <string name="export_error">Error exporting data</string>
     <string name="import_error">Error importing data</string>
     <string name="clear_before_import">Clear existing data before import?</string>
