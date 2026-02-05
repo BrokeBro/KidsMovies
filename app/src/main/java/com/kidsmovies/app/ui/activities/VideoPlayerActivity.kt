@@ -1,6 +1,7 @@
 package com.kidsmovies.app.ui.activities
 
 import android.media.MediaPlayer
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -52,7 +53,12 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         app = application as KidsMoviesApp
 
         // Get video from intent
-        video = intent.getParcelableExtra(EXTRA_VIDEO)
+        video = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_VIDEO, Video::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_VIDEO)
+        }
         if (video == null) {
             finish()
             return
