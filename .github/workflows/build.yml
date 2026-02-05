@@ -21,50 +21,26 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.2'
-
       - name: Create local.properties
-        run: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.2
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v3
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
-
-      - name: Build Release APK (unsigned)
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-        continue-on-error: true
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: KidsMovies-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: KidsMovies-release-unsigned
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 30
-
-      - name: Upload All APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: all-apks
-          path: app/build/outputs/apk/
           retention-days: 30
