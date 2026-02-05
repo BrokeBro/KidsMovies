@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
         ScanFolder::class,
         AppSettings::class,
         ParentalControl::class,
-        Collection::class
+        VideoCollection::class
     ],
     version = 2,
     exportSchema = false

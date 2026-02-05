@@ -7,7 +7,7 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 @Entity(tableName = "collections")
-data class Collection(
+data class VideoCollection(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,

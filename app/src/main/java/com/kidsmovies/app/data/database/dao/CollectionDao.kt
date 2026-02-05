@@ -1,35 +1,35 @@
 package com.kidsmovies.app.data.database.dao
 
 import androidx.room.*
-import com.kidsmovies.app.data.database.entities.Collection
+import com.kidsmovies.app.data.database.entities.VideoCollection
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CollectionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(collection: Collection): Long
+    suspend fun insert(collection: VideoCollection): Long
 
     @Update
-    suspend fun update(collection: Collection)
+    suspend fun update(collection: VideoCollection)
 
     @Delete
-    suspend fun delete(collection: Collection)
+    suspend fun delete(collection: VideoCollection)
 
     @Query("DELETE FROM collections WHERE id = :collectionId")
     suspend fun deleteById(collectionId: Long)
 
     @Query("SELECT * FROM collections ORDER BY sortOrder ASC, name ASC")
-    fun getAllCollectionsFlow(): Flow<List<Collection>>
+    fun getAllCollectionsFlow(): Flow<List<VideoCollection>>
 
     @Query("SELECT * FROM collections ORDER BY sortOrder ASC, name ASC")
-    suspend fun getAllCollections(): List<Collection>
+    suspend fun getAllCollections(): List<VideoCollection>
 
     @Query("SELECT * FROM collections WHERE id = :collectionId")
-    suspend fun getCollectionById(collectionId: Long): Collection?
+    suspend fun getCollectionById(collectionId: Long): VideoCollection?
 
     @Query("SELECT * FROM collections WHERE name = :name")
-    suspend fun getCollectionByName(name: String): Collection?
+    suspend fun getCollectionByName(name: String): VideoCollection?
 
     @Query("SELECT COUNT(*) FROM collections")
     suspend fun getCollectionCount(): Int
