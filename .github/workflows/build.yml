@@ -43,10 +43,12 @@ jobs:
         run: |
           echo "=== BUILD ERRORS ==="
           grep -A 5 -B 2 "error:" build.log || true
-          echo "=== KOTLIN ERRORS ==="
-          grep -A 10 "CompilationErrorException" build.log || true
-          echo "=== LAST 100 LINES ==="
-          tail -100 build.log
+          echo "=== KOTLIN COMPILER ERRORS ==="
+          grep -E "e:|w:|error:|Unresolved reference|Cannot find|not found" build.log || true
+          echo "=== KSP ERRORS ==="
+          grep -A 5 "\[ksp\]" build.log || true
+          echo "=== LAST 200 LINES ==="
+          tail -200 build.log
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
