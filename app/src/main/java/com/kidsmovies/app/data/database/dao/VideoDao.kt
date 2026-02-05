@@ -1,6 +1,5 @@
 package com.kidsmovies.app.data.database.dao
 
-import androidx.lifecycle.LiveData
 import androidx.room.*
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.VideoWithTags
@@ -122,7 +121,7 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY dateAdded DESC")
     fun getVideosSortedByDateDesc(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY lastPlayed DESC NULLS LAST")
+    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY CASE WHEN lastPlayed IS NULL THEN 1 ELSE 0 END, lastPlayed DESC")
     fun getVideosSortedByRecent(): Flow<List<Video>>
 
     // Check if video exists
