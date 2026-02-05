@@ -67,6 +67,13 @@ class FolderPickerActivity : AppCompatActivity() {
             },
             onDeleteClick = { folder ->
                 lifecycleScope.launch {
+                    // Delete videos from this folder first
+                    if (folder.includeSubfolders) {
+                        app.videoRepository.deleteVideosByFolderPathPrefix(folder.path)
+                    } else {
+                        app.videoRepository.deleteVideosByFolderPath(folder.path)
+                    }
+                    // Then delete the folder entry
                     app.settingsRepository.deleteFolder(folder)
                 }
             }

@@ -28,11 +28,20 @@ interface VideoDao {
     @Query("UPDATE videos SET lastPlayed = :lastPlayed, playCount = playCount + 1 WHERE id = :videoId")
     suspend fun updatePlayStats(videoId: Long, lastPlayed: Long)
 
+    @Query("UPDATE videos SET playbackPosition = :position WHERE id = :videoId")
+    suspend fun updatePlaybackPosition(videoId: Long, position: Long)
+
     @Query("UPDATE videos SET customThumbnailPath = :thumbnailPath WHERE id = :videoId")
     suspend fun updateCustomThumbnail(videoId: Long, thumbnailPath: String?)
 
     @Query("UPDATE videos SET thumbnailPath = :thumbnailPath WHERE id = :videoId")
     suspend fun updateThumbnail(videoId: Long, thumbnailPath: String?)
+
+    @Query("UPDATE videos SET collectionId = :collectionId WHERE id = :videoId")
+    suspend fun updateCollection(videoId: Long, collectionId: Long?)
+
+    @Query("UPDATE videos SET collectionId = :collectionId WHERE id IN (:videoIds)")
+    suspend fun updateCollectionForVideos(videoIds: List<Long>, collectionId: Long?)
 
     // Delete operations
     @Delete
@@ -41,8 +50,17 @@ interface VideoDao {
     @Query("DELETE FROM videos WHERE id = :videoId")
     suspend fun deleteById(videoId: Long)
 
+    @Query("DELETE FROM videos WHERE id IN (:videoIds)")
+    suspend fun deleteByIds(videoIds: List<Long>)
+
     @Query("DELETE FROM videos WHERE filePath = :filePath")
     suspend fun deleteByPath(filePath: String)
+
+    @Query("DELETE FROM videos WHERE folderPath = :folderPath")
+    suspend fun deleteByFolderPath(folderPath: String)
+
+    @Query("DELETE FROM videos WHERE folderPath LIKE :folderPathPrefix || '%'")
+    suspend fun deleteByFolderPathPrefix(folderPathPrefix: String)
 
     @Query("DELETE FROM videos")
     suspend fun deleteAll()
@@ -78,6 +96,16 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE folderPath = :folderPath AND isEnabled = 1 ORDER BY title ASC")
     fun getVideosByFolderFlow(folderPath: String): Flow<List<Video>>
 
+    // Query operations - By collection
+    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isEnabled = 1 ORDER BY title ASC")
+    fun getVideosByCollectionFlow(collectionId: Long): Flow<List<Video>>
+
+    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isEnabled = 1 ORDER BY title ASC")
+    suspend fun getVideosByCollection(collectionId: Long): List<Video>
+
+    @Query("SELECT * FROM videos WHERE collectionId IS NULL AND isEnabled = 1 ORDER BY title ASC")
+    fun getUncollectedVideosFlow(): Flow<List<Video>>
+
     // Query operations - Search
     @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' AND isEnabled = 1 ORDER BY title ASC")
     fun searchVideosFlow(query: String): Flow<List<Video>>
@@ -107,6 +135,9 @@ interface VideoDao {
 
     @Query("SELECT COUNT(*) FROM videos WHERE isFavourite = 1")
     suspend fun getFavouriteCount(): Int
+
+    @Query("SELECT COUNT(*) FROM videos WHERE collectionId = :collectionId")
+    suspend fun getVideoCountInCollection(collectionId: Long): Int
 
     // Sorting queries
     @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")

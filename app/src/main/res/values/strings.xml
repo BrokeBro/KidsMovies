@@ -119,6 +119,28 @@
     <string name="videos_added">%d new videos added</string>
     <string name="videos_removed">%d videos removed</string>
 
+    <!-- Selection mode -->
+    <string name="items_selected">%d selected</string>
+    <string name="select_all">Select all</string>
+    <string name="remove_from_library">Remove from Library</string>
+    <string name="remove_videos_message">Remove %d video(s) from your library?\n\nThis will NOT delete the videos from your device, only from this app.</string>
+    <string name="remove">Remove</string>
+    <string name="videos_removed_from_library">%d video(s) removed from library</string>
+
+    <!-- Collections -->
+    <string name="collections">Collections</string>
+    <string name="new_collection">New Collection</string>
+    <string name="collection_name">Collection name</string>
+    <string name="edit_collection">Edit Collection</string>
+    <string name="delete_collection">Delete Collection</string>
+    <string name="add_to_collection">Add to Collection</string>
+    <string name="remove_from_collection">Remove from Collection</string>
+    <string name="no_collections">No collections yet</string>
+    <string name="create_collection_hint">Create a collection to group related movies together</string>
+    <string name="collection_deleted">Collection deleted</string>
+    <string name="videos_in_collection">%d videos</string>
+    <string name="manage_collections">Manage Collections</string>
+
     <!-- Content descriptions -->
     <string name="cd_video_thumbnail">Video thumbnail</string>
     <string name="cd_favourite_button">Favourite button</string>

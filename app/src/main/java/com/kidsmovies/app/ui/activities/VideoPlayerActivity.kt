@@ -26,6 +26,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         private const val SEEK_AMOUNT_MS = 10000 // 10 seconds
         private const val CONTROLS_HIDE_DELAY = 3000L
         private const val PROGRESS_UPDATE_INTERVAL = 1000L
+        private const val MIN_RESUME_POSITION = 5000L // Don't resume if less than 5 seconds
+        private const val END_THRESHOLD_PERCENT = 0.95 // Consider finished if past 95%
     }
 
     private lateinit var binding: ActivityVideoPlayerBinding
@@ -35,6 +37,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var mediaPlayer: MediaPlayer? = null
     private var isPlaying = false
     private var controlsVisible = true
+    private var resumePosition: Long = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { hideControls() }
@@ -64,6 +67,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             return
         }
 
+        // Get resume position from video
+        resumePosition = video?.playbackPosition ?: 0
+
         setupImmersiveMode()
         setupUI()
         setupListeners()
@@ -86,6 +92,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun setupListeners() {
         binding.backButton.setOnClickListener {
+            savePlaybackPosition()
             finish()
         }
 
@@ -104,7 +111,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             resetHideControlsTimer()
         }
 
-        binding.controlsOverlay.setOnClickListener {
+        // Touch layer for showing/hiding controls - always receives clicks
+        binding.touchLayer.setOnClickListener {
             toggleControls()
         }
 
@@ -137,6 +145,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        savePlaybackPosition()
         releaseMediaPlayer()
     }
 
@@ -170,6 +179,12 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // Adjust video size
         adjustVideoSize(mp.videoWidth, mp.videoHeight)
 
+        // Resume from saved position if applicable
+        if (resumePosition > MIN_RESUME_POSITION && 
+            resumePosition < duration * END_THRESHOLD_PERCENT) {
+            mp.seekTo(resumePosition.toInt())
+        }
+
         // Start playback
         mp.start()
         isPlaying = true
@@ -194,11 +209,20 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         updatePlayPauseButton()
         showControls()
         handler.removeCallbacks(hideControlsRunnable)
+        
+        // Reset playback position when video completes
+        video?.let {
+            lifecycleScope.launch {
+                app.videoRepository.updatePlaybackPosition(it.id, 0)
+            }
+        }
     }
 
     private fun adjustVideoSize(videoWidth: Int, videoHeight: Int) {
         val screenWidth = binding.videoSurface.width
         val screenHeight = binding.videoSurface.height
+
+        if (screenWidth == 0 || screenHeight == 0) return
 
         val videoAspect = videoWidth.toFloat() / videoHeight.toFloat()
         val screenAspect = screenWidth.toFloat() / screenHeight.toFloat()
@@ -244,9 +268,11 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun updateProgress() {
         mediaPlayer?.let { mp ->
-            if (mp.isPlaying) {
+            try {
                 binding.seekBar.progress = mp.currentPosition
                 binding.currentTime.text = formatTime(mp.currentPosition)
+            } catch (e: Exception) {
+                // MediaPlayer may be in invalid state
             }
         }
     }
@@ -267,7 +293,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun hideControls() {
         if (isPlaying) {
-            binding.controlsOverlay.visibility = View.GONE
+            binding.controlsOverlay.visibility = View.INVISIBLE
             controlsVisible = false
         }
     }
@@ -276,6 +302,30 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         handler.removeCallbacks(hideControlsRunnable)
         if (isPlaying) {
             handler.postDelayed(hideControlsRunnable, CONTROLS_HIDE_DELAY)
+        }
+    }
+
+    private fun savePlaybackPosition() {
+        mediaPlayer?.let { mp ->
+            try {
+                val position = mp.currentPosition.toLong()
+                val duration = mp.duration.toLong()
+                
+                // Only save if we're not at the beginning or end
+                val shouldSave = position > MIN_RESUME_POSITION && 
+                                 position < duration * END_THRESHOLD_PERCENT
+                
+                video?.let { v ->
+                    lifecycleScope.launch {
+                        app.videoRepository.updatePlaybackPosition(
+                            v.id, 
+                            if (shouldSave) position else 0
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                // MediaPlayer may be in invalid state
+            }
         }
     }
 
@@ -301,9 +351,15 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onPause() {
         super.onPause()
+        savePlaybackPosition()
         mediaPlayer?.pause()
         isPlaying = false
         updatePlayPauseButton()
+    }
+
+    override fun onBackPressed() {
+        savePlaybackPosition()
+        super.onBackPressed()
     }
 
     override fun onDestroy() {

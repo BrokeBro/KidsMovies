@@ -20,10 +20,12 @@ data class Video(
     val dateModified: Long = System.currentTimeMillis(),
     val lastPlayed: Long? = null,
     val playCount: Int = 0,
+    val playbackPosition: Long = 0, // Resume position in milliseconds
     val isFavourite: Boolean = false,
     val isEnabled: Boolean = true, // For parental control
     val folderPath: String = "",
-    val mimeType: String = "video/*"
+    val mimeType: String = "video/*",
+    val collectionId: Long? = null // For grouping into collections
 ) : Parcelable {
 
     fun getDisplayThumbnail(): String? {
@@ -54,4 +56,6 @@ data class Video(
             else -> String.format("%.1f KB", kb)
         }
     }
+
+    fun hasResumePosition(): Boolean = playbackPosition > 0
 }

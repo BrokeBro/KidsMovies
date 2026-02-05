@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kidsmovies.app.data.database.dao.*
 import com.kidsmovies.app.data.database.entities.*
@@ -18,9 +19,10 @@ import kotlinx.coroutines.launch
         VideoTagCrossRef::class,
         ScanFolder::class,
         AppSettings::class,
-        ParentalControl::class
+        ParentalControl::class,
+        Collection::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,9 +32,31 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun scanFolderDao(): ScanFolderDao
     abstract fun appSettingsDao(): AppSettingsDao
     abstract fun parentalControlDao(): ParentalControlDao
+    abstract fun collectionDao(): CollectionDao
 
     companion object {
         private const val DATABASE_NAME = "kids_movies_database"
+
+        // Migration from version 1 to 2: Add playbackPosition, collectionId to videos and collections table
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add new columns to videos table
+                db.execSQL("ALTER TABLE videos ADD COLUMN playbackPosition INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE videos ADD COLUMN collectionId INTEGER DEFAULT NULL")
+                
+                // Create collections table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS collections (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        sortOrder INTEGER NOT NULL DEFAULT 0,
+                        dateCreated INTEGER NOT NULL DEFAULT 0,
+                        dateModified INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+            }
+        }
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -44,6 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
+                    .addMigration(MIGRATION_1_2)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

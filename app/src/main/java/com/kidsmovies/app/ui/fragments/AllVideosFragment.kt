@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -44,13 +46,24 @@ class AllVideosFragment : Fragment() {
 
         setupRecyclerView()
         setupSwipeRefresh()
+        setupSelectionToolbar()
         observeVideos()
     }
 
     private fun setupRecyclerView() {
         videoAdapter = VideoAdapter(
             onVideoClick = { video -> playVideo(video) },
-            onFavouriteClick = { video -> toggleFavourite(video) }
+            onFavouriteClick = { video -> toggleFavourite(video) },
+            onVideoLongClick = { _ ->
+                showSelectionToolbar()
+                true
+            },
+            onSelectionChanged = { selectedIds ->
+                updateSelectionCount(selectedIds.size)
+                if (selectedIds.isEmpty()) {
+                    hideSelectionToolbar()
+                }
+            }
         )
 
         binding.videoRecyclerView.apply {
@@ -64,6 +77,63 @@ class AllVideosFragment : Fragment() {
         binding.swipeRefresh.setOnRefreshListener {
             // Refresh will be handled by MainActivity
             binding.swipeRefresh.isRefreshing = false
+        }
+    }
+
+    private fun setupSelectionToolbar() {
+        binding.selectionToolbar.visibility = View.GONE
+        
+        binding.cancelSelectionButton.setOnClickListener {
+            videoAdapter.exitSelectionMode()
+            hideSelectionToolbar()
+        }
+        
+        binding.selectAllButton.setOnClickListener {
+            videoAdapter.selectAll()
+        }
+        
+        binding.deleteSelectedButton.setOnClickListener {
+            showDeleteConfirmationDialog()
+        }
+    }
+
+    private fun showSelectionToolbar() {
+        binding.selectionToolbar.visibility = View.VISIBLE
+    }
+
+    private fun hideSelectionToolbar() {
+        binding.selectionToolbar.visibility = View.GONE
+    }
+
+    private fun updateSelectionCount(count: Int) {
+        binding.selectionCount.text = getString(R.string.items_selected, count)
+    }
+
+    private fun showDeleteConfirmationDialog() {
+        val selectedCount = videoAdapter.getSelectedVideoIds().size
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.remove_from_library)
+            .setMessage(getString(R.string.remove_videos_message, selectedCount))
+            .setPositiveButton(R.string.remove) { _, _ ->
+                removeSelectedVideos()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun removeSelectedVideos() {
+        val selectedIds = videoAdapter.getSelectedVideoIds().toList()
+        
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoRepository.deleteVideosByIds(selectedIds)
+            videoAdapter.exitSelectionMode()
+            hideSelectionToolbar()
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.videos_removed_from_library, selectedIds.size),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 

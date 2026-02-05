@@ -1,7 +1,9 @@
 package com.kidsmovies.app.ui.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -15,8 +17,13 @@ import java.io.File
 
 class VideoAdapter(
     private val onVideoClick: (Video) -> Unit,
-    private val onFavouriteClick: (Video) -> Unit
+    private val onFavouriteClick: (Video) -> Unit,
+    private val onVideoLongClick: ((Video) -> Boolean)? = null,
+    private val onSelectionChanged: ((Set<Long>) -> Unit)? = null
 ) : ListAdapter<Video, VideoAdapter.VideoViewHolder>(VideoDiffCallback()) {
+
+    private var isSelectionMode = false
+    private val selectedVideoIds = mutableSetOf<Long>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VideoViewHolder {
         val binding = ItemVideoCardBinding.inflate(
@@ -27,6 +34,49 @@ class VideoAdapter(
 
     override fun onBindViewHolder(holder: VideoViewHolder, position: Int) {
         holder.bind(getItem(position))
+    }
+
+    fun enterSelectionMode() {
+        isSelectionMode = true
+        notifyDataSetChanged()
+    }
+
+    fun exitSelectionMode() {
+        isSelectionMode = false
+        selectedVideoIds.clear()
+        onSelectionChanged?.invoke(selectedVideoIds)
+        notifyDataSetChanged()
+    }
+
+    fun isInSelectionMode() = isSelectionMode
+
+    fun getSelectedVideoIds(): Set<Long> = selectedVideoIds.toSet()
+
+    fun selectAll() {
+        selectedVideoIds.clear()
+        currentList.forEach { selectedVideoIds.add(it.id) }
+        onSelectionChanged?.invoke(selectedVideoIds)
+        notifyDataSetChanged()
+    }
+
+    fun clearSelection() {
+        selectedVideoIds.clear()
+        onSelectionChanged?.invoke(selectedVideoIds)
+        notifyDataSetChanged()
+    }
+
+    private fun toggleSelection(videoId: Long) {
+        if (selectedVideoIds.contains(videoId)) {
+            selectedVideoIds.remove(videoId)
+        } else {
+            selectedVideoIds.add(videoId)
+        }
+        onSelectionChanged?.invoke(selectedVideoIds)
+        
+        // Exit selection mode if nothing is selected
+        if (selectedVideoIds.isEmpty()) {
+            exitSelectionMode()
+        }
     }
 
     inner class VideoViewHolder(
@@ -50,20 +100,56 @@ class VideoAdapter(
                 binding.videoThumbnail.setImageResource(R.drawable.bg_thumbnail_placeholder)
             }
 
-            // Set favourite icon
-            binding.favouriteButton.setImageResource(
-                if (video.isFavourite) R.drawable.ic_favourite_filled
-                else R.drawable.ic_favourite
-            )
+            // Set favourite icon with proper color
+            if (video.isFavourite) {
+                binding.favouriteButton.setImageResource(R.drawable.ic_favourite_filled)
+                binding.favouriteButton.setColorFilter(
+                    ContextCompat.getColor(binding.root.context, R.color.favourite_active)
+                )
+            } else {
+                binding.favouriteButton.setImageResource(R.drawable.ic_favourite)
+                binding.favouriteButton.setColorFilter(
+                    ContextCompat.getColor(binding.root.context, R.color.favourite_inactive)
+                )
+            }
+
+            // Handle selection mode UI
+            val isSelected = selectedVideoIds.contains(video.id)
+            binding.selectionCheckbox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
+            binding.selectionCheckbox.isChecked = isSelected
+            binding.videoCard.alpha = if (isSelectionMode && !isSelected) 0.6f else 1.0f
 
             // Click listeners
             binding.videoCard.setOnClickListener {
-                onVideoClick(video)
+                if (isSelectionMode) {
+                    toggleSelection(video.id)
+                    notifyItemChanged(bindingAdapterPosition)
+                } else {
+                    onVideoClick(video)
+                }
+            }
+
+            binding.videoCard.setOnLongClickListener {
+                if (!isSelectionMode) {
+                    // Enter selection mode and select this item
+                    isSelectionMode = true
+                    selectedVideoIds.add(video.id)
+                    onSelectionChanged?.invoke(selectedVideoIds)
+                    notifyDataSetChanged()
+                    onVideoLongClick?.invoke(video) ?: true
+                } else {
+                    true
+                }
             }
 
             binding.favouriteButton.setOnClickListener {
-                onFavouriteClick(video)
+                if (!isSelectionMode) {
+                    onFavouriteClick(video)
+                }
             }
+            
+            // Hide favourite button in selection mode
+            binding.favouriteButton.visibility = if (isSelectionMode) View.GONE else View.VISIBLE
         }
     }
 

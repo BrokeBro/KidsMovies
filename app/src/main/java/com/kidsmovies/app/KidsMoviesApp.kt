@@ -6,31 +6,21 @@ import com.kidsmovies.app.data.repository.*
 
 class KidsMoviesApp : Application() {
 
-    val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
-
-    val videoRepository: VideoRepository by lazy {
-        VideoRepository(database.videoDao(), database.tagDao())
+    companion object {
+        lateinit var instance: KidsMoviesApp
+            private set
     }
 
-    val settingsRepository: SettingsRepository by lazy {
-        SettingsRepository(database.appSettingsDao(), database.scanFolderDao())
-    }
+    private val database by lazy { AppDatabase.getInstance(this) }
 
-    val parentalControlRepository: ParentalControlRepository by lazy {
-        ParentalControlRepository(database.parentalControlDao())
-    }
-
-    val tagRepository: TagRepository by lazy {
-        TagRepository(database.tagDao())
-    }
+    val videoRepository by lazy { VideoRepository(database.videoDao()) }
+    val tagRepository by lazy { TagRepository(database.tagDao()) }
+    val settingsRepository by lazy { SettingsRepository(database.appSettingsDao(), database.scanFolderDao()) }
+    val parentalControlRepository by lazy { ParentalControlRepository(database.parentalControlDao()) }
+    val collectionRepository by lazy { CollectionRepository(database.collectionDao()) }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-    }
-
-    companion object {
-        lateinit var instance: KidsMoviesApp
-            private set
     }
 }
