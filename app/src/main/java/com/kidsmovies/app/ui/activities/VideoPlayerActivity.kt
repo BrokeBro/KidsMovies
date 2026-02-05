@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.SurfaceHolder
 import android.view.View
 import android.widget.SeekBar
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -74,6 +75,16 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setupUI()
         setupListeners()
         setupSurface()
+        setupBackHandler()
+    }
+
+    private fun setupBackHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                savePlaybackPosition()
+                finish()
+            }
+        })
     }
 
     private fun setupImmersiveMode() {
@@ -355,11 +366,6 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         mediaPlayer?.pause()
         isPlaying = false
         updatePlayPauseButton()
-    }
-
-    override fun onBackPressed() {
-        savePlaybackPosition()
-        super.onBackPressed()
     }
 
     override fun onDestroy() {
