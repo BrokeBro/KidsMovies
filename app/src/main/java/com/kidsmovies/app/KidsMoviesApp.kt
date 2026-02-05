@@ -11,7 +11,7 @@ class KidsMoviesApp : Application() {
             private set
     }
 
-    private val database by lazy { AppDatabase.getInstance(this) }
+    val database by lazy { AppDatabase.getInstance(this) }
 
     val videoRepository by lazy { VideoRepository(database.videoDao()) }
     val tagRepository by lazy { TagRepository(database.tagDao()) }
