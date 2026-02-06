@@ -115,7 +115,7 @@ class CollectionDetailActivity : AppCompatActivity() {
 
     private fun toggleFavourite(video: Video) {
         lifecycleScope.launch {
-            app.videoRepository.setFavourite(video.id, !video.isFavourite)
+            app.videoRepository.updateFavourite(video.id, !video.isFavourite)
             loadVideos()
         }
     }
