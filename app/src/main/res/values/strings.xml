@@ -71,6 +71,13 @@
     <string name="online_section">Online</string>
     <string name="onedrive_settings">OneDrive Settings</string>
     <string name="onedrive_desc">Connect to OneDrive for online videos</string>
+    <string name="navigation">Navigation</string>
+    <string name="navigation_tabs_desc">Choose which tabs to show in the navigation</string>
+    <string name="show_all_movies_tab">All Movies</string>
+    <string name="show_favourites_tab">My Favourites</string>
+    <string name="show_collections_tab">Collections</string>
+    <string name="show_recent_tab">Recently Watched</string>
+    <string name="show_online_tab">Online Videos</string>
 
     <!-- Folder Picker -->
     <string name="select_folder">Select Folder</string>

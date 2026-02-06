@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/videoCard"
+    android:layout_width="140dp"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/background_card"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:rippleColor="@color/ripple_color">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Thumbnail with 16:9 aspect ratio -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            app:layout_constraintDimensionRatio="16:9">
+
+            <ImageView
+                android:id="@+id/videoThumbnail"
+                android:layout_width="match_parent"
+                android:layout_height="79dp"
+                android:background="@drawable/bg_thumbnail_placeholder"
+                android:contentDescription="@string/cd_video_thumbnail"
+                android:scaleType="centerCrop" />
+
+            <!-- Duration badge -->
+            <TextView
+                android:id="@+id/durationBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="4dp"
+                android:background="@drawable/bg_duration_badge"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="1dp"
+                android:textColor="@color/white"
+                android:textSize="10sp"
+                tools:text="1:30:45" />
+
+            <!-- Favourite indicator -->
+            <ImageView
+                android:id="@+id/favouriteIndicator"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="4dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_favourite_filled"
+                android:visibility="gone"
+                app:tint="@color/favourite_active" />
+
+        </FrameLayout>
+
+        <!-- Video title -->
+        <TextView
+            android:id="@+id/videoTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:minLines="2"
+            android:padding="8dp"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            tools:text="Video Title Here" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

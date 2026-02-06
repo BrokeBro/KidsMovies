@@ -1,0 +1,72 @@
+package com.kidsmovies.app.ui.adapters
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.kidsmovies.app.R
+import com.kidsmovies.app.data.database.entities.Video
+import com.kidsmovies.app.databinding.ItemVideoCarouselBinding
+import java.io.File
+
+class VideoCarouselAdapter(
+    private val onVideoClick: (Video) -> Unit
+) : ListAdapter<Video, VideoCarouselAdapter.VideoViewHolder>(VideoDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VideoViewHolder {
+        val binding = ItemVideoCarouselBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return VideoViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: VideoViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class VideoViewHolder(
+        private val binding: ItemVideoCarouselBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(video: Video) {
+            binding.videoTitle.text = video.title
+            binding.durationBadge.text = video.getFormattedDuration()
+
+            // Load thumbnail
+            val thumbnailPath = video.getDisplayThumbnail()
+            if (thumbnailPath != null && File(thumbnailPath).exists()) {
+                Glide.with(binding.videoThumbnail)
+                    .load(File(thumbnailPath))
+                    .transform(CenterCrop(), RoundedCorners(8))
+                    .placeholder(R.drawable.bg_thumbnail_placeholder)
+                    .error(R.drawable.bg_thumbnail_placeholder)
+                    .into(binding.videoThumbnail)
+            } else {
+                binding.videoThumbnail.setImageResource(R.drawable.bg_thumbnail_placeholder)
+            }
+
+            // Show favourite indicator
+            binding.favouriteIndicator.visibility = if (video.isFavourite) View.VISIBLE else View.GONE
+
+            // Click listener
+            binding.videoCard.setOnClickListener {
+                onVideoClick(video)
+            }
+        }
+    }
+
+    private class VideoDiffCallback : DiffUtil.ItemCallback<Video>() {
+        override fun areItemsTheSame(oldItem: Video, newItem: Video): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Video, newItem: Video): Boolean {
+            return oldItem == newItem
+        }
+    }
+}

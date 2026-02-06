@@ -19,6 +19,7 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivityMainBinding
 import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.ui.fragments.AllVideosFragment
+import com.kidsmovies.app.ui.fragments.CollectionsFragment
 import com.kidsmovies.app.ui.fragments.FavouritesFragment
 import com.kidsmovies.app.ui.fragments.OnlineVideosFragment
 import com.kidsmovies.app.ui.fragments.RecentVideosFragment
@@ -30,6 +31,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var app: KidsMoviesApp
     private var isSearchVisible = false
+    private var visibleTabs = mutableListOf<TabItem>()
+    private var tabLayoutMediator: TabLayoutMediator? = null
+
+    private data class TabItem(
+        val type: TabType,
+        val titleResId: Int,
+        val iconResId: Int,
+        val fragmentFactory: () -> Fragment
+    )
+
+    private enum class TabType {
+        ALL_MOVIES, FAVOURITES, COLLECTIONS, RECENT, ONLINE
+    }
 
     private val scanReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -63,9 +77,9 @@ class MainActivity : AppCompatActivity() {
         app = application as KidsMoviesApp
 
         setupUI()
-        setupViewPager()
         setupListeners()
         loadGreeting()
+        loadTabsFromSettings()
 
         // Register scan receiver
         val filter = IntentFilter().apply {
@@ -80,6 +94,8 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             ThemeManager.applyTheme(this@MainActivity)
         }
+        // Reload tabs in case settings changed
+        loadTabsFromSettings()
     }
 
     override fun onDestroy() {
@@ -91,27 +107,50 @@ class MainActivity : AppCompatActivity() {
         binding.searchInputLayout.visibility = View.GONE
     }
 
+    private fun loadTabsFromSettings() {
+        lifecycleScope.launch {
+            val settings = app.settingsRepository.getSettings()
+
+            val allTabs = listOf(
+                TabItem(TabType.ALL_MOVIES, R.string.all_movies, R.drawable.ic_movie) { AllVideosFragment() },
+                TabItem(TabType.FAVOURITES, R.string.my_favourites, R.drawable.ic_favourite) { FavouritesFragment() },
+                TabItem(TabType.COLLECTIONS, R.string.collections, R.drawable.ic_collections) { CollectionsFragment() },
+                TabItem(TabType.RECENT, R.string.recently_watched, R.drawable.ic_history) { RecentVideosFragment() },
+                TabItem(TabType.ONLINE, R.string.online_videos, R.drawable.ic_cloud) { OnlineVideosFragment() }
+            )
+
+            val newVisibleTabs = allTabs.filter { tab ->
+                when (tab.type) {
+                    TabType.ALL_MOVIES -> settings?.showAllMoviesTab ?: true
+                    TabType.FAVOURITES -> settings?.showFavouritesTab ?: true
+                    TabType.COLLECTIONS -> settings?.showCollectionsTab ?: true
+                    TabType.RECENT -> settings?.showRecentTab ?: true
+                    TabType.ONLINE -> settings?.showOnlineTab ?: true
+                }
+            }
+
+            // Only update if tabs changed
+            if (visibleTabs.map { it.type } != newVisibleTabs.map { it.type }) {
+                visibleTabs.clear()
+                visibleTabs.addAll(newVisibleTabs)
+                setupViewPager()
+            }
+        }
+    }
+
     private fun setupViewPager() {
+        // Detach existing mediator
+        tabLayoutMediator?.detach()
+
         binding.viewPager.adapter = MainPagerAdapter(this)
 
-        TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
-            tab.text = when (position) {
-                0 -> getString(R.string.all_movies)
-                1 -> getString(R.string.my_favourites)
-                2 -> getString(R.string.recently_watched)
-                3 -> getString(R.string.online_videos)
-                else -> ""
+        tabLayoutMediator = TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
+            if (position < visibleTabs.size) {
+                tab.text = getString(visibleTabs[position].titleResId)
+                tab.setIcon(visibleTabs[position].iconResId)
             }
-            tab.setIcon(
-                when (position) {
-                    0 -> R.drawable.ic_movie
-                    1 -> R.drawable.ic_favourite
-                    2 -> R.drawable.ic_history
-                    3 -> R.drawable.ic_cloud
-                    else -> R.drawable.ic_movie
-                }
-            )
-        }.attach()
+        }
+        tabLayoutMediator?.attach()
     }
 
     private fun setupListeners() {
@@ -184,15 +223,13 @@ class MainActivity : AppCompatActivity() {
     private inner class MainPagerAdapter(activity: AppCompatActivity) :
         FragmentStateAdapter(activity) {
 
-        override fun getItemCount(): Int = 4
+        override fun getItemCount(): Int = visibleTabs.size
 
         override fun createFragment(position: Int): Fragment {
-            return when (position) {
-                0 -> AllVideosFragment()
-                1 -> FavouritesFragment()
-                2 -> RecentVideosFragment()
-                3 -> OnlineVideosFragment()
-                else -> AllVideosFragment()
+            return if (position < visibleTabs.size) {
+                visibleTabs[position].fragmentFactory()
+            } else {
+                AllVideosFragment()
             }
         }
     }

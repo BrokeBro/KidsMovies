@@ -77,6 +77,13 @@ class SettingsActivity : AppCompatActivity() {
 
                 updateColorSchemeDisplay()
                 updateGridColumnsDisplay()
+
+                // Load navigation tab visibility settings
+                binding.showAllMoviesCheckbox.isChecked = it.showAllMoviesTab
+                binding.showFavouritesCheckbox.isChecked = it.showFavouritesTab
+                binding.showCollectionsCheckbox.isChecked = it.showCollectionsTab
+                binding.showRecentCheckbox.isChecked = it.showRecentTab
+                binding.showOnlineCheckbox.isChecked = it.showOnlineTab
             }
         }
     }
@@ -143,6 +150,37 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.oneDriveOption.setOnClickListener {
             Toast.makeText(this, "OneDrive integration coming soon!", Toast.LENGTH_SHORT).show()
+        }
+
+        // Navigation tab visibility checkboxes
+        binding.showAllMoviesCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                app.settingsRepository.setShowAllMoviesTab(isChecked)
+            }
+        }
+
+        binding.showFavouritesCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                app.settingsRepository.setShowFavouritesTab(isChecked)
+            }
+        }
+
+        binding.showCollectionsCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                app.settingsRepository.setShowCollectionsTab(isChecked)
+            }
+        }
+
+        binding.showRecentCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                app.settingsRepository.setShowRecentTab(isChecked)
+            }
+        }
+
+        binding.showOnlineCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            lifecycleScope.launch {
+                app.settingsRepository.setShowOnlineTab(isChecked)
+            }
         }
     }
 

@@ -38,6 +38,17 @@ class SettingsRepository(
     suspend fun updateOneDriveSettings(url: String, enabled: Boolean) =
         appSettingsDao.updateOneDriveSettings(url, enabled)
 
+    // Tab Visibility Settings
+    suspend fun setShowAllMoviesTab(show: Boolean) = appSettingsDao.updateShowAllMoviesTab(show)
+
+    suspend fun setShowFavouritesTab(show: Boolean) = appSettingsDao.updateShowFavouritesTab(show)
+
+    suspend fun setShowCollectionsTab(show: Boolean) = appSettingsDao.updateShowCollectionsTab(show)
+
+    suspend fun setShowRecentTab(show: Boolean) = appSettingsDao.updateShowRecentTab(show)
+
+    suspend fun setShowOnlineTab(show: Boolean) = appSettingsDao.updateShowOnlineTab(show)
+
     // Scan Folders
     fun getAllFoldersFlow(): Flow<List<ScanFolder>> = scanFolderDao.getAllFoldersFlow()
 

@@ -142,6 +142,97 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Navigation Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/navigation"
+                android:textColor="@color/primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/background_card"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:text="@string/navigation_tabs_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <CheckBox
+                        android:id="@+id/showAllMoviesCheckbox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:checked="true"
+                        android:paddingStart="8dp"
+                        android:text="@string/show_all_movies_tab"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <CheckBox
+                        android:id="@+id/showFavouritesCheckbox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:checked="true"
+                        android:paddingStart="8dp"
+                        android:text="@string/show_favourites_tab"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <CheckBox
+                        android:id="@+id/showCollectionsCheckbox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:checked="true"
+                        android:paddingStart="8dp"
+                        android:text="@string/show_collections_tab"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <CheckBox
+                        android:id="@+id/showRecentCheckbox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:checked="true"
+                        android:paddingStart="8dp"
+                        android:text="@string/show_recent_tab"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <CheckBox
+                        android:id="@+id/showOnlineCheckbox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:buttonTint="@color/primary"
+                        android:checked="true"
+                        android:paddingStart="8dp"
+                        android:text="@string/show_online_tab"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Library Section -->
             <TextView
                 android:layout_width="wrap_content"

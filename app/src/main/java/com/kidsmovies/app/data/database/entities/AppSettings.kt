@@ -16,5 +16,11 @@ data class AppSettings(
     val gridColumns: Int = 4, // Number of columns in grid
     val sortOrder: String = "title_asc", // title_asc, title_desc, date_asc, date_desc, recent
     val oneDriveFolderUrl: String = "",
-    val oneDriveEnabled: Boolean = false
+    val oneDriveEnabled: Boolean = false,
+    // Navigation tab visibility settings
+    val showAllMoviesTab: Boolean = true,
+    val showFavouritesTab: Boolean = true,
+    val showCollectionsTab: Boolean = true,
+    val showRecentTab: Boolean = true,
+    val showOnlineTab: Boolean = true
 )

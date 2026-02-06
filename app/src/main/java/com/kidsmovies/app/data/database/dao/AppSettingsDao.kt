@@ -45,4 +45,19 @@ interface AppSettingsDao {
 
     @Query("SELECT colorScheme FROM app_settings WHERE id = 1")
     suspend fun getColorScheme(): String?
+
+    @Query("UPDATE app_settings SET showAllMoviesTab = :show WHERE id = 1")
+    suspend fun updateShowAllMoviesTab(show: Boolean)
+
+    @Query("UPDATE app_settings SET showFavouritesTab = :show WHERE id = 1")
+    suspend fun updateShowFavouritesTab(show: Boolean)
+
+    @Query("UPDATE app_settings SET showCollectionsTab = :show WHERE id = 1")
+    suspend fun updateShowCollectionsTab(show: Boolean)
+
+    @Query("UPDATE app_settings SET showRecentTab = :show WHERE id = 1")
+    suspend fun updateShowRecentTab(show: Boolean)
+
+    @Query("UPDATE app_settings SET showOnlineTab = :show WHERE id = 1")
+    suspend fun updateShowOnlineTab(show: Boolean)
 }
