@@ -3,76 +3,78 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/videoCard"
-    android:layout_width="140dp"
+    android:layout_width="120dp"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="4dp"
+    android:layout_marginEnd="12dp"
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/background_card"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
     app:rippleColor="@color/ripple_color">
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="wrap_content">
 
-        <!-- Thumbnail with 16:9 aspect ratio -->
-        <FrameLayout
-            android:layout_width="match_parent"
+        <!-- Thumbnail with 2:3 poster aspect ratio -->
+        <ImageView
+            android:id="@+id/videoThumbnail"
+            android:layout_width="0dp"
             android:layout_height="0dp"
-            app:layout_constraintDimensionRatio="16:9">
+            android:background="@drawable/bg_thumbnail_placeholder"
+            android:contentDescription="@string/cd_video_thumbnail"
+            android:scaleType="centerCrop"
+            app:layout_constraintDimensionRatio="2:3"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <ImageView
-                android:id="@+id/videoThumbnail"
-                android:layout_width="match_parent"
-                android:layout_height="79dp"
-                android:background="@drawable/bg_thumbnail_placeholder"
-                android:contentDescription="@string/cd_video_thumbnail"
-                android:scaleType="centerCrop" />
+        <!-- Duration badge -->
+        <TextView
+            android:id="@+id/durationBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_duration_badge"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/white"
+            android:textSize="10sp"
+            app:layout_constraintBottom_toBottomOf="@id/videoThumbnail"
+            app:layout_constraintEnd_toEndOf="@id/videoThumbnail"
+            tools:text="1:30:45" />
 
-            <!-- Duration badge -->
-            <TextView
-                android:id="@+id/durationBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
-                android:layout_margin="4dp"
-                android:background="@drawable/bg_duration_badge"
-                android:paddingHorizontal="4dp"
-                android:paddingVertical="1dp"
-                android:textColor="@color/white"
-                android:textSize="10sp"
-                tools:text="1:30:45" />
-
-            <!-- Favourite indicator -->
-            <ImageView
-                android:id="@+id/favouriteIndicator"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:layout_gravity="top|end"
-                android:layout_margin="4dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_favourite_filled"
-                android:visibility="gone"
-                app:tint="@color/favourite_active" />
-
-        </FrameLayout>
+        <!-- Favourite indicator -->
+        <ImageView
+            android:id="@+id/favouriteIndicator"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_margin="6dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_favourite_filled"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/videoThumbnail"
+            app:layout_constraintTop_toTopOf="@id/videoThumbnail"
+            app:tint="@color/favourite_active" />
 
         <!-- Video title -->
         <TextView
             android:id="@+id/videoTitle"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="2"
-            android:minLines="2"
             android:padding="8dp"
             android:textColor="@color/text_primary"
             android:textSize="12sp"
-            tools:text="Video Title Here" />
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/videoThumbnail"
+            tools:text="Video Title" />
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </com.google.android.material.card.MaterialCardView>

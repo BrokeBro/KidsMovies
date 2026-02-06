@@ -13,6 +13,7 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.FragmentCollectionsBinding
+import com.kidsmovies.app.ui.activities.CollectionDetailActivity
 import com.kidsmovies.app.ui.activities.VideoPlayerActivity
 import com.kidsmovies.app.ui.adapters.CollectionRowAdapter
 import com.kidsmovies.app.ui.adapters.CollectionWithVideos
@@ -112,8 +113,11 @@ class CollectionsFragment : Fragment() {
     }
 
     private fun viewCollection(collection: VideoCollection) {
-        // TODO: Open a detailed collection view if needed
-        // For now, the carousel shows all videos in the collection
+        val intent = Intent(requireContext(), CollectionDetailActivity::class.java).apply {
+            putExtra(CollectionDetailActivity.EXTRA_COLLECTION_ID, collection.id)
+            putExtra(CollectionDetailActivity.EXTRA_COLLECTION_NAME, collection.name)
+        }
+        startActivity(intent)
     }
 
     override fun onDestroyView() {

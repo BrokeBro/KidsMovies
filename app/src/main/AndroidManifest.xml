@@ -76,6 +76,12 @@
             android:exported="false"
             android:theme="@style/Theme.KidsMovies" />
 
+        <!-- Collection Detail Activity -->
+        <activity
+            android:name=".ui.activities.CollectionDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
         <!-- Video Scanner Service -->
         <service
             android:name=".services.VideoScannerService"

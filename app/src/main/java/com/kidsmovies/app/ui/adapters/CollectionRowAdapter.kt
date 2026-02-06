@@ -65,7 +65,7 @@ class CollectionRowAdapter(
             videoAdapter.submitList(videos)
 
             // Click on collection header to view full collection
-            binding.root.setOnClickListener {
+            binding.collectionHeader.setOnClickListener {
                 onCollectionClick(collection)
             }
         }
