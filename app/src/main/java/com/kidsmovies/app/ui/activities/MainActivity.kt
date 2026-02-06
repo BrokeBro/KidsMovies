@@ -22,6 +22,7 @@ import com.kidsmovies.app.ui.fragments.AllVideosFragment
 import com.kidsmovies.app.ui.fragments.FavouritesFragment
 import com.kidsmovies.app.ui.fragments.OnlineVideosFragment
 import com.kidsmovies.app.ui.fragments.RecentVideosFragment
+import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -72,6 +73,13 @@ class MainActivity : AppCompatActivity() {
             addAction(VideoScannerService.ACTION_SCAN_PROGRESS)
         }
         LocalBroadcastManager.getInstance(this).registerReceiver(scanReceiver, filter)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            ThemeManager.applyTheme(this@MainActivity)
+        }
     }
 
     override fun onDestroy() {

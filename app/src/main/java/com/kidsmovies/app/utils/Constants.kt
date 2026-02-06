@@ -21,14 +21,6 @@ object Constants {
         "video/mpeg"
     )
 
-    // Default scan folders
-    val DEFAULT_SCAN_FOLDERS = listOf(
-        "/storage/emulated/0/Movies",
-        "/storage/emulated/0/Download",
-        "/storage/emulated/0/DCIM",
-        "/storage/emulated/0/Video"
-    )
-
     // Thumbnail settings
     const val THUMBNAIL_WIDTH = 320
     const val THUMBNAIL_HEIGHT = 180

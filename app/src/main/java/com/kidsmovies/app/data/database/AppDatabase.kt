@@ -20,9 +20,10 @@ import kotlinx.coroutines.launch
         ScanFolder::class,
         AppSettings::class,
         ParentalControl::class,
-        VideoCollection::class
+        VideoCollection::class,
+        VideoCollectionCrossRef::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // Add new columns to videos table
                 db.execSQL("ALTER TABLE videos ADD COLUMN playbackPosition INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE videos ADD COLUMN collectionId INTEGER DEFAULT NULL")
-                
+
                 // Create collections table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS collections (
@@ -58,6 +59,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 2 to 3: Add video_collection_cross_ref table for many-to-many relationship
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create video_collection_cross_ref table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS video_collection_cross_ref (
+                        videoId INTEGER NOT NULL,
+                        collectionId INTEGER NOT NULL,
+                        PRIMARY KEY(videoId, collectionId),
+                        FOREIGN KEY(videoId) REFERENCES videos(id) ON DELETE CASCADE,
+                        FOREIGN KEY(collectionId) REFERENCES collections(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_video_collection_cross_ref_videoId ON video_collection_cross_ref(videoId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_video_collection_cross_ref_collectionId ON video_collection_cross_ref(collectionId)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -68,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

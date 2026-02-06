@@ -18,6 +18,7 @@ import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.utils.ColorSchemes
 import com.kidsmovies.app.utils.Constants
 import com.kidsmovies.app.utils.DatabaseExportImport
+import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -52,6 +53,13 @@ class SettingsActivity : AppCompatActivity() {
         setupToolbar()
         loadSettings()
         setupListeners()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            ThemeManager.applyTheme(this@SettingsActivity)
+        }
     }
 
     private fun setupToolbar() {
@@ -150,6 +158,9 @@ class SettingsActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     app.settingsRepository.setColorScheme(currentColorScheme)
                     updateColorSchemeDisplay()
+                    // Clear theme cache and reapply
+                    ThemeManager.clearCache()
+                    ThemeManager.applyTheme(this@SettingsActivity)
                 }
                 dialog.dismiss()
             }

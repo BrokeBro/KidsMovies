@@ -78,27 +78,15 @@ class VideoScannerService : Service() {
         val videoRepository = app.videoRepository
         val settingsRepository = app.settingsRepository
 
-        // Get configured scan folders
-        val scanFolders = settingsRepository.getEnabledFolders()
-
-        if (scanFolders.isEmpty()) {
-            // If no folders configured, use default folders
-            val defaultFolders = FileUtils.getDefaultStorageFolders()
-            defaultFolders.forEach { path ->
-                if (!settingsRepository.folderExists(path)) {
-                    settingsRepository.addFolder(
-                        ScanFolder(
-                            path = path,
-                            name = FileUtils.getFolderName(path),
-                            includeSubfolders = true,
-                            isEnabled = true
-                        )
-                    )
-                }
-            }
-        }
-
+        // Get configured scan folders - only scan user-selected folders
         val enabledFolders = settingsRepository.getEnabledFolders()
+
+        if (enabledFolders.isEmpty()) {
+            // No folders configured - send completion with 0 videos
+            // User should add their own folders via Settings > Scan Folders
+            sendCompletionBroadcast(0, 0, 0)
+            return
+        }
 
         // Collect all video files
         val allVideoFiles = mutableListOf<File>()

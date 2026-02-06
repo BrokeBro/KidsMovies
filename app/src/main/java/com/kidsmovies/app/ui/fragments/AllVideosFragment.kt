@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -13,9 +14,11 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
+import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.FragmentVideoGridBinding
 import com.kidsmovies.app.ui.activities.VideoPlayerActivity
 import com.kidsmovies.app.ui.adapters.VideoAdapter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -82,18 +85,118 @@ class AllVideosFragment : Fragment() {
 
     private fun setupSelectionToolbar() {
         binding.selectionToolbar.visibility = View.GONE
-        
+
         binding.cancelSelectionButton.setOnClickListener {
             videoAdapter.exitSelectionMode()
             hideSelectionToolbar()
         }
-        
+
         binding.selectAllButton.setOnClickListener {
             videoAdapter.selectAll()
         }
-        
+
+        binding.addToCollectionButton.setOnClickListener {
+            showAddToCollectionDialog()
+        }
+
         binding.deleteSelectedButton.setOnClickListener {
             showDeleteConfirmationDialog()
+        }
+    }
+
+    private fun showAddToCollectionDialog() {
+        val selectedIds = videoAdapter.getSelectedVideoIds()
+        if (selectedIds.isEmpty()) {
+            Toast.makeText(requireContext(), "No videos selected", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val collections = app.collectionRepository.getAllCollections()
+
+            if (collections.isEmpty()) {
+                // No collections exist, prompt to create one
+                showCreateCollectionDialog(selectedIds)
+            } else {
+                // Show collection picker with option to create new
+                showCollectionPickerDialog(collections, selectedIds)
+            }
+        }
+    }
+
+    private fun showCollectionPickerDialog(collections: List<VideoCollection>, selectedVideoIds: Set<Long>) {
+        val options = collections.map { it.name }.toMutableList()
+        options.add(getString(R.string.new_collection))
+
+        AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.add_to_collection)
+            .setItems(options.toTypedArray()) { _, which ->
+                if (which == options.size - 1) {
+                    // Create new collection
+                    showCreateCollectionDialog(selectedVideoIds)
+                } else {
+                    // Add to existing collection
+                    addVideosToCollection(collections[which], selectedVideoIds)
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showCreateCollectionDialog(selectedVideoIds: Set<Long>) {
+        val input = EditText(requireContext()).apply {
+            hint = getString(R.string.collection_name)
+            setPadding(48, 32, 48, 32)
+        }
+
+        AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.new_collection)
+            .setView(input)
+            .setPositiveButton(R.string.save) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    createCollectionAndAddVideos(name, selectedVideoIds)
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun createCollectionAndAddVideos(name: String, videoIds: Set<Long>) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val collection = VideoCollection(name = name)
+            val collectionId = app.collectionRepository.insertCollection(collection)
+
+            // Add videos to collection
+            videoIds.forEach { videoId ->
+                app.collectionRepository.addVideoToCollection(collectionId, videoId)
+            }
+
+            Toast.makeText(
+                requireContext(),
+                "Added ${videoIds.size} video(s) to \"$name\"",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            videoAdapter.exitSelectionMode()
+            hideSelectionToolbar()
+        }
+    }
+
+    private fun addVideosToCollection(collection: VideoCollection, videoIds: Set<Long>) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            videoIds.forEach { videoId ->
+                app.collectionRepository.addVideoToCollection(collection.id, videoId)
+            }
+
+            Toast.makeText(
+                requireContext(),
+                "Added ${videoIds.size} video(s) to \"${collection.name}\"",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            videoAdapter.exitSelectionMode()
+            hideSelectionToolbar()
         }
     }
 

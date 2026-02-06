@@ -19,6 +19,7 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivitySetupBinding
 import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.ui.fragments.*
+import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.launch
 
 class SetupActivity : AppCompatActivity() {
@@ -62,6 +63,13 @@ class SetupActivity : AppCompatActivity() {
             addAction(VideoScannerService.ACTION_SCAN_PROGRESS)
         }
         LocalBroadcastManager.getInstance(this).registerReceiver(scanReceiver, filter)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            ThemeManager.applyTheme(this@SetupActivity)
+        }
     }
 
     override fun onDestroy() {
@@ -161,6 +169,12 @@ class SetupActivity : AppCompatActivity() {
 
     fun setSelectedColorScheme(scheme: String) {
         selectedColorScheme = scheme
+        // Apply the color scheme preview immediately
+        lifecycleScope.launch {
+            app.settingsRepository.setColorScheme(scheme)
+            ThemeManager.clearCache()
+            ThemeManager.applyTheme(this@SetupActivity)
+        }
     }
 
     fun getSelectedColorScheme(): String = selectedColorScheme

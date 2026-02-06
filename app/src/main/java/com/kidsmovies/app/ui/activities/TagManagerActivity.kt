@@ -18,6 +18,7 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Tag
 import com.kidsmovies.app.databinding.ActivityTagManagerBinding
 import com.kidsmovies.app.databinding.ItemTagBinding
+import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,13 @@ class TagManagerActivity : AppCompatActivity() {
         setupRecyclerView()
         setupFab()
         observeTags()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            ThemeManager.applyTheme(this@TagManagerActivity)
+        }
     }
 
     private fun setupToolbar() {

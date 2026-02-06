@@ -19,6 +19,7 @@ import com.kidsmovies.app.data.database.entities.ScanFolder
 import com.kidsmovies.app.databinding.ActivityFolderPickerBinding
 import com.kidsmovies.app.databinding.ItemFolderBinding
 import com.kidsmovies.app.utils.FileUtils
+import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,13 @@ class FolderPickerActivity : AppCompatActivity() {
         setupRecyclerView()
         setupFab()
         observeFolders()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            ThemeManager.applyTheme(this@FolderPickerActivity)
+        }
     }
 
     private fun setupToolbar() {
