@@ -12,6 +12,7 @@ data class VideoCollection(
     val id: Long = 0,
     val name: String,
     val description: String = "",
+    val thumbnailPath: String? = null, // Custom thumbnail for the collection
     val sortOrder: Int = 0, // For ordering collections on the home screen
     val dateCreated: Long = System.currentTimeMillis(),
     val dateModified: Long = System.currentTimeMillis()
