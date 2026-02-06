@@ -18,6 +18,7 @@ import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.FragmentVideoGridBinding
 import com.kidsmovies.app.ui.activities.VideoPlayerActivity
 import com.kidsmovies.app.ui.adapters.VideoAdapter
+import com.kidsmovies.app.ui.dialogs.VideoOptionsBottomSheet
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -66,12 +67,60 @@ class AllVideosFragment : Fragment() {
                 if (selectedIds.isEmpty()) {
                     hideSelectionToolbar()
                 }
-            }
+            },
+            onOptionsClick = { video -> showVideoOptionsBottomSheet(video) }
         )
 
         binding.videoRecyclerView.apply {
             layoutManager = GridLayoutManager(context, 4)
             adapter = videoAdapter
+        }
+    }
+
+    private fun showVideoOptionsBottomSheet(video: Video) {
+        val bottomSheet = VideoOptionsBottomSheet.newInstance(
+            video = video,
+            onVideoUpdated = { updatedVideo ->
+                // Refresh the list to show updated thumbnail/favourite state
+                updateDisplay()
+            },
+            onVideoRemoved = { videoToRemove ->
+                showSingleVideoDeleteConfirmation(videoToRemove)
+            },
+            onAddToCollection = { videoForCollection ->
+                showAddSingleVideoToCollectionDialog(videoForCollection)
+            }
+        )
+        bottomSheet.show(childFragmentManager, VideoOptionsBottomSheet.TAG)
+    }
+
+    private fun showSingleVideoDeleteConfirmation(video: Video) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.remove_from_library)
+            .setMessage(getString(R.string.remove_videos_message, 1))
+            .setPositiveButton(R.string.remove) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    app.videoRepository.deleteVideoById(video.id)
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.videos_removed_from_library, 1),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showAddSingleVideoToCollectionDialog(video: Video) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val collections = app.collectionRepository.getAllCollections()
+
+            if (collections.isEmpty()) {
+                showCreateCollectionDialog(setOf(video.id))
+            } else {
+                showCollectionPickerDialog(collections, setOf(video.id))
+            }
         }
     }
 

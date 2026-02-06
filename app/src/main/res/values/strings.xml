@@ -45,6 +45,11 @@
     <string name="play_video">Play Video</string>
     <string name="edit_tags">Edit Tags</string>
     <string name="change_thumbnail">Change Thumbnail</string>
+    <string name="thumbnail_recommendation">Recommended: 480x270 pixels (16:9 ratio)</string>
+    <string name="reset_thumbnail">Reset to Default Thumbnail</string>
+    <string name="thumbnail_changed">Thumbnail updated successfully</string>
+    <string name="thumbnail_reset">Thumbnail reset to default</string>
+    <string name="select_image">Select an image</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

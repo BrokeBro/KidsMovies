@@ -19,7 +19,8 @@ class VideoAdapter(
     private val onVideoClick: (Video) -> Unit,
     private val onFavouriteClick: (Video) -> Unit,
     private val onVideoLongClick: ((Video) -> Boolean)? = null,
-    private val onSelectionChanged: ((Set<Long>) -> Unit)? = null
+    private val onSelectionChanged: ((Set<Long>) -> Unit)? = null,
+    private val onOptionsClick: ((Video) -> Unit)? = null
 ) : ListAdapter<Video, VideoAdapter.VideoViewHolder>(VideoDiffCallback()) {
 
     private var isSelectionMode = false
@@ -147,9 +148,16 @@ class VideoAdapter(
                     onFavouriteClick(video)
                 }
             }
-            
-            // Hide favourite button in selection mode
+
+            binding.optionsButton.setOnClickListener {
+                if (!isSelectionMode) {
+                    onOptionsClick?.invoke(video)
+                }
+            }
+
+            // Hide favourite and options buttons in selection mode
             binding.favouriteButton.visibility = if (isSelectionMode) View.GONE else View.VISIBLE
+            binding.optionsButton.visibility = if (isSelectionMode) View.GONE else View.VISIBLE
         }
     }
 
