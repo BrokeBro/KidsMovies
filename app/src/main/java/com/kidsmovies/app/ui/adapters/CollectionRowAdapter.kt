@@ -48,7 +48,6 @@ class CollectionRowAdapter(
                 adapter = videoAdapter
                 layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
                 setRecycledViewPool(viewPool)
-                setHasFixedSize(true)
             }
         }
 
@@ -62,7 +61,8 @@ class CollectionRowAdapter(
                 videos.size
             )
 
-            videoAdapter.submitList(videos)
+            // Submit a copy of the list to ensure proper updates
+            videoAdapter.submitList(videos.toList())
 
             // Click on collection header to view full collection
             binding.collectionHeader.setOnClickListener {
