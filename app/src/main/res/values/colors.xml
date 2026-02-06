@@ -20,6 +20,9 @@
     <color name="text_secondary">#B0B0B0</color>
     <color name="text_hint">#757575</color>
 
+    <!-- Divider -->
+    <color name="divider">#2A2A4A</color>
+
     <!-- Status colors -->
     <color name="success">#4CAF50</color>
     <color name="error">#F44336</color>
