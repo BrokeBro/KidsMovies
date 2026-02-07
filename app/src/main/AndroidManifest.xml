@@ -88,6 +88,18 @@
             android:exported="false"
             android:theme="@style/Theme.KidsMovies" />
 
+        <!-- Pairing Activity -->
+        <activity
+            android:name=".pairing.PairingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Lock Screen Activity -->
+        <activity
+            android:name=".enforcement.LockScreenActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
         <!-- Video Scanner Service -->
         <service
             android:name=".services.VideoScannerService"

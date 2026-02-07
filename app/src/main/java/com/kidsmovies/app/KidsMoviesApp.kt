@@ -3,6 +3,15 @@ package com.kidsmovies.app
 import android.app.Application
 import com.kidsmovies.app.data.database.AppDatabase
 import com.kidsmovies.app.data.repository.*
+import com.kidsmovies.app.enforcement.ContentFilter
+import com.kidsmovies.app.enforcement.ScheduleEvaluator
+import com.kidsmovies.app.enforcement.ViewingTimerManager
+import com.kidsmovies.app.pairing.PairingRepository
+import com.kidsmovies.app.sync.SettingsSyncManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class KidsMoviesApp : Application() {
 
@@ -11,8 +20,12 @@ class KidsMoviesApp : Application() {
             private set
     }
 
+    // Application scope for background operations
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     val database by lazy { AppDatabase.getInstance(this) }
 
+    // Existing repositories
     val videoRepository by lazy { VideoRepository(database.videoDao()) }
     val tagRepository by lazy { TagRepository(database.tagDao()) }
     val settingsRepository by lazy { SettingsRepository(database.appSettingsDao(), database.scanFolderDao()) }
@@ -20,8 +33,67 @@ class KidsMoviesApp : Application() {
     val collectionRepository by lazy { CollectionRepository(database.collectionDao()) }
     val metricsRepository by lazy { MetricsRepository(database.viewingSessionDao()) }
 
+    // Parent control components
+    val pairingRepository by lazy { PairingRepository(database.pairingDao()) }
+
+    val settingsSyncManager by lazy {
+        SettingsSyncManager(
+            database.pairingDao(),
+            database.cachedSettingsDao(),
+            applicationScope
+        )
+    }
+
+    val scheduleEvaluator by lazy { ScheduleEvaluator() }
+    val contentFilter by lazy { ContentFilter() }
+
+    val viewingTimerManager by lazy {
+        ViewingTimerManager(
+            database.cachedSettingsDao(),
+            scheduleEvaluator,
+            deviceId,
+            applicationScope
+        )
+    }
+
+    // Device ID for this child app (lazy loaded after pairing)
+    private var _deviceId: String = ""
+    val deviceId: String
+        get() = _deviceId
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Initialize pairing state and start components if paired
+        applicationScope.launch {
+            initializeParentControl()
+        }
+    }
+
+    private suspend fun initializeParentControl() {
+        // Initialize pairing state if not exists
+        pairingRepository.initializePairingState()
+
+        // Get device ID from pairing state
+        val pairingState = pairingRepository.getPairingState()
+        _deviceId = pairingState?.childUid ?: ""
+
+        // If paired, start listening for settings
+        if (pairingState?.isPaired == true) {
+            settingsSyncManager.startListening()
+            viewingTimerManager.start()
+        }
+    }
+
+    /**
+     * Called after successful pairing to start components
+     */
+    fun onPairingComplete(childUid: String) {
+        _deviceId = childUid
+        applicationScope.launch {
+            settingsSyncManager.startListening()
+            viewingTimerManager.start()
+        }
     }
 }

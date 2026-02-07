@@ -20,6 +20,7 @@ import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.ui.adapters.NavigationTab
 import com.kidsmovies.app.ui.adapters.NavigationTabAdapter
 import com.kidsmovies.app.ui.adapters.NavigationTabTouchHelper
+import com.kidsmovies.app.pairing.PairingActivity
 import com.kidsmovies.app.utils.ColorSchemes
 import com.kidsmovies.app.utils.Constants
 import com.kidsmovies.app.utils.DatabaseExportImport
@@ -69,6 +70,22 @@ class SettingsActivity : AppCompatActivity() {
         setupNavigationTabs()
         loadSettings()
         setupListeners()
+        loadPairingStatus()
+    }
+
+    private fun loadPairingStatus() {
+        lifecycleScope.launch {
+            val isPaired = app.pairingRepository.isPaired()
+            val pairingState = app.pairingRepository.getPairingState()
+
+            if (isPaired) {
+                binding.connectParentTitle.text = getString(R.string.already_paired)
+                binding.connectParentStatus.text = pairingState?.deviceName ?: ""
+            } else {
+                binding.connectParentTitle.text = getString(R.string.connect_to_parent)
+                binding.connectParentStatus.text = getString(R.string.pairing_instructions)
+            }
+        }
     }
 
     private fun setupNavigationTabs() {
@@ -111,6 +128,7 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             ThemeManager.applyTheme(this@SettingsActivity)
         }
+        loadPairingStatus()
     }
 
     private fun setupToolbar() {
@@ -190,6 +208,10 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
         })
+
+        binding.connectParentOption.setOnClickListener {
+            startActivity(Intent(this, PairingActivity::class.java))
+        }
 
         binding.usageMetricsOption.setOnClickListener {
             startActivity(Intent(this, UsageMetricsActivity::class.java))

@@ -1,5 +1,6 @@
 package com.kidsmovies.app.ui.activities
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.media.MediaPlayer
 import android.os.Build
@@ -11,6 +12,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.SeekBar
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -21,6 +23,9 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.ViewingSession
 import com.kidsmovies.app.databinding.ActivityVideoPlayerBinding
+import com.kidsmovies.app.enforcement.LockScreenActivity
+import com.kidsmovies.app.enforcement.ViewingTimerManager
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
@@ -56,6 +61,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var lastPlayStartTime: Long = 0
     private var collectionId: Long? = null
     private var collectionName: String? = null
+
+    // Parental control tracking
+    private var softOffWarningShown = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { hideControls() }
@@ -97,6 +105,53 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setupListeners()
         setupSurface()
         setupBackHandler()
+        observeViewingTimer()
+    }
+
+    private fun observeViewingTimer() {
+        lifecycleScope.launch {
+            app.viewingTimerManager.timerState.collectLatest { state ->
+                when (state.state) {
+                    ViewingTimerManager.ViewingState.LOCKED -> {
+                        // Time's up and video finished, go to lock screen
+                        if (!isFinishing) {
+                            notifyTimerVideoEnded()
+                            goToLockScreen()
+                        }
+                    }
+                    ViewingTimerManager.ViewingState.SOFT_OFF_WARNING -> {
+                        // Show soft-off warning if not already shown
+                        if (!softOffWarningShown && state.showSoftOffWarning) {
+                            showSoftOffWarning()
+                        }
+                    }
+                    else -> {
+                        // Normal operation
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showSoftOffWarning() {
+        softOffWarningShown = true
+        AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.soft_off_title)
+            .setMessage(R.string.soft_off_message)
+            .setPositiveButton(R.string.soft_off_dismiss) { dialog, _ ->
+                dialog.dismiss()
+                app.viewingTimerManager.dismissSoftOffWarning()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun goToLockScreen() {
+        savePlaybackPosition()
+        val intent = Intent(this, LockScreenActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        finish()
     }
 
     private fun setupBackHandler() {
@@ -260,6 +315,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         // End viewing session as completed
         endViewingSession(completed = true)
+
+        // Notify timer manager that video ended
+        notifyTimerVideoEnded()
 
         // Reset playback position when video completes
         video?.let {
@@ -426,7 +484,14 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 )
                 currentSessionId = app.metricsRepository.startSession(session)
             }
+
+            // Notify timer manager that video started
+            app.viewingTimerManager.onVideoStarted(v.id)
         }
+    }
+
+    private fun notifyTimerVideoEnded() {
+        app.viewingTimerManager.onVideoEnded()
     }
 
     private fun pauseSessionTracking() {

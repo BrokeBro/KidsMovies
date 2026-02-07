@@ -185,4 +185,35 @@
     <string name="metrics_cleared">Viewing history cleared</string>
     <string name="hours_watched">%s watched</string>
     <string name="sessions_count">%d sessions</string>
+
+    <!-- Parent Control / Pairing -->
+    <string name="connect_to_parent">Connect to Parent</string>
+    <string name="pairing_title">Connect to Parent App</string>
+    <string name="pairing_instructions">Ask your parent for the 6-digit code from their app</string>
+    <string name="enter_code">Enter code</string>
+    <string name="pairing_code_hint">000000</string>
+    <string name="connect">Connect</string>
+    <string name="pairing_success">Connected!</string>
+    <string name="pairing_error">Couldn\'t connect. Please check the code and try again.</string>
+    <string name="code_expired">This code has expired. Ask for a new code.</string>
+    <string name="code_invalid">Invalid code. Please check and try again.</string>
+    <string name="network_error">No internet connection. Please connect and try again.</string>
+    <string name="device_name_label">Device name</string>
+    <string name="device_name_hint">Kid\'s Tablet</string>
+    <string name="skip_pairing">Skip for now</string>
+    <string name="already_paired">Connected to parent app</string>
+    <string name="disconnect_from_parent">Disconnect</string>
+
+    <!-- Lock Screen -->
+    <string name="lock_screen_message">See you next time!</string>
+    <string name="lock_screen_sub_message">Movie time is all done for now</string>
+    <string name="time_up_message">Time\'s up!</string>
+    <string name="finish_video_message">You can finish watching this video</string>
+    <string name="soft_off_title">Time\'s Up!</string>
+    <string name="soft_off_message">You can finish this episode, then it\'s time for a break!</string>
+    <string name="soft_off_dismiss">OK</string>
+
+    <!-- Time remaining -->
+    <string name="time_remaining">%d min left</string>
+    <string name="time_unlimited">Unlimited</string>
 </resources>

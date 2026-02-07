@@ -4,10 +4,18 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kidsmovies.app.data.database.dao.*
 import com.kidsmovies.app.data.database.entities.*
+import com.kidsmovies.app.pairing.PairingDao
+import com.kidsmovies.app.pairing.PairingState
+import com.kidsmovies.app.sync.CachedDeviceOverrides
+import com.kidsmovies.app.sync.CachedGlobalSettings
+import com.kidsmovies.app.sync.CachedSchedule
+import com.kidsmovies.app.sync.CachedSettingsDao
+import com.kidsmovies.app.sync.ScheduleConverters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,11 +30,16 @@ import kotlinx.coroutines.launch
         ParentalControl::class,
         VideoCollection::class,
         VideoCollectionCrossRef::class,
-        ViewingSession::class
+        ViewingSession::class,
+        PairingState::class,
+        CachedGlobalSettings::class,
+        CachedDeviceOverrides::class,
+        CachedSchedule::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
+@TypeConverters(ScheduleConverters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun videoDao(): VideoDao
@@ -36,6 +49,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun parentalControlDao(): ParentalControlDao
     abstract fun collectionDao(): CollectionDao
     abstract fun viewingSessionDao(): ViewingSessionDao
+    abstract fun pairingDao(): PairingDao
+    abstract fun cachedSettingsDao(): CachedSettingsDao
 
     companion object {
         private const val DATABASE_NAME = "kids_movies_database"
@@ -129,6 +144,65 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 7 to 8: Add parental control sync tables
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create pairing_state table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS pairing_state (
+                        id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                        familyId TEXT DEFAULT NULL,
+                        childUid TEXT DEFAULT NULL,
+                        parentUid TEXT DEFAULT NULL,
+                        deviceName TEXT NOT NULL DEFAULT 'Kid''s Device',
+                        pairedAt INTEGER DEFAULT NULL,
+                        isPaired INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+
+                // Create cached_global_settings table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS cached_global_settings (
+                        id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                        updatedAt INTEGER NOT NULL DEFAULT 0,
+                        appEnabled INTEGER NOT NULL DEFAULT 1,
+                        softOffEnabled INTEGER NOT NULL DEFAULT 1,
+                        lastSyncedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+
+                // Create cached_device_overrides table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS cached_device_overrides (
+                        id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                        appEnabled INTEGER NOT NULL DEFAULT 1,
+                        maxViewingMinutesOverride INTEGER DEFAULT NULL,
+                        allowedCollectionsJson TEXT DEFAULT NULL,
+                        isRevoked INTEGER NOT NULL DEFAULT 0,
+                        lastSyncedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+
+                // Create cached_schedules table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS cached_schedules (
+                        scheduleId TEXT PRIMARY KEY NOT NULL,
+                        label TEXT NOT NULL DEFAULT '',
+                        daysOfWeek TEXT DEFAULT NULL,
+                        startTime TEXT NOT NULL DEFAULT '00:00',
+                        endTime TEXT NOT NULL DEFAULT '23:59',
+                        maxViewingMinutes INTEGER DEFAULT NULL,
+                        allowedCollectionsJson TEXT DEFAULT NULL,
+                        blockedVideosJson TEXT DEFAULT NULL,
+                        allowedVideosJson TEXT DEFAULT NULL,
+                        appliesToDevicesJson TEXT DEFAULT NULL,
+                        isActive INTEGER NOT NULL DEFAULT 1,
+                        lastSyncedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -139,7 +213,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

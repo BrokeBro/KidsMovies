@@ -17,6 +17,8 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivityMainBinding
+import com.kidsmovies.app.enforcement.LockScreenActivity
+import com.kidsmovies.app.enforcement.ViewingTimerManager
 import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.ui.fragments.AllVideosFragment
 import com.kidsmovies.app.ui.fragments.CollectionsFragment
@@ -24,6 +26,7 @@ import com.kidsmovies.app.ui.fragments.FavouritesFragment
 import com.kidsmovies.app.ui.fragments.OnlineVideosFragment
 import com.kidsmovies.app.ui.fragments.RecentVideosFragment
 import com.kidsmovies.app.utils.ThemeManager
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -80,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         loadGreeting()
         loadTabsFromSettings()
+        observeViewingState()
 
         // Register scan receiver
         val filter = IntentFilter().apply {
@@ -93,9 +97,50 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         lifecycleScope.launch {
             ThemeManager.applyTheme(this@MainActivity)
+            // Re-evaluate viewing state
+            app.viewingTimerManager.evaluate()
         }
         // Reload tabs in case settings changed
         loadTabsFromSettings()
+        // Check if we should show lock screen
+        checkViewingState()
+    }
+
+    private fun observeViewingState() {
+        lifecycleScope.launch {
+            app.viewingTimerManager.timerState.collectLatest { state ->
+                when (state.state) {
+                    ViewingTimerManager.ViewingState.LOCKED -> {
+                        // Check if paired - only show lock screen if paired and locked
+                        val isPaired = app.pairingRepository.isPaired()
+                        if (isPaired) {
+                            showLockScreen()
+                        }
+                    }
+                    else -> {
+                        // App is usable
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkViewingState() {
+        lifecycleScope.launch {
+            val isPaired = app.pairingRepository.isPaired()
+            if (isPaired) {
+                val state = app.viewingTimerManager.timerState.value
+                if (state.state == ViewingTimerManager.ViewingState.LOCKED) {
+                    showLockScreen()
+                }
+            }
+        }
+    }
+
+    private fun showLockScreen() {
+        val intent = Intent(this, LockScreenActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        startActivity(intent)
     }
 
     override fun onDestroy() {
