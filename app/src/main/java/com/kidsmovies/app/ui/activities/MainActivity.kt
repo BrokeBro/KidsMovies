@@ -110,22 +110,42 @@ class MainActivity : AppCompatActivity() {
     private fun loadTabsFromSettings() {
         lifecycleScope.launch {
             val settings = app.settingsRepository.getSettings()
+            val tabOrder = app.settingsRepository.getTabOrder().split(",")
 
-            val allTabs = listOf(
-                TabItem(TabType.ALL_MOVIES, R.string.all_movies, R.drawable.ic_movie) { AllVideosFragment() },
-                TabItem(TabType.FAVOURITES, R.string.my_favourites, R.drawable.ic_favourite) { FavouritesFragment() },
-                TabItem(TabType.COLLECTIONS, R.string.collections, R.drawable.ic_collections) { CollectionsFragment() },
-                TabItem(TabType.RECENT, R.string.recently_watched, R.drawable.ic_history) { RecentVideosFragment() },
-                TabItem(TabType.ONLINE, R.string.online_videos, R.drawable.ic_cloud) { OnlineVideosFragment() }
+            // Map tab IDs to TabType
+            val tabIdToType = mapOf(
+                "all_movies" to TabType.ALL_MOVIES,
+                "favourites" to TabType.FAVOURITES,
+                "collections" to TabType.COLLECTIONS,
+                "recent" to TabType.RECENT,
+                "online" to TabType.ONLINE
             )
 
-            val newVisibleTabs = allTabs.filter { tab ->
-                when (tab.type) {
-                    TabType.ALL_MOVIES -> settings?.showAllMoviesTab ?: true
-                    TabType.FAVOURITES -> settings?.showFavouritesTab ?: true
-                    TabType.COLLECTIONS -> settings?.showCollectionsTab ?: true
-                    TabType.RECENT -> settings?.showRecentTab ?: true
-                    TabType.ONLINE -> settings?.showOnlineTab ?: true
+            // Map TabType to TabItem
+            val allTabsMap = mapOf(
+                TabType.ALL_MOVIES to TabItem(TabType.ALL_MOVIES, R.string.all_movies, R.drawable.ic_movie) { AllVideosFragment() },
+                TabType.FAVOURITES to TabItem(TabType.FAVOURITES, R.string.my_favourites, R.drawable.ic_favourite) { FavouritesFragment() },
+                TabType.COLLECTIONS to TabItem(TabType.COLLECTIONS, R.string.collections, R.drawable.ic_collections) { CollectionsFragment() },
+                TabType.RECENT to TabItem(TabType.RECENT, R.string.recently_watched, R.drawable.ic_history) { RecentVideosFragment() },
+                TabType.ONLINE to TabItem(TabType.ONLINE, R.string.online_videos, R.drawable.ic_cloud) { OnlineVideosFragment() }
+            )
+
+            // Map tab visibility settings
+            val tabVisibility = mapOf(
+                TabType.ALL_MOVIES to (settings?.showAllMoviesTab ?: true),
+                TabType.FAVOURITES to (settings?.showFavouritesTab ?: true),
+                TabType.COLLECTIONS to (settings?.showCollectionsTab ?: true),
+                TabType.RECENT to (settings?.showRecentTab ?: true),
+                TabType.ONLINE to (settings?.showOnlineTab ?: true)
+            )
+
+            // Build tabs in the saved order, filtering by visibility
+            val newVisibleTabs = tabOrder.mapNotNull { tabId ->
+                val tabType = tabIdToType[tabId] ?: return@mapNotNull null
+                if (tabVisibility[tabType] == true) {
+                    allTabsMap[tabType]
+                } else {
+                    null
                 }
             }
 
