@@ -22,5 +22,7 @@ data class AppSettings(
     val showFavouritesTab: Boolean = true,
     val showCollectionsTab: Boolean = true,
     val showRecentTab: Boolean = true,
-    val showOnlineTab: Boolean = true
+    val showOnlineTab: Boolean = true,
+    // Tab order (comma-separated list of tab IDs)
+    val tabOrder: String = "all_movies,favourites,collections,recent,online"
 )

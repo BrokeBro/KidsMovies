@@ -1,5 +1,6 @@
 package com.kidsmovies.app.ui.activities
 
+import android.content.res.Configuration
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
@@ -7,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.SurfaceHolder
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.SeekBar
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -42,6 +44,10 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var isPlaying = false
     private var controlsVisible = true
     private var resumePosition: Long = 0
+
+    // Video dimensions for dynamic resizing
+    private var videoWidth: Int = 0
+    private var videoHeight: Int = 0
 
     // Session tracking
     private var currentSessionId: Long = 0
@@ -168,7 +174,18 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         initializeMediaPlayer(holder)
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        // Recalculate video size when surface dimensions change (e.g., orientation change)
+        adjustVideoSize()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Post to ensure the new layout dimensions are available
+        binding.root.post {
+            adjustVideoSize()
+        }
+    }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         savePlaybackPosition()
@@ -202,8 +219,10 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         binding.seekBar.max = duration
         binding.totalTime.text = formatTime(duration)
 
-        // Adjust video size
-        adjustVideoSize(mp.videoWidth, mp.videoHeight)
+        // Store video dimensions and adjust size
+        videoWidth = mp.videoWidth
+        videoHeight = mp.videoHeight
+        adjustVideoSize()
 
         // Resume from saved position if applicable
         if (resumePosition > MIN_RESUME_POSITION && 
@@ -250,11 +269,24 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun adjustVideoSize(videoWidth: Int, videoHeight: Int) {
-        val screenWidth = binding.videoSurface.width
-        val screenHeight = binding.videoSurface.height
+    private fun adjustVideoSize() {
+        if (videoWidth == 0 || videoHeight == 0) return
 
-        if (screenWidth == 0 || screenHeight == 0) return
+        // Use the parent container size (root view) for proper full-screen calculation
+        val parent = binding.videoSurface.parent as? View ?: return
+        val screenWidth = parent.width
+        val screenHeight = parent.height
+
+        if (screenWidth == 0 || screenHeight == 0) {
+            // Parent not yet laid out, schedule for later
+            parent.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    parent.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    adjustVideoSize()
+                }
+            })
+            return
+        }
 
         val videoAspect = videoWidth.toFloat() / videoHeight.toFloat()
         val screenAspect = screenWidth.toFloat() / screenHeight.toFloat()

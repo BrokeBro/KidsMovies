@@ -11,10 +11,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivitySettingsBinding
 import com.kidsmovies.app.services.VideoScannerService
+import com.kidsmovies.app.ui.adapters.NavigationTab
+import com.kidsmovies.app.ui.adapters.NavigationTabAdapter
+import com.kidsmovies.app.ui.adapters.NavigationTabTouchHelper
 import com.kidsmovies.app.utils.ColorSchemes
 import com.kidsmovies.app.utils.Constants
 import com.kidsmovies.app.utils.DatabaseExportImport
@@ -27,9 +32,19 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var app: KidsMoviesApp
+    private lateinit var navigationTabAdapter: NavigationTabAdapter
 
     private var currentColorScheme = "blue"
     private var currentGridColumns = 4
+
+    // Tab display name mappings
+    private val tabDisplayNames = mapOf(
+        "all_movies" to R.string.show_all_movies_tab,
+        "favourites" to R.string.show_favourites_tab,
+        "collections" to R.string.show_collections_tab,
+        "recent" to R.string.show_recent_tab,
+        "online" to R.string.show_online_tab
+    )
 
     private val exportLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -51,8 +66,44 @@ class SettingsActivity : AppCompatActivity() {
         app = application as KidsMoviesApp
 
         setupToolbar()
+        setupNavigationTabs()
         loadSettings()
         setupListeners()
+    }
+
+    private fun setupNavigationTabs() {
+        navigationTabAdapter = NavigationTabAdapter(
+            onTabChanged = { tab -> handleTabChanged(tab) },
+            onOrderChanged = { tabs -> handleOrderChanged(tabs) }
+        )
+
+        binding.navigationTabsRecyclerView.apply {
+            layoutManager = LinearLayoutManager(this@SettingsActivity)
+            adapter = navigationTabAdapter
+        }
+
+        val touchHelper = ItemTouchHelper(NavigationTabTouchHelper(navigationTabAdapter))
+        touchHelper.attachToRecyclerView(binding.navigationTabsRecyclerView)
+        navigationTabAdapter.setItemTouchHelper(touchHelper)
+    }
+
+    private fun handleTabChanged(tab: NavigationTab) {
+        lifecycleScope.launch {
+            when (tab.id) {
+                "all_movies" -> app.settingsRepository.setShowAllMoviesTab(tab.isEnabled)
+                "favourites" -> app.settingsRepository.setShowFavouritesTab(tab.isEnabled)
+                "collections" -> app.settingsRepository.setShowCollectionsTab(tab.isEnabled)
+                "recent" -> app.settingsRepository.setShowRecentTab(tab.isEnabled)
+                "online" -> app.settingsRepository.setShowOnlineTab(tab.isEnabled)
+            }
+        }
+    }
+
+    private fun handleOrderChanged(tabs: List<NavigationTab>) {
+        val tabOrder = tabs.joinToString(",") { it.id }
+        lifecycleScope.launch {
+            app.settingsRepository.setTabOrder(tabOrder)
+        }
     }
 
     override fun onResume() {
@@ -78,12 +129,26 @@ class SettingsActivity : AppCompatActivity() {
                 updateColorSchemeDisplay()
                 updateGridColumnsDisplay()
 
-                // Load navigation tab visibility settings
-                binding.showAllMoviesCheckbox.isChecked = it.showAllMoviesTab
-                binding.showFavouritesCheckbox.isChecked = it.showFavouritesTab
-                binding.showCollectionsCheckbox.isChecked = it.showCollectionsTab
-                binding.showRecentCheckbox.isChecked = it.showRecentTab
-                binding.showOnlineCheckbox.isChecked = it.showOnlineTab
+                // Load navigation tabs in the saved order
+                val tabOrder = it.tabOrder.split(",")
+                val tabEnabledMap = mapOf(
+                    "all_movies" to it.showAllMoviesTab,
+                    "favourites" to it.showFavouritesTab,
+                    "collections" to it.showCollectionsTab,
+                    "recent" to it.showRecentTab,
+                    "online" to it.showOnlineTab
+                )
+
+                val tabs = tabOrder.mapNotNull { tabId ->
+                    val displayNameRes = tabDisplayNames[tabId] ?: return@mapNotNull null
+                    NavigationTab(
+                        id = tabId,
+                        displayName = getString(displayNameRes),
+                        isEnabled = tabEnabledMap[tabId] ?: true
+                    )
+                }
+
+                navigationTabAdapter.submitList(tabs)
             }
         }
     }
@@ -154,37 +219,6 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.oneDriveOption.setOnClickListener {
             Toast.makeText(this, "OneDrive integration coming soon!", Toast.LENGTH_SHORT).show()
-        }
-
-        // Navigation tab visibility checkboxes
-        binding.showAllMoviesCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                app.settingsRepository.setShowAllMoviesTab(isChecked)
-            }
-        }
-
-        binding.showFavouritesCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                app.settingsRepository.setShowFavouritesTab(isChecked)
-            }
-        }
-
-        binding.showCollectionsCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                app.settingsRepository.setShowCollectionsTab(isChecked)
-            }
-        }
-
-        binding.showRecentCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                app.settingsRepository.setShowRecentTab(isChecked)
-            }
-        }
-
-        binding.showOnlineCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch {
-                app.settingsRepository.setShowOnlineTab(isChecked)
-            }
         }
     }
 

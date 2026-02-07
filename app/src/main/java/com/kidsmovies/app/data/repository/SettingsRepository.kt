@@ -49,6 +49,10 @@ class SettingsRepository(
 
     suspend fun setShowOnlineTab(show: Boolean) = appSettingsDao.updateShowOnlineTab(show)
 
+    suspend fun setTabOrder(tabOrder: String) = appSettingsDao.updateTabOrder(tabOrder)
+
+    suspend fun getTabOrder(): String = appSettingsDao.getTabOrder() ?: "all_movies,favourites,collections,recent,online"
+
     // Scan Folders
     fun getAllFoldersFlow(): Flow<List<ScanFolder>> = scanFolderDao.getAllFoldersFlow()
 

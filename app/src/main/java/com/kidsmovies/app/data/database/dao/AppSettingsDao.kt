@@ -60,4 +60,10 @@ interface AppSettingsDao {
 
     @Query("UPDATE app_settings SET showOnlineTab = :show WHERE id = 1")
     suspend fun updateShowOnlineTab(show: Boolean)
+
+    @Query("UPDATE app_settings SET tabOrder = :tabOrder WHERE id = 1")
+    suspend fun updateTabOrder(tabOrder: String)
+
+    @Query("SELECT tabOrder FROM app_settings WHERE id = 1")
+    suspend fun getTabOrder(): String?
 }
