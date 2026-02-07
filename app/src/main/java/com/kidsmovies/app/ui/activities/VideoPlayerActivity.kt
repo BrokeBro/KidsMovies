@@ -17,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
+import com.kidsmovies.app.data.database.entities.ViewingSession
 import com.kidsmovies.app.databinding.ActivityVideoPlayerBinding
 import kotlinx.coroutines.launch
 
@@ -24,6 +25,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     companion object {
         const val EXTRA_VIDEO = "extra_video"
+        const val EXTRA_COLLECTION_ID = "extra_collection_id"
+        const val EXTRA_COLLECTION_NAME = "extra_collection_name"
         private const val SEEK_AMOUNT_MS = 10000 // 10 seconds
         private const val CONTROLS_HIDE_DELAY = 3000L
         private const val PROGRESS_UPDATE_INTERVAL = 1000L
@@ -39,6 +42,14 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var isPlaying = false
     private var controlsVisible = true
     private var resumePosition: Long = 0
+
+    // Session tracking
+    private var currentSessionId: Long = 0
+    private var sessionStartTime: Long = 0
+    private var totalPlayTime: Long = 0
+    private var lastPlayStartTime: Long = 0
+    private var collectionId: Long? = null
+    private var collectionName: String? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { hideControls() }
@@ -70,6 +81,10 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         // Get resume position from video
         resumePosition = video?.playbackPosition ?: 0
+
+        // Get collection info if video was opened from a collection
+        collectionId = intent.getLongExtra(EXTRA_COLLECTION_ID, -1).takeIf { it > 0 }
+        collectionName = intent.getStringExtra(EXTRA_COLLECTION_NAME)
 
         setupImmersiveMode()
         setupUI()
@@ -213,6 +228,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 app.videoRepository.updatePlayStats(it.id)
             }
         }
+
+        // Start viewing session tracking
+        startViewingSession()
     }
 
     private fun onMediaPlayerComplete() {
@@ -220,7 +238,10 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         updatePlayPauseButton()
         showControls()
         handler.removeCallbacks(hideControlsRunnable)
-        
+
+        // End viewing session as completed
+        endViewingSession(completed = true)
+
         // Reset playback position when video completes
         video?.let {
             lifecycleScope.launch {
@@ -255,9 +276,11 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             if (isPlaying) {
                 mp.pause()
                 isPlaying = false
+                pauseSessionTracking()
             } else {
                 mp.start()
                 isPlaying = true
+                resumeSessionTracking()
             }
             updatePlayPauseButton()
         }
@@ -353,6 +376,60 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
+    // Session tracking methods
+    private fun startViewingSession() {
+        sessionStartTime = System.currentTimeMillis()
+        lastPlayStartTime = sessionStartTime
+        totalPlayTime = 0
+
+        video?.let { v ->
+            lifecycleScope.launch {
+                val session = ViewingSession(
+                    videoId = v.id,
+                    collectionId = collectionId,
+                    videoTitle = v.title,
+                    collectionName = collectionName,
+                    startTime = sessionStartTime,
+                    videoDuration = mediaPlayer?.duration?.toLong() ?: 0
+                )
+                currentSessionId = app.metricsRepository.startSession(session)
+            }
+        }
+    }
+
+    private fun pauseSessionTracking() {
+        if (lastPlayStartTime > 0) {
+            totalPlayTime += System.currentTimeMillis() - lastPlayStartTime
+            lastPlayStartTime = 0
+        }
+    }
+
+    private fun resumeSessionTracking() {
+        lastPlayStartTime = System.currentTimeMillis()
+    }
+
+    private fun endViewingSession(completed: Boolean = false) {
+        if (currentSessionId <= 0) return
+
+        pauseSessionTracking()
+        val endTime = System.currentTimeMillis()
+
+        lifecycleScope.launch {
+            app.metricsRepository.endSession(
+                sessionId = currentSessionId,
+                endTime = endTime,
+                duration = totalPlayTime,
+                completed = completed
+            )
+        }
+
+        // Reset tracking
+        currentSessionId = 0
+        sessionStartTime = 0
+        totalPlayTime = 0
+        lastPlayStartTime = 0
+    }
+
     private fun releaseMediaPlayer() {
         handler.removeCallbacks(updateProgressRunnable)
         handler.removeCallbacks(hideControlsRunnable)
@@ -363,6 +440,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onPause() {
         super.onPause()
         savePlaybackPosition()
+        endViewingSession(completed = false)
         mediaPlayer?.pause()
         isPlaying = false
         updatePlayPauseButton()

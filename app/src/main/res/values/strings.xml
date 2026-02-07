@@ -162,4 +162,27 @@
     <string name="cd_search_button">Search button</string>
     <string name="cd_back_button">Back button</string>
     <string name="cd_color_option">Color option</string>
+
+    <!-- Usage Metrics -->
+    <string name="usage_metrics">Usage Metrics</string>
+    <string name="usage_metrics_desc">View watch time and usage statistics</string>
+    <string name="parental_section">Parental</string>
+    <string name="top_collections">Top Collections</string>
+    <string name="top_collections_by_watch_time">Top 5 Collections by Watch Time</string>
+    <string name="session_statistics">Session Statistics</string>
+    <string name="break_analysis">Break Analysis</string>
+    <string name="total_watch_time">Total Watch Time</string>
+    <string name="total_sessions">Total Sessions</string>
+    <string name="completed_sessions">Completed Videos</string>
+    <string name="average_session">Average Session</string>
+    <string name="average_break">Average Break</string>
+    <string name="longest_break">Longest Break</string>
+    <string name="shortest_break">Shortest Break</string>
+    <string name="no_data_yet">No viewing data yet</string>
+    <string name="no_data_message">Start watching videos to see usage statistics</string>
+    <string name="clear_metrics">Clear All Metrics</string>
+    <string name="clear_metrics_confirm">Are you sure you want to clear all viewing history? This cannot be undone.</string>
+    <string name="metrics_cleared">Viewing history cleared</string>
+    <string name="hours_watched">%s watched</string>
+    <string name="sessions_count">%d sessions</string>
 </resources>

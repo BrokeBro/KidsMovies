@@ -17,7 +17,7 @@ data class CollectionWithVideos(
 )
 
 class CollectionRowAdapter(
-    private val onVideoClick: (Video) -> Unit,
+    private val onVideoClick: (Video, VideoCollection) -> Unit,
     private val onCollectionClick: (VideoCollection) -> Unit
 ) : ListAdapter<CollectionWithVideos, CollectionRowAdapter.CollectionViewHolder>(CollectionDiffCallback()) {
 
@@ -39,8 +39,12 @@ class CollectionRowAdapter(
         private val binding: ItemCollectionRowBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
+        private var currentCollection: VideoCollection? = null
+
         private val videoAdapter = VideoCarouselAdapter { video ->
-            onVideoClick(video)
+            currentCollection?.let { collection ->
+                onVideoClick(video, collection)
+            }
         }
 
         init {
@@ -54,6 +58,7 @@ class CollectionRowAdapter(
         fun bind(collectionWithVideos: CollectionWithVideos) {
             val collection = collectionWithVideos.collection
             val videos = collectionWithVideos.videos
+            currentCollection = collection
 
             binding.collectionName.text = collection.name
             binding.videoCount.text = binding.root.context.getString(

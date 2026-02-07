@@ -18,6 +18,7 @@ class KidsMoviesApp : Application() {
     val settingsRepository by lazy { SettingsRepository(database.appSettingsDao(), database.scanFolderDao()) }
     val parentalControlRepository by lazy { ParentalControlRepository(database.parentalControlDao()) }
     val collectionRepository by lazy { CollectionRepository(database.collectionDao()) }
+    val metricsRepository by lazy { MetricsRepository(database.viewingSessionDao()) }
 
     override fun onCreate() {
         super.onCreate()

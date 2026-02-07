@@ -126,6 +126,10 @@ class SettingsActivity : AppCompatActivity() {
             }
         })
 
+        binding.usageMetricsOption.setOnClickListener {
+            startActivity(Intent(this, UsageMetricsActivity::class.java))
+        }
+
         binding.scanFoldersOption.setOnClickListener {
             startActivity(Intent(this, FolderPickerActivity::class.java))
         }

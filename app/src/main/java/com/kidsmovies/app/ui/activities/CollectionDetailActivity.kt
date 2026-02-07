@@ -109,6 +109,8 @@ class CollectionDetailActivity : AppCompatActivity() {
     private fun playVideo(video: Video) {
         val intent = Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra(VideoPlayerActivity.EXTRA_VIDEO, video)
+            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_ID, collectionId)
+            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_NAME, collectionName)
         }
         startActivity(intent)
     }

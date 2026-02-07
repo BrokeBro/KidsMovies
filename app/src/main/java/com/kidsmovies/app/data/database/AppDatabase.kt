@@ -21,9 +21,10 @@ import kotlinx.coroutines.launch
         AppSettings::class,
         ParentalControl::class,
         VideoCollection::class,
-        VideoCollectionCrossRef::class
+        VideoCollectionCrossRef::class,
+        ViewingSession::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appSettingsDao(): AppSettingsDao
     abstract fun parentalControlDao(): ParentalControlDao
     abstract fun collectionDao(): CollectionDao
+    abstract fun viewingSessionDao(): ViewingSessionDao
 
     companion object {
         private const val DATABASE_NAME = "kids_movies_database"
@@ -96,6 +98,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 5 to 6: Add viewing_sessions table for metrics
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS viewing_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        videoId INTEGER NOT NULL,
+                        collectionId INTEGER DEFAULT NULL,
+                        videoTitle TEXT NOT NULL,
+                        collectionName TEXT DEFAULT NULL,
+                        startTime INTEGER NOT NULL,
+                        endTime INTEGER DEFAULT NULL,
+                        durationWatched INTEGER NOT NULL DEFAULT 0,
+                        videoDuration INTEGER NOT NULL DEFAULT 0,
+                        completed INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(videoId) REFERENCES videos(id) ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_viewing_sessions_videoId ON viewing_sessions(videoId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_viewing_sessions_startTime ON viewing_sessions(startTime)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_viewing_sessions_collectionId ON viewing_sessions(collectionId)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -106,7 +132,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

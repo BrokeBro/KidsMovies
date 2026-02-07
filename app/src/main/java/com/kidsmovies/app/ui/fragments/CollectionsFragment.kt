@@ -80,7 +80,7 @@ class CollectionsFragment : Fragment() {
 
     private fun setupCollectionRows() {
         collectionRowAdapter = CollectionRowAdapter(
-            onVideoClick = { video -> playVideo(video) },
+            onVideoClick = { video, collection -> playVideo(video, collection) },
             onCollectionClick = { collection -> viewCollection(collection) }
         )
 
@@ -235,9 +235,11 @@ class CollectionsFragment : Fragment() {
         }
     }
 
-    private fun playVideo(video: Video) {
+    private fun playVideo(video: Video, collection: VideoCollection) {
         val intent = Intent(requireContext(), VideoPlayerActivity::class.java).apply {
             putExtra(VideoPlayerActivity.EXTRA_VIDEO, video)
+            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_ID, collection.id)
+            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_NAME, collection.name)
         }
         startActivity(intent)
     }
