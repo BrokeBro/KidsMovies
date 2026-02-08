@@ -52,6 +52,19 @@ class ScheduleEvaluator {
             return ScheduleResult.blocked("App is currently disabled")
         }
 
+        // If no schedules exist, allow everything (default permissive mode)
+        if (settings.schedules.isEmpty()) {
+            return ScheduleResult(
+                isAllowed = true,
+                activeSchedule = null,
+                reason = "No restrictions set",
+                maxViewingMinutes = null,
+                allowedCollections = null,
+                blockedVideos = null,
+                allowedVideos = null
+            )
+        }
+
         // Find active schedule for current time
         val activeSchedule = findActiveSchedule(settings.schedules, deviceId, currentTimeMillis)
 

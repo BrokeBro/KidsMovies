@@ -14,6 +14,7 @@ data class Video(
     val filePath: String,
     val thumbnailPath: String? = null,
     val customThumbnailPath: String? = null,
+    val tmdbArtworkPath: String? = null, // Auto-fetched from TMDB
     val duration: Long = 0, // in milliseconds
     val size: Long = 0, // in bytes
     val dateAdded: Long = System.currentTimeMillis(),
@@ -29,7 +30,8 @@ data class Video(
 ) : Parcelable {
 
     fun getDisplayThumbnail(): String? {
-        return customThumbnailPath ?: thumbnailPath
+        // Priority: user custom > TMDB artwork > auto-generated
+        return customThumbnailPath ?: tmdbArtworkPath ?: thumbnailPath
     }
 
     fun getFormattedDuration(): String {

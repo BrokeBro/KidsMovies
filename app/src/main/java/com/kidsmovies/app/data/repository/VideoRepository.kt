@@ -82,6 +82,8 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun updateCustomThumbnail(videoId: Long, thumbnailPath: String?) = videoDao.updateCustomThumbnail(videoId, thumbnailPath)
 
+    suspend fun updateTmdbArtwork(videoId: Long, artworkPath: String?) = videoDao.updateTmdbArtwork(videoId, artworkPath)
+
     suspend fun updateCollection(videoId: Long, collectionId: Long?) = videoDao.updateCollection(videoId, collectionId)
 
     suspend fun updateCollectionForVideos(videoIds: List<Long>, collectionId: Long?) = videoDao.updateCollectionForVideos(videoIds, collectionId)

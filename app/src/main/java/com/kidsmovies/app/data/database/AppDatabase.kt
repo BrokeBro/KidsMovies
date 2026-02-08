@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
         CachedDeviceOverrides::class,
         CachedSchedule::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(ScheduleConverters::class)
@@ -203,6 +203,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 8 to 9: Add TMDB artwork support
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add TMDB artwork path to videos
+                db.execSQL("ALTER TABLE videos ADD COLUMN tmdbArtworkPath TEXT DEFAULT NULL")
+
+                // Add TMDB artwork path and parent collection to collections
+                db.execSQL("ALTER TABLE collections ADD COLUMN tmdbArtworkPath TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE collections ADD COLUMN parentCollectionId INTEGER DEFAULT NULL")
+
+                // Add TMDB settings to app_settings
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN tmdbApiKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN autoFetchArtwork INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -213,7 +229,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

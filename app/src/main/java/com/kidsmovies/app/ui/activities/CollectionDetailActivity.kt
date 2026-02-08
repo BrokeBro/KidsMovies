@@ -51,6 +51,8 @@ class CollectionDetailActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Reload videos to get fresh playback positions
+        loadVideos()
         lifecycleScope.launch {
             ThemeManager.applyTheme(this@CollectionDetailActivity)
         }

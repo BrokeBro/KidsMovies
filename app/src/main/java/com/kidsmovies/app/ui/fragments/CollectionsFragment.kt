@@ -66,6 +66,30 @@ class CollectionsFragment : Fragment() {
         observeCollections()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Reload videos to get fresh playback positions after returning from video player
+        refreshCollectionVideos()
+    }
+
+    private fun refreshCollectionVideos() {
+        if (allCollections.isEmpty()) return
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val newCollectionsWithVideos = allCollections.mapNotNull { collection ->
+                val videos = app.collectionRepository.getVideosInCollection(collection.id)
+                if (videos.isNotEmpty()) {
+                    CollectionWithVideos(collection, videos)
+                } else {
+                    null
+                }
+            }
+
+            collectionsWithVideos = newCollectionsWithVideos
+            collectionRowAdapter.submitList(newCollectionsWithVideos.toList())
+        }
+    }
+
     private fun setupCollectionIcons() {
         collectionIconAdapter = CollectionIconAdapter(
             onCollectionClick = { collection -> scrollToCollection(collection) },

@@ -24,5 +24,9 @@ data class AppSettings(
     val showRecentTab: Boolean = true,
     val showOnlineTab: Boolean = true,
     // Tab order (comma-separated list of tab IDs)
-    val tabOrder: String = "all_movies,favourites,collections,recent,online"
+    val tabOrder: String = "all_movies,favourites,collections,recent,online",
+    // TMDB API key for auto-fetching artwork (get free key from themoviedb.org)
+    val tmdbApiKey: String = "",
+    // Whether to automatically fetch artwork from TMDB
+    val autoFetchArtwork: Boolean = true
 )

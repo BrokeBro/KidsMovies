@@ -26,6 +26,14 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
 
     suspend fun updateSortOrder(collectionId: Long, sortOrder: Int) = collectionDao.updateSortOrder(collectionId, sortOrder)
 
+    suspend fun updateTmdbArtwork(collectionId: Long, artworkPath: String?) = collectionDao.updateTmdbArtwork(collectionId, artworkPath)
+
+    suspend fun getSubCollections(parentId: Long): List<VideoCollection> = collectionDao.getSubCollections(parentId)
+
+    fun getSubCollectionsFlow(parentId: Long): Flow<List<VideoCollection>> = collectionDao.getSubCollectionsFlow(parentId)
+
+    fun getTopLevelCollectionsFlow(): Flow<List<VideoCollection>> = collectionDao.getTopLevelCollectionsFlow()
+
     suspend fun deleteCollection(collection: VideoCollection) = collectionDao.delete(collection)
 
     suspend fun deleteCollectionById(collectionId: Long) = collectionDao.deleteById(collectionId)

@@ -1,6 +1,9 @@
 package com.kidsmovies.app
 
 import android.app.Application
+import com.kidsmovies.app.artwork.ArtworkFetcher
+import com.kidsmovies.app.artwork.TmdbArtworkManager
+import com.kidsmovies.app.artwork.TmdbService
 import com.kidsmovies.app.data.database.AppDatabase
 import com.kidsmovies.app.data.repository.*
 import com.kidsmovies.app.enforcement.ContentFilter
@@ -32,6 +35,18 @@ class KidsMoviesApp : Application() {
     val parentalControlRepository by lazy { ParentalControlRepository(database.parentalControlDao()) }
     val collectionRepository by lazy { CollectionRepository(database.collectionDao()) }
     val metricsRepository by lazy { MetricsRepository(database.viewingSessionDao()) }
+
+    // TMDB artwork services
+    val tmdbService by lazy { TmdbService() }
+    val tmdbArtworkManager by lazy { TmdbArtworkManager(this, tmdbService) }
+    val artworkFetcher by lazy {
+        ArtworkFetcher(
+            tmdbArtworkManager,
+            videoRepository,
+            collectionRepository,
+            applicationScope
+        )
+    }
 
     // Parent control components
     val pairingRepository by lazy { PairingRepository(database.pairingDao()) }

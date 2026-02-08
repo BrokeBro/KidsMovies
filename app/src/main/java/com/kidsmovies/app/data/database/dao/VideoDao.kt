@@ -37,6 +37,9 @@ interface VideoDao {
     @Query("UPDATE videos SET thumbnailPath = :thumbnailPath WHERE id = :videoId")
     suspend fun updateThumbnail(videoId: Long, thumbnailPath: String?)
 
+    @Query("UPDATE videos SET tmdbArtworkPath = :artworkPath WHERE id = :videoId")
+    suspend fun updateTmdbArtwork(videoId: Long, artworkPath: String?)
+
     @Query("UPDATE videos SET collectionId = :collectionId WHERE id = :videoId")
     suspend fun updateCollection(videoId: Long, collectionId: Long?)
 

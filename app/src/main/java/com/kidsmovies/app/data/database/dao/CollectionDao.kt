@@ -42,6 +42,18 @@ interface CollectionDao {
     @Query("UPDATE collections SET sortOrder = :sortOrder WHERE id = :collectionId")
     suspend fun updateSortOrder(collectionId: Long, sortOrder: Int)
 
+    @Query("UPDATE collections SET tmdbArtworkPath = :artworkPath WHERE id = :collectionId")
+    suspend fun updateTmdbArtwork(collectionId: Long, artworkPath: String?)
+
+    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId ORDER BY sortOrder ASC, name ASC")
+    suspend fun getSubCollections(parentId: Long): List<VideoCollection>
+
+    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId ORDER BY sortOrder ASC, name ASC")
+    fun getSubCollectionsFlow(parentId: Long): Flow<List<VideoCollection>>
+
+    @Query("SELECT * FROM collections WHERE parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    fun getTopLevelCollectionsFlow(): Flow<List<VideoCollection>>
+
     // Video-Collection relationship methods
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertVideoCollectionCrossRef(crossRef: VideoCollectionCrossRef)
