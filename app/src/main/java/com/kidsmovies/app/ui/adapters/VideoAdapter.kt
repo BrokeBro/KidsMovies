@@ -131,7 +131,12 @@ class VideoAdapter(
             }
 
             // Show lock overlay if video is disabled (parental lock)
-            binding.lockOverlay.visibility = if (!video.isEnabled) View.VISIBLE else View.GONE
+            val isLocked = !video.isEnabled
+            binding.lockOverlay.visibility = if (isLocked) View.VISIBLE else View.GONE
+
+            // Dim locked videos
+            binding.videoThumbnail.alpha = if (isLocked) 0.4f else 1.0f
+            binding.videoTitle.alpha = if (isLocked) 0.6f else 1.0f
 
             // Handle selection mode UI
             val isSelected = selectedVideoIds.contains(video.id)
@@ -144,9 +149,11 @@ class VideoAdapter(
                 if (isSelectionMode) {
                     toggleSelection(video.id)
                     notifyItemChanged(bindingAdapterPosition)
-                } else {
+                } else if (!isLocked) {
+                    // Only allow playing unlocked videos
                     onVideoClick(video)
                 }
+                // If locked, clicking does nothing (video stays visible but unplayable)
             }
 
             binding.videoCard.setOnLongClickListener {

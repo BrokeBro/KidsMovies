@@ -54,7 +54,12 @@ class VideoCarouselAdapter(
             binding.favouriteIndicator.visibility = if (video.isFavourite) View.VISIBLE else View.GONE
 
             // Show lock overlay if video is disabled (parental lock)
-            binding.lockOverlay.visibility = if (!video.isEnabled) View.VISIBLE else View.GONE
+            val isLocked = !video.isEnabled
+            binding.lockOverlay.visibility = if (isLocked) View.VISIBLE else View.GONE
+
+            // Dim locked videos
+            binding.videoThumbnail.alpha = if (isLocked) 0.4f else 1.0f
+            binding.videoTitle.alpha = if (isLocked) 0.6f else 1.0f
 
             // Show watch progress bar
             if (video.playbackPosition > 0 && video.duration > 0) {
@@ -73,7 +78,11 @@ class VideoCarouselAdapter(
 
             // Click listener
             binding.videoCard.setOnClickListener {
-                onVideoClick(video)
+                if (!isLocked) {
+                    // Only allow playing unlocked videos
+                    onVideoClick(video)
+                }
+                // If locked, clicking does nothing (video stays visible but unplayable)
             }
         }
     }

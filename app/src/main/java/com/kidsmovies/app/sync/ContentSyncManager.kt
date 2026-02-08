@@ -610,6 +610,7 @@ class ContentSyncManager(
                 collectionNames = videoCollections.map { it.name },
                 isFavourite = video.isFavourite,
                 isEnabled = video.isEnabled,
+                isHidden = video.isHidden,
                 duration = video.duration,
                 playbackPosition = video.playbackPosition,
                 lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
@@ -642,6 +643,7 @@ class ContentSyncManager(
                 parentName = parentCollection?.name,
                 videoCount = videoCount,
                 isEnabled = collection.isEnabled,
+                isHidden = collection.isHidden,
                 thumbnailUrl = null
             )
 
@@ -731,6 +733,32 @@ class ContentSyncManager(
         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
         database.getReference("families/$familyId/children/$childUid/collections/$key/enabled")
             .setValue(isEnabled).await()
+    }
+
+    /**
+     * Update video's hidden status in Firebase after local change
+     */
+    suspend fun syncVideoHiddenStatus(videoTitle: String, isHidden: Boolean) {
+        val familyId = currentFamilyId ?: return
+        val childUid = currentChildUid ?: return
+
+        val key = sanitizeFirebaseKey(videoTitle)
+        // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
+        database.getReference("families/$familyId/children/$childUid/videos/$key/hidden")
+            .setValue(isHidden).await()
+    }
+
+    /**
+     * Update collection's hidden status in Firebase after local change
+     */
+    suspend fun syncCollectionHiddenStatus(collectionName: String, isHidden: Boolean) {
+        val familyId = currentFamilyId ?: return
+        val childUid = currentChildUid ?: return
+
+        val key = sanitizeFirebaseKey(collectionName)
+        // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
+        database.getReference("families/$familyId/children/$childUid/collections/$key/hidden")
+            .setValue(isHidden).await()
     }
 
     private fun sanitizeFirebaseKey(key: String): String {

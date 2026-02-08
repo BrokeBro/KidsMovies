@@ -109,7 +109,43 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setupSurface()
         setupBackHandler()
         observeViewingTimer()
+        observeAppLock()
         observeLockWarnings()
+    }
+
+    private fun observeAppLock() {
+        lifecycleScope.launch {
+            app.contentSyncManager.appLock.collectLatest { appLockState ->
+                if (appLockState != null && appLockState.isLocked) {
+                    val now = System.currentTimeMillis()
+                    // Check if lock has taken effect (warning period passed)
+                    if (appLockState.appliesAt <= now) {
+                        // Check if we should allow finishing current video
+                        if (!appLockState.allowFinishCurrentVideo) {
+                            // Immediate lock - stop video and go to lock screen
+                            stopVideoAndShowLock("App is locked by parent")
+                        }
+                        // If allowFinishCurrentVideo is true, video continues until completion
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopVideoAndShowLock(message: String) {
+        if (isFinishing) return
+
+        // Stop playback
+        mediaPlayer?.pause()
+        isPlaying = false
+
+        // Save position and end session
+        savePlaybackPosition()
+        endViewingSession(completed = false)
+        notifyTimerVideoEnded()
+
+        // Go to lock screen
+        goToLockScreen()
     }
 
     private fun observeViewingTimer() {
@@ -140,11 +176,30 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun observeLockWarnings() {
         lifecycleScope.launch {
             app.contentSyncManager.lockWarning.collectLatest { warning ->
-                if (warning != null && warning.isLastOne && !lastOneWarningShown) {
-                    showLastOneWarning(warning)
-                } else if (warning != null && !warning.isLastOne && warning.minutesRemaining <= 2) {
-                    // Show countdown warning when less than 2 minutes remain
-                    showLockCountdownWarning(warning)
+                if (warning != null) {
+                    // Check if this lock applies to the current video
+                    val currentVideoTitle = video?.title ?: return@collectLatest
+                    val currentCollections = video?.let { v ->
+                        // Get collections this video belongs to
+                        app.collectionRepository.getCollectionsForVideo(v.id).map { it.name }
+                    } ?: emptyList()
+
+                    val locksCurrentVideo = warning.title == currentVideoTitle ||
+                            (!warning.isVideo && currentCollections.contains(warning.title))
+
+                    if (locksCurrentVideo) {
+                        if (warning.isLastOne) {
+                            if (!lastOneWarningShown) {
+                                showLastOneWarning(warning)
+                            }
+                        } else if (warning.minutesRemaining <= 0 && !warning.allowFinishCurrentVideo) {
+                            // Lock applies immediately and no finish allowed
+                            stopVideoAndShowLock("${warning.title} is locked")
+                        } else if (warning.minutesRemaining <= 2) {
+                            // Show countdown warning when less than 2 minutes remain
+                            showLockCountdownWarning(warning)
+                        }
+                    }
                 }
             }
         }

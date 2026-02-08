@@ -137,7 +137,13 @@ class CollectionIconAdapter(
             }
 
             // Show lock overlay if collection is disabled (parental lock)
-            binding.lockOverlay.visibility = if (!collection.isEnabled) View.VISIBLE else View.GONE
+            val isLocked = !collection.isEnabled
+            binding.lockOverlay.visibility = if (isLocked) View.VISIBLE else View.GONE
+
+            // Dim locked collections
+            binding.collectionIcon.alpha = if (isLocked) 0.4f else 1.0f
+            binding.defaultIcon.alpha = if (isLocked) 0.4f else 1.0f
+            binding.collectionName.alpha = if (isLocked) 0.6f else 1.0f
 
             // Show/hide reorder handle based on mode
             binding.reorderHandle.visibility = if (isReorderMode) View.VISIBLE else View.GONE
@@ -157,9 +163,11 @@ class CollectionIconAdapter(
 
             // Click listeners
             binding.contentLayout.setOnClickListener {
-                if (!isReorderMode) {
+                if (!isReorderMode && !isLocked) {
+                    // Only allow clicking on unlocked collections
                     onCollectionClick(collection)
                 }
+                // If locked, clicking does nothing (collection stays visible but inaccessible)
             }
 
             binding.contentLayout.setOnLongClickListener {

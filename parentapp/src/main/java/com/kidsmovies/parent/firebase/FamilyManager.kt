@@ -252,6 +252,38 @@ class FamilyManager {
     }
 
     /**
+     * Hide or unhide a video from the child
+     */
+    suspend fun setVideoHidden(
+        familyId: String,
+        childUid: String,
+        videoTitle: String,
+        isHidden: Boolean
+    ) {
+        val key = sanitizeFirebaseKey(videoTitle)
+        // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
+        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$key/hidden")
+            .setValue(isHidden)
+            .await()
+    }
+
+    /**
+     * Hide or unhide a collection from the child
+     */
+    suspend fun setCollectionHidden(
+        familyId: String,
+        childUid: String,
+        collectionName: String,
+        isHidden: Boolean
+    ) {
+        val key = sanitizeFirebaseKey(collectionName)
+        // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
+        database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$key/hidden")
+            .setValue(isHidden)
+            .await()
+    }
+
+    /**
      * Remove a child from the family
      */
     suspend fun removeChild(familyId: String, childUid: String) {

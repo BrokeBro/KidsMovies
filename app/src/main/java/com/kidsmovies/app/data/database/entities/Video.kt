@@ -23,7 +23,8 @@ data class Video(
     val playCount: Int = 0,
     val playbackPosition: Long = 0, // Resume position in milliseconds
     val isFavourite: Boolean = false,
-    val isEnabled: Boolean = true, // For parental control
+    val isEnabled: Boolean = true, // For parental control (locked = visible but can't play)
+    val isHidden: Boolean = false, // For parental control (hidden = completely invisible to child)
     val folderPath: String = "",
     val mimeType: String = "video/*",
     val collectionId: Long? = null, // For grouping into collections

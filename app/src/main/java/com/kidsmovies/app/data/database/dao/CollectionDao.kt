@@ -21,11 +21,17 @@ interface CollectionDao {
     @Query("DELETE FROM collections WHERE id = :collectionId")
     suspend fun deleteById(collectionId: Long)
 
-    @Query("SELECT * FROM collections ORDER BY sortOrder ASC, name ASC")
+    // Excludes hidden collections for display
+    @Query("SELECT * FROM collections WHERE isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     fun getAllCollectionsFlow(): Flow<List<VideoCollection>>
 
+    // Includes all collections for sync
     @Query("SELECT * FROM collections ORDER BY sortOrder ASC, name ASC")
     suspend fun getAllCollections(): List<VideoCollection>
+
+    // Includes all collections including hidden
+    @Query("SELECT * FROM collections ORDER BY sortOrder ASC, name ASC")
+    fun getAllCollectionsIncludingHiddenFlow(): Flow<List<VideoCollection>>
 
     @Query("SELECT * FROM collections WHERE id = :collectionId")
     suspend fun getCollectionById(collectionId: Long): VideoCollection?
@@ -45,13 +51,13 @@ interface CollectionDao {
     @Query("UPDATE collections SET tmdbArtworkPath = :artworkPath WHERE id = :collectionId")
     suspend fun updateTmdbArtwork(collectionId: Long, artworkPath: String?)
 
-    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     suspend fun getSubCollections(parentId: Long): List<VideoCollection>
 
-    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE parentCollectionId = :parentId AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     fun getSubCollectionsFlow(parentId: Long): Flow<List<VideoCollection>>
 
-    @Query("SELECT * FROM collections WHERE parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     fun getTopLevelCollectionsFlow(): Flow<List<VideoCollection>>
 
     // Video-Collection relationship methods
@@ -79,23 +85,23 @@ interface CollectionDao {
     @Query("SELECT COUNT(*) FROM video_collection_cross_ref WHERE videoId = :videoId AND collectionId = :collectionId")
     suspend fun isVideoInCollection(videoId: Long, collectionId: Long): Int
 
-    // TV Show and Season queries
-    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    // TV Show and Season queries (excludes hidden)
+    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     suspend fun getTvShows(): List<VideoCollection>
 
-    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     fun getTvShowsFlow(): Flow<List<VideoCollection>>
 
-    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId ORDER BY seasonNumber ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId AND isHidden = 0 ORDER BY seasonNumber ASC, name ASC")
     suspend fun getSeasonsForShow(tvShowId: Long): List<VideoCollection>
 
-    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId ORDER BY seasonNumber ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId AND isHidden = 0 ORDER BY seasonNumber ASC, name ASC")
     fun getSeasonsForShowFlow(tvShowId: Long): Flow<List<VideoCollection>>
 
-    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     suspend fun getRegularCollections(): List<VideoCollection>
 
-    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     fun getRegularCollectionsFlow(): Flow<List<VideoCollection>>
 
     // Get videos in a season sorted by episode number
@@ -128,4 +134,7 @@ interface CollectionDao {
 
     @Query("UPDATE collections SET isEnabled = :isEnabled WHERE id = :collectionId")
     suspend fun updateEnabled(collectionId: Long, isEnabled: Boolean)
+
+    @Query("UPDATE collections SET isHidden = :isHidden WHERE id = :collectionId")
+    suspend fun updateHidden(collectionId: Long, isHidden: Boolean)
 }

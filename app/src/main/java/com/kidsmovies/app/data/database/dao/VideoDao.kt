@@ -25,6 +25,9 @@ interface VideoDao {
     @Query("UPDATE videos SET isEnabled = :isEnabled WHERE id = :videoId")
     suspend fun updateEnabled(videoId: Long, isEnabled: Boolean)
 
+    @Query("UPDATE videos SET isHidden = :isHidden WHERE id = :videoId")
+    suspend fun updateHidden(videoId: Long, isHidden: Boolean)
+
     @Query("UPDATE videos SET lastPlayed = :lastPlayed, playCount = playCount + 1 WHERE id = :videoId")
     suspend fun updatePlayStats(videoId: Long, lastPlayed: Long)
 
@@ -74,52 +77,56 @@ interface VideoDao {
     @Query("DELETE FROM videos")
     suspend fun deleteAll()
 
-    // Query operations - All videos
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")
+    // Query operations - All videos (excludes hidden, includes locked so they show with lock icon)
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY title ASC")
     fun getAllVideosFlow(): Flow<List<Video>>
 
     @Query("SELECT * FROM videos ORDER BY title ASC")
-    fun getAllVideosIncludingDisabledFlow(): Flow<List<Video>>
-
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")
-    suspend fun getAllVideos(): List<Video>
+    fun getAllVideosIncludingHiddenFlow(): Flow<List<Video>>
 
     @Query("SELECT * FROM videos ORDER BY title ASC")
-    suspend fun getAllVideosIncludingDisabled(): List<Video>
+    suspend fun getAllVideos(): List<Video>
 
-    // Query operations - Favourites
-    @Query("SELECT * FROM videos WHERE isFavourite = 1 AND isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY title ASC")
+    suspend fun getVisibleVideos(): List<Video>
+
+    // Query for enabled-only (used for specific cases)
+    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")
+    suspend fun getEnabledVideos(): List<Video>
+
+    // Query operations - Favourites (excludes hidden, shows locked with lock icon)
+    @Query("SELECT * FROM videos WHERE isFavourite = 1 AND isHidden = 0 ORDER BY title ASC")
     fun getFavouritesFlow(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isFavourite = 1 AND isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE isFavourite = 1 AND isHidden = 0 ORDER BY title ASC")
     suspend fun getFavourites(): List<Video>
 
-    // Query operations - Recently played
-    @Query("SELECT * FROM videos WHERE lastPlayed IS NOT NULL AND isEnabled = 1 ORDER BY lastPlayed DESC LIMIT :limit")
+    // Query operations - Recently played (excludes hidden, shows locked with lock icon)
+    @Query("SELECT * FROM videos WHERE lastPlayed IS NOT NULL AND isHidden = 0 ORDER BY lastPlayed DESC LIMIT :limit")
     fun getRecentlyPlayedFlow(limit: Int = 10): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE lastPlayed IS NOT NULL AND isEnabled = 1 ORDER BY lastPlayed DESC LIMIT :limit")
+    @Query("SELECT * FROM videos WHERE lastPlayed IS NOT NULL AND isHidden = 0 ORDER BY lastPlayed DESC LIMIT :limit")
     suspend fun getRecentlyPlayed(limit: Int = 10): List<Video>
 
-    // Query operations - By folder
-    @Query("SELECT * FROM videos WHERE folderPath = :folderPath AND isEnabled = 1 ORDER BY title ASC")
+    // Query operations - By folder (excludes hidden, shows locked with lock icon)
+    @Query("SELECT * FROM videos WHERE folderPath = :folderPath AND isHidden = 0 ORDER BY title ASC")
     fun getVideosByFolderFlow(folderPath: String): Flow<List<Video>>
 
-    // Query operations - By collection
-    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isEnabled = 1 ORDER BY title ASC")
+    // Query operations - By collection (excludes hidden, shows locked with lock icon)
+    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isHidden = 0 ORDER BY title ASC")
     fun getVideosByCollectionFlow(collectionId: Long): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE collectionId = :collectionId AND isHidden = 0 ORDER BY title ASC")
     suspend fun getVideosByCollection(collectionId: Long): List<Video>
 
-    @Query("SELECT * FROM videos WHERE collectionId IS NULL AND isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE collectionId IS NULL AND isHidden = 0 ORDER BY title ASC")
     fun getUncollectedVideosFlow(): Flow<List<Video>>
 
-    // Query operations - Search
-    @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' AND isEnabled = 1 ORDER BY title ASC")
+    // Query operations - Search (excludes hidden, shows locked with lock icon)
+    @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY title ASC")
     fun searchVideosFlow(query: String): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' AND isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' AND isHidden = 0 ORDER BY title ASC")
     suspend fun searchVideos(query: String): List<Video>
 
     // Query operations - Single video
@@ -132,9 +139,9 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE title = :title LIMIT 1")
     suspend fun getVideoByTitle(title: String): Video?
 
-    // Query operations - With tags
+    // Query operations - With tags (excludes hidden, includes locked videos)
     @Transaction
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY title ASC")
     fun getAllVideosWithTagsFlow(): Flow<List<VideoWithTags>>
 
     @Transaction
@@ -151,20 +158,20 @@ interface VideoDao {
     @Query("SELECT COUNT(*) FROM videos WHERE collectionId = :collectionId")
     suspend fun getVideoCountInCollection(collectionId: Long): Int
 
-    // Sorting queries
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")
+    // Sorting queries (excludes hidden, includes locked videos)
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY title ASC")
     fun getVideosSortedByTitleAsc(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title DESC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY title DESC")
     fun getVideosSortedByTitleDesc(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY dateAdded ASC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY dateAdded ASC")
     fun getVideosSortedByDateAsc(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY dateAdded DESC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY dateAdded DESC")
     fun getVideosSortedByDateDesc(): Flow<List<Video>>
 
-    @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY CASE WHEN lastPlayed IS NULL THEN 1 ELSE 0 END, lastPlayed DESC")
+    @Query("SELECT * FROM videos WHERE isHidden = 0 ORDER BY CASE WHEN lastPlayed IS NULL THEN 1 ELSE 0 END, lastPlayed DESC")
     fun getVideosSortedByRecent(): Flow<List<Video>>
 
     // Check if video exists

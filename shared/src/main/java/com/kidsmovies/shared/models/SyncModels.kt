@@ -10,14 +10,15 @@ data class SyncedVideo(
     val title: String = "",
     val collectionNames: List<String> = emptyList(),
     val isFavourite: Boolean = false,
-    val isEnabled: Boolean = true,
+    val isEnabled: Boolean = true, // Locked = visible but can't play
+    val isHidden: Boolean = false, // Hidden = completely invisible to child
     val duration: Long = 0,
     val playbackPosition: Long = 0,
     val lastWatched: Long? = null,
     val thumbnailUrl: String? = null
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", emptyList(), false, true, 0, 0, null, null)
+    constructor() : this("", emptyList(), false, true, false, 0, 0, null, null)
 }
 
 /**
@@ -29,11 +30,12 @@ data class SyncedCollection(
     val type: String = "REGULAR", // REGULAR, TV_SHOW, SEASON
     val parentName: String? = null, // For seasons - parent TV show name
     val videoCount: Int = 0,
-    val isEnabled: Boolean = true,
+    val isEnabled: Boolean = true, // Locked = visible but can't access
+    val isHidden: Boolean = false, // Hidden = completely invisible to child
     val thumbnailUrl: String? = null
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", "REGULAR", null, 0, true, null)
+    constructor() : this("", "REGULAR", null, 0, true, false, null)
 }
 
 /**
