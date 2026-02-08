@@ -77,7 +77,12 @@ class PairingActivity : AppCompatActivity() {
         hideError()
 
         lifecycleScope.launch {
-            when (val result = app.pairingRepository.pairWithCode(code, deviceName)) {
+            val result = app.pairingRepository.pairWithCode(code, deviceName) { status ->
+                runOnUiThread {
+                    showStatus(status)
+                }
+            }
+            when (result) {
                 is PairingResult.Success -> {
                     Toast.makeText(
                         this@PairingActivity,
@@ -115,9 +120,18 @@ class PairingActivity : AppCompatActivity() {
 
     private fun setLoading(loading: Boolean) {
         binding.loadingIndicator.visibility = if (loading) View.VISIBLE else View.GONE
+        binding.statusText.visibility = if (loading) View.VISIBLE else View.GONE
         binding.connectButton.isEnabled = !loading
         binding.codeInput.isEnabled = !loading
         binding.deviceNameInput.isEnabled = !loading
+        if (!loading) {
+            binding.statusText.text = ""
+        }
+    }
+
+    private fun showStatus(status: String) {
+        binding.statusText.text = status
+        binding.statusText.visibility = View.VISIBLE
     }
 
     private fun showError(message: String) {

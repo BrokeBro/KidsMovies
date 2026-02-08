@@ -133,6 +133,19 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/errorMessage" />
 
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/loadingIndicator" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/connectButton"
         android:layout_width="0dp"
@@ -143,7 +156,7 @@
         app:cornerRadius="28dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/loadingIndicator" />
+        app:layout_constraintTop_toBottomOf="@id/statusText" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/skipButton"

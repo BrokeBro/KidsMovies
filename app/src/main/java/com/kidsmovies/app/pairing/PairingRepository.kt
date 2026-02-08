@@ -63,24 +63,46 @@ class PairingRepository(
     /**
      * Attempt to pair with a parent using a 6-digit code
      */
-    suspend fun pairWithCode(code: String, deviceName: String): PairingResult {
+    suspend fun pairWithCode(
+        code: String,
+        deviceName: String,
+        onStatus: ((String) -> Unit)? = null
+    ): PairingResult {
         // Ensure we're authenticated
-        val childUid = ensureAuthenticated() ?: return PairingResult.NetworkError
+        onStatus?.invoke("Authenticating with Firebase...")
+        Log.d(TAG, "Step 1: Authenticating with Firebase")
+        val childUid = ensureAuthenticated()
+        if (childUid == null) {
+            Log.e(TAG, "Authentication failed - childUid is null")
+            onStatus?.invoke("Authentication failed")
+            return PairingResult.NetworkError
+        }
+        Log.d(TAG, "Step 1 complete: Authenticated as $childUid")
 
         return try {
             // Read the pairing code from Firebase
+            onStatus?.invoke("Looking up pairing code...")
+            Log.d(TAG, "Step 2: Looking up pairing code $code")
             val codeRef = database.getReference("$PAIRING_CODES_PATH/$code")
             val snapshot = codeRef.get().await()
+            Log.d(TAG, "Step 2 complete: Got snapshot, exists=${snapshot.exists()}")
 
             if (!snapshot.exists()) {
+                onStatus?.invoke("Code not found")
                 return PairingResult.CodeInvalid
             }
 
             val pairingCode = snapshot.getValue(PairingCode::class.java)
-                ?: return PairingResult.CodeInvalid
+            if (pairingCode == null) {
+                Log.e(TAG, "Failed to parse pairing code data")
+                onStatus?.invoke("Invalid code format")
+                return PairingResult.CodeInvalid
+            }
+            Log.d(TAG, "Pairing code parsed: familyId=${pairingCode.familyId}")
 
             // Check if code has expired
             if (System.currentTimeMillis() > pairingCode.expiresAt) {
+                onStatus?.invoke("Code expired")
                 return PairingResult.CodeExpired
             }
 
@@ -88,6 +110,8 @@ class PairingRepository(
             val parentUid = pairingCode.parentUid
 
             // Register this device under the family
+            onStatus?.invoke("Registering device...")
+            Log.d(TAG, "Step 3: Registering device at $FAMILIES_PATH/$familyId/devices/$childUid")
             val deviceRef = database.getReference("$FAMILIES_PATH/$familyId/devices/$childUid")
             val deviceData = mapOf(
                 "deviceName" to deviceName,
@@ -97,11 +121,17 @@ class PairingRepository(
                 "deviceModel" to "${Build.MANUFACTURER} ${Build.MODEL}"
             )
             deviceRef.setValue(deviceData).await()
+            Log.d(TAG, "Step 3 complete: Device registered")
 
             // Delete the pairing code (it's been used)
+            onStatus?.invoke("Finalizing...")
+            Log.d(TAG, "Step 4: Deleting used pairing code")
             codeRef.removeValue().await()
+            Log.d(TAG, "Step 4 complete: Pairing code deleted")
 
             // Save pairing state locally
+            onStatus?.invoke("Saving locally...")
+            Log.d(TAG, "Step 5: Saving pairing state locally")
             val pairingState = PairingState(
                 id = 1,
                 familyId = familyId,
@@ -112,12 +142,15 @@ class PairingRepository(
                 isPaired = true
             )
             pairingDao.savePairingState(pairingState)
+            Log.d(TAG, "Step 5 complete: Pairing state saved")
 
+            onStatus?.invoke("Connected!")
             Log.i(TAG, "Successfully paired with family: $familyId")
             PairingResult.Success(familyId)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Pairing failed", e)
+            Log.e(TAG, "Pairing failed at some step", e)
+            onStatus?.invoke("Error: ${e.message}")
             PairingResult.Error(e.message ?: "Unknown error")
         }
     }
