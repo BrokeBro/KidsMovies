@@ -3,7 +3,11 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'com.google.devtools.ksp'
     id 'kotlin-parcelize'
-    id 'com.google.gms.google-services'
+}
+
+// Apply google-services plugin only if google-services.json exists
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
 }
 
 android {
