@@ -90,6 +90,9 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
     suspend fun updateTmdbShowId(collectionId: Long, tmdbShowId: Int?) =
         collectionDao.updateTmdbShowId(collectionId, tmdbShowId)
 
+    suspend fun updateEnabled(collectionId: Long, isEnabled: Boolean) =
+        collectionDao.updateEnabled(collectionId, isEnabled)
+
     /**
      * Get episode count for all seasons of a TV show.
      * Returns a map of seasonId to episode count.

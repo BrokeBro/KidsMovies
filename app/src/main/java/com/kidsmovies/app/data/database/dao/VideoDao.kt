@@ -129,6 +129,9 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE filePath = :filePath")
     suspend fun getVideoByPath(filePath: String): Video?
 
+    @Query("SELECT * FROM videos WHERE title = :title LIMIT 1")
+    suspend fun getVideoByTitle(title: String): Video?
+
     // Query operations - With tags
     @Transaction
     @Query("SELECT * FROM videos WHERE isEnabled = 1 ORDER BY title ASC")

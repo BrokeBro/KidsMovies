@@ -10,7 +10,9 @@ import com.kidsmovies.app.enforcement.ContentFilter
 import com.kidsmovies.app.enforcement.ScheduleEvaluator
 import com.kidsmovies.app.enforcement.ViewingTimerManager
 import com.kidsmovies.app.pairing.PairingRepository
+import com.kidsmovies.app.sync.ContentSyncManager
 import com.kidsmovies.app.sync.SettingsSyncManager
+import com.kidsmovies.app.sync.SyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,6 +61,15 @@ class KidsMoviesApp : Application() {
         )
     }
 
+    val contentSyncManager by lazy {
+        ContentSyncManager(
+            database.pairingDao(),
+            videoRepository,
+            collectionRepository,
+            applicationScope
+        )
+    }
+
     val scheduleEvaluator by lazy { ScheduleEvaluator() }
     val contentFilter by lazy { ContentFilter() }
 
@@ -94,10 +105,17 @@ class KidsMoviesApp : Application() {
         val pairingState = pairingRepository.getPairingState()
         _deviceId = pairingState?.childUid ?: ""
 
-        // If paired, start listening for settings
+        // If paired, start listening for settings and schedule sync
         if (pairingState?.isPaired == true) {
             settingsSyncManager.startListening()
+            contentSyncManager.startListening()
             viewingTimerManager.start()
+
+            // Schedule periodic sync every 10 minutes
+            SyncWorker.schedulePeriodicSync(this)
+
+            // Perform immediate sync on app start
+            SyncWorker.requestImmediateSync(this)
         }
     }
 
@@ -108,7 +126,34 @@ class KidsMoviesApp : Application() {
         _deviceId = childUid
         applicationScope.launch {
             settingsSyncManager.startListening()
+            contentSyncManager.startListening()
             viewingTimerManager.start()
+
+            // Schedule periodic sync
+            SyncWorker.schedulePeriodicSync(this@KidsMoviesApp)
+
+            // Perform immediate sync
+            SyncWorker.requestImmediateSync(this@KidsMoviesApp)
+        }
+    }
+
+    /**
+     * Called when a video starts playing - triggers sync to update "currently watching"
+     */
+    fun onVideoStarted(videoTitle: String) {
+        applicationScope.launch {
+            contentSyncManager.updateCurrentlyWatching(videoTitle)
+            // Also trigger a sync when video starts (per user requirement)
+            SyncWorker.requestImmediateSync(this@KidsMoviesApp)
+        }
+    }
+
+    /**
+     * Called when a video stops playing
+     */
+    fun onVideoStopped() {
+        applicationScope.launch {
+            contentSyncManager.updateCurrentlyWatching(null)
         }
     }
 }

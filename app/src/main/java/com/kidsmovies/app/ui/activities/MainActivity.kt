@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -20,6 +21,7 @@ import com.kidsmovies.app.databinding.ActivityMainBinding
 import com.kidsmovies.app.enforcement.LockScreenActivity
 import com.kidsmovies.app.enforcement.ViewingTimerManager
 import com.kidsmovies.app.services.VideoScannerService
+import com.kidsmovies.app.sync.ContentSyncManager
 import com.kidsmovies.app.ui.fragments.AllVideosFragment
 import com.kidsmovies.app.ui.fragments.CollectionsFragment
 import com.kidsmovies.app.ui.fragments.FavouritesFragment
@@ -36,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var visibleTabs = mutableListOf<TabItem>()
     private var tabLayoutMediator: TabLayoutMediator? = null
+    private var lockWarningDialog: AlertDialog? = null
 
     private data class TabItem(
         val type: TabType,
@@ -84,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         loadGreeting()
         loadTabsFromSettings()
         observeViewingState()
+        observeLockWarnings()
 
         // Register scan receiver
         val filter = IntentFilter().apply {
@@ -99,6 +103,8 @@ class MainActivity : AppCompatActivity() {
             ThemeManager.applyTheme(this@MainActivity)
             // Re-evaluate viewing state
             app.viewingTimerManager.evaluate()
+            // Check pending locks that may have expired their warning period
+            app.contentSyncManager.checkPendingLocks()
         }
         // Reload tabs in case settings changed
         loadTabsFromSettings()
@@ -125,6 +131,48 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun observeLockWarnings() {
+        lifecycleScope.launch {
+            app.contentSyncManager.lockWarning.collectLatest { warning ->
+                if (warning != null) {
+                    showLockWarningDialog(warning)
+                } else {
+                    dismissLockWarningDialog()
+                }
+            }
+        }
+    }
+
+    private fun showLockWarningDialog(warning: ContentSyncManager.LockWarning) {
+        // Dismiss any existing dialog
+        lockWarningDialog?.dismiss()
+
+        val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
+        val message = getString(
+            R.string.lock_warning_message,
+            contentType,
+            warning.title,
+            warning.minutesRemaining
+        )
+
+        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.lock_warning_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.ok) { dialog, _ ->
+                dialog.dismiss()
+                app.contentSyncManager.dismissLockWarning()
+            }
+            .setCancelable(false)
+            .create()
+
+        lockWarningDialog?.show()
+    }
+
+    private fun dismissLockWarningDialog() {
+        lockWarningDialog?.dismiss()
+        lockWarningDialog = null
+    }
+
     private fun checkViewingState() {
         lifecycleScope.launch {
             val isPaired = app.pairingRepository.isPaired()
@@ -146,6 +194,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(scanReceiver)
+        dismissLockWarningDialog()
     }
 
     private fun setupUI() {

@@ -125,4 +125,7 @@ interface CollectionDao {
 
     @Query("UPDATE collections SET tmdbShowId = :tmdbShowId WHERE id = :collectionId")
     suspend fun updateTmdbShowId(collectionId: Long, tmdbShowId: Int?)
+
+    @Query("UPDATE collections SET isEnabled = :isEnabled WHERE id = :collectionId")
+    suspend fun updateEnabled(collectionId: Long, isEnabled: Boolean)
 }

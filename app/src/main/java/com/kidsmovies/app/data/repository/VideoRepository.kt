@@ -50,6 +50,8 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun getVideoByPath(filePath: String): Video? = videoDao.getVideoByPath(filePath)
 
+    suspend fun getVideoByTitle(title: String): Video? = videoDao.getVideoByTitle(title)
+
     suspend fun getVideoWithTags(videoId: Long): VideoWithTags? = videoDao.getVideoWithTags(videoId)
 
     suspend fun getAllFilePaths(): List<String> = videoDao.getAllFilePaths()

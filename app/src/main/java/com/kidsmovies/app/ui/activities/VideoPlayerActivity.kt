@@ -487,6 +487,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
             // Notify timer manager that video started
             app.viewingTimerManager.onVideoStarted(v.id)
+
+            // Notify sync manager that video started (triggers sync to parent)
+            app.onVideoStarted(v.title)
         }
     }
 
@@ -541,6 +544,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         mediaPlayer?.pause()
         isPlaying = false
         updatePlayPauseButton()
+
+        // Notify sync manager that video stopped
+        app.onVideoStopped()
     }
 
     override fun onDestroy() {
