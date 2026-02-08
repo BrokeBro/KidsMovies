@@ -17,7 +17,7 @@ class PairingRepository(
 
     companion object {
         private const val TAG = "PairingRepository"
-        private const val PAIRING_CODES_PATH = "pairing_codes"
+        private const val PAIRING_CODES_PATH = "pairingCodes"
         private const val FAMILIES_PATH = "families"
     }
 

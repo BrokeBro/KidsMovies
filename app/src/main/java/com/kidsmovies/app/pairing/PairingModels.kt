@@ -5,13 +5,20 @@ import androidx.room.PrimaryKey
 
 /**
  * Represents a pairing code stored in Firebase
+ * Must match the structure created by parent app
  */
 data class PairingCode(
+    val code: String = "",
     val familyId: String = "",
-    val parentUid: String = "",
     val createdAt: Long = 0,
-    val expiresAt: Long = 0
-)
+    val expiresAt: Long = 0,
+    val createdBy: String = "",  // Parent UID who created this code
+    val used: Boolean = false,
+    val usedBy: String? = null
+) {
+    // Alias for backwards compatibility
+    val parentUid: String get() = createdBy
+}
 
 /**
  * Represents the local pairing state stored in Room DB
