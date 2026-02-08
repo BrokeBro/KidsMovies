@@ -76,10 +76,11 @@ data class LockCommand(
     val isLocked: Boolean = false,
     val lockedBy: String = "", // Parent UID
     val lockedAt: Long = 0,
-    val warningMinutes: Int = 5 // Warning time before lock takes effect (0 = immediate)
+    val warningMinutes: Int = 5, // Warning time before lock takes effect (0 = immediate)
+    val allowFinishCurrentVideo: Boolean = false // Allow child to finish current video before lock
 ) {
     // No-arg constructor for Firebase
-    constructor() : this(null, null, false, "", 0, 5)
+    constructor() : this(null, null, false, "", 0, 5, false)
 }
 
 /**
@@ -89,5 +90,6 @@ data class PendingLock(
     val videoTitle: String? = null,
     val collectionName: String? = null,
     val appliesAt: Long, // Timestamp when lock should be applied
-    val warningMinutes: Int
+    val warningMinutes: Int,
+    val allowFinishCurrentVideo: Boolean = false // Allow child to finish current video before lock
 )

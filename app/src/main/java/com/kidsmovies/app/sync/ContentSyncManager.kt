@@ -36,6 +36,14 @@ class ContentSyncManager(
     private val _lockWarning = MutableStateFlow<LockWarning?>(null)
     val lockWarning: StateFlow<LockWarning?> = _lockWarning
 
+    // Track currently watching video for "finish current video" feature
+    private var currentlyWatchingTitle: String? = null
+    private var isWatchingVideo: Boolean = false
+
+    // Locks waiting for video to finish (allowFinishCurrentVideo = true)
+    private val _locksWaitingForVideoEnd = MutableStateFlow<List<PendingLock>>(emptyList())
+    val locksWaitingForVideoEnd: StateFlow<List<PendingLock>> = _locksWaitingForVideoEnd
+
     companion object {
         private const val TAG = "ContentSyncManager"
     }
@@ -44,7 +52,9 @@ class ContentSyncManager(
         val title: String,
         val isVideo: Boolean, // true = video, false = collection
         val minutesRemaining: Int,
-        val appliesAt: Long
+        val appliesAt: Long,
+        val allowFinishCurrentVideo: Boolean = false, // Can finish current video before lock
+        val isLastOne: Boolean = false // Warning period expired, this is the last video
     )
 
     /**
@@ -126,15 +136,44 @@ class ContentSyncManager(
             val isLocked = lockSnapshot.child("isLocked").getValue(Boolean::class.java) ?: false
             val warningMinutes = lockSnapshot.child("warningMinutes").getValue(Int::class.java) ?: 5
             val lockedAt = lockSnapshot.child("lockedAt").getValue(Long::class.java) ?: now
+            val allowFinishCurrentVideo = lockSnapshot.child("allowFinishCurrentVideo").getValue(Boolean::class.java) ?: false
 
             if (isLocked) {
                 val appliesAt = lockedAt + (warningMinutes * 60 * 1000)
 
                 if (appliesAt <= now) {
-                    // Warning time has passed, apply the lock immediately
-                    applyLock(videoTitle, collectionName, true)
-                    // Remove the processed lock command
-                    removeLockCommand(lockId)
+                    // Warning time has passed
+                    if (allowFinishCurrentVideo && isWatchingVideo) {
+                        // Child is watching a video and allowed to finish - add to waiting list
+                        val waitingLock = PendingLock(
+                            videoTitle = videoTitle,
+                            collectionName = collectionName,
+                            appliesAt = appliesAt,
+                            warningMinutes = warningMinutes,
+                            allowFinishCurrentVideo = true
+                        )
+                        val currentWaiting = _locksWaitingForVideoEnd.value.toMutableList()
+                        if (!currentWaiting.any { it.videoTitle == videoTitle && it.collectionName == collectionName }) {
+                            currentWaiting.add(waitingLock)
+                            _locksWaitingForVideoEnd.value = currentWaiting
+                        }
+
+                        // Show "last one" warning
+                        val title = videoTitle ?: collectionName ?: "Content"
+                        _lockWarning.value = LockWarning(
+                            title = title,
+                            isVideo = videoTitle != null,
+                            minutesRemaining = 0,
+                            appliesAt = appliesAt,
+                            allowFinishCurrentVideo = true,
+                            isLastOne = true
+                        )
+                    } else {
+                        // Apply the lock immediately
+                        applyLock(videoTitle, collectionName, true)
+                        // Remove the processed lock command
+                        removeLockCommand(lockId)
+                    }
                 } else {
                     // Add to pending locks with warning
                     newPendingLocks.add(
@@ -142,7 +181,8 @@ class ContentSyncManager(
                             videoTitle = videoTitle,
                             collectionName = collectionName,
                             appliesAt = appliesAt,
-                            warningMinutes = warningMinutes
+                            warningMinutes = warningMinutes,
+                            allowFinishCurrentVideo = allowFinishCurrentVideo
                         )
                     )
 
@@ -153,7 +193,9 @@ class ContentSyncManager(
                         title = title,
                         isVideo = videoTitle != null,
                         minutesRemaining = minutesRemaining,
-                        appliesAt = appliesAt
+                        appliesAt = appliesAt,
+                        allowFinishCurrentVideo = allowFinishCurrentVideo,
+                        isLastOne = false
                     )
                 }
             } else {
@@ -221,11 +263,29 @@ class ContentSyncManager(
         val now = System.currentTimeMillis()
         val locks = _pendingLocks.value.toMutableList()
         val toRemove = mutableListOf<PendingLock>()
+        val toWaitForVideoEnd = mutableListOf<PendingLock>()
 
         for (lock in locks) {
             if (lock.appliesAt <= now) {
-                applyLock(lock.videoTitle, lock.collectionName, true)
-                toRemove.add(lock)
+                if (lock.allowFinishCurrentVideo && isWatchingVideo) {
+                    // Child is watching - add to waiting list instead of applying
+                    toWaitForVideoEnd.add(lock)
+                    toRemove.add(lock)
+
+                    // Show "last one" warning
+                    val title = lock.videoTitle ?: lock.collectionName ?: "Content"
+                    _lockWarning.value = LockWarning(
+                        title = title,
+                        isVideo = lock.videoTitle != null,
+                        minutesRemaining = 0,
+                        appliesAt = lock.appliesAt,
+                        allowFinishCurrentVideo = true,
+                        isLastOne = true
+                    )
+                } else {
+                    applyLock(lock.videoTitle, lock.collectionName, true)
+                    toRemove.add(lock)
+                }
             } else {
                 // Update warning time
                 val minutesRemaining = ((lock.appliesAt - now) / 60000).toInt()
@@ -234,15 +294,24 @@ class ContentSyncManager(
                     title = title,
                     isVideo = lock.videoTitle != null,
                     minutesRemaining = minutesRemaining,
-                    appliesAt = lock.appliesAt
+                    appliesAt = lock.appliesAt,
+                    allowFinishCurrentVideo = lock.allowFinishCurrentVideo,
+                    isLastOne = false
                 )
             }
+        }
+
+        // Add to waiting list
+        if (toWaitForVideoEnd.isNotEmpty()) {
+            val currentWaiting = _locksWaitingForVideoEnd.value.toMutableList()
+            currentWaiting.addAll(toWaitForVideoEnd)
+            _locksWaitingForVideoEnd.value = currentWaiting
         }
 
         locks.removeAll(toRemove)
         _pendingLocks.value = locks
 
-        if (locks.isEmpty()) {
+        if (locks.isEmpty() && _locksWaitingForVideoEnd.value.isEmpty()) {
             _lockWarning.value = null
         }
     }
@@ -360,14 +429,54 @@ class ContentSyncManager(
      * Update currently watching status
      */
     suspend fun updateCurrentlyWatching(videoTitle: String?) {
+        val wasWatching = isWatchingVideo
+        currentlyWatchingTitle = videoTitle
+        isWatchingVideo = videoTitle != null
+
+        // If video ended and there are locks waiting, apply them now
+        if (wasWatching && !isWatchingVideo) {
+            applyWaitingLocks()
+        }
+
         val familyId = currentFamilyId ?: return
         val childUid = currentChildUid ?: return
 
-        database.getReference("families/$familyId/children/$childUid/deviceInfo/currentlyWatching")
-            .setValue(videoTitle).await()
+        try {
+            database.getReference("families/$familyId/children/$childUid/deviceInfo/currentlyWatching")
+                .setValue(videoTitle).await()
 
-        database.getReference("families/$familyId/children/$childUid/deviceInfo/lastSeen")
-            .setValue(System.currentTimeMillis()).await()
+            database.getReference("families/$familyId/children/$childUid/deviceInfo/lastSeen")
+                .setValue(System.currentTimeMillis()).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update currently watching status", e)
+        }
+    }
+
+    /**
+     * Apply any locks that were waiting for video to finish
+     */
+    private suspend fun applyWaitingLocks() {
+        val waitingLocks = _locksWaitingForVideoEnd.value.toList()
+        if (waitingLocks.isEmpty()) return
+
+        Log.d(TAG, "Video ended, applying ${waitingLocks.size} waiting locks")
+
+        for (lock in waitingLocks) {
+            applyLock(lock.videoTitle, lock.collectionName, true)
+        }
+
+        // Clear waiting locks
+        _locksWaitingForVideoEnd.value = emptyList()
+
+        // Clear the "last one" warning
+        _lockWarning.value = null
+    }
+
+    /**
+     * Check if there are locks waiting for video to end
+     */
+    fun hasLocksWaitingForVideoEnd(): Boolean {
+        return _locksWaitingForVideoEnd.value.isNotEmpty()
     }
 
     /**

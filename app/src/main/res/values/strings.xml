@@ -190,6 +190,10 @@
     <string name="ask_parent">Ask Parent</string>
     <string name="lock_warning_title">Heads Up!</string>
     <string name="lock_warning_message">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes.</string>
+    <string name="lock_warning_finish_video">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes. You can finish this video first!</string>
+    <string name="last_one_title">Last One!</string>
+    <string name="last_one_message">This is your last video! After this one, \"%1$s\" will be locked.</string>
+    <string name="last_one_collection_message">This is your last video! After this one, you won\'t be able to access more videos from \"%1$s\".</string>
     <string name="video">video</string>
     <string name="collection">collection</string>
 

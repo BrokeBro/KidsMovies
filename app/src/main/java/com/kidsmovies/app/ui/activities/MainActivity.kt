@@ -147,16 +147,30 @@ class MainActivity : AppCompatActivity() {
         // Dismiss any existing dialog
         lockWarningDialog?.dismiss()
 
-        val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
-        val message = getString(
-            R.string.lock_warning_message,
-            contentType,
-            warning.title,
-            warning.minutesRemaining
-        )
+        val title: Int
+        val message: String
+
+        if (warning.isLastOne) {
+            // "Last one" warning - they can finish current video
+            title = R.string.last_one_title
+            message = if (warning.isVideo) {
+                getString(R.string.last_one_message, warning.title)
+            } else {
+                getString(R.string.last_one_collection_message, warning.title)
+            }
+        } else {
+            // Standard countdown warning
+            title = R.string.lock_warning_title
+            val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
+            message = if (warning.allowFinishCurrentVideo) {
+                getString(R.string.lock_warning_finish_video, contentType, warning.title, warning.minutesRemaining)
+            } else {
+                getString(R.string.lock_warning_message, contentType, warning.title, warning.minutesRemaining)
+            }
+        }
 
         lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-            .setTitle(R.string.lock_warning_title)
+            .setTitle(title)
             .setMessage(message)
             .setPositiveButton(R.string.ok) { dialog, _ ->
                 dialog.dismiss()

@@ -25,6 +25,7 @@ import com.kidsmovies.app.data.database.entities.ViewingSession
 import com.kidsmovies.app.databinding.ActivityVideoPlayerBinding
 import com.kidsmovies.app.enforcement.LockScreenActivity
 import com.kidsmovies.app.enforcement.ViewingTimerManager
+import com.kidsmovies.app.sync.ContentSyncManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -64,6 +65,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     // Parental control tracking
     private var softOffWarningShown = false
+    private var lastOneWarningShown = false
+    private var lockWarningDialog: AlertDialog? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { hideControls() }
@@ -106,6 +109,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setupSurface()
         setupBackHandler()
         observeViewingTimer()
+        observeLockWarnings()
     }
 
     private fun observeViewingTimer() {
@@ -131,6 +135,66 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
             }
         }
+    }
+
+    private fun observeLockWarnings() {
+        lifecycleScope.launch {
+            app.contentSyncManager.lockWarning.collectLatest { warning ->
+                if (warning != null && warning.isLastOne && !lastOneWarningShown) {
+                    showLastOneWarning(warning)
+                } else if (warning != null && !warning.isLastOne && warning.minutesRemaining <= 2) {
+                    // Show countdown warning when less than 2 minutes remain
+                    showLockCountdownWarning(warning)
+                }
+            }
+        }
+    }
+
+    private fun showLastOneWarning(warning: ContentSyncManager.LockWarning) {
+        lastOneWarningShown = true
+        lockWarningDialog?.dismiss()
+
+        val message = if (warning.isVideo) {
+            getString(R.string.last_one_message, warning.title)
+        } else {
+            getString(R.string.last_one_collection_message, warning.title)
+        }
+
+        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.last_one_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.ok) { dialog, _ ->
+                dialog.dismiss()
+                app.contentSyncManager.dismissLockWarning()
+            }
+            .setCancelable(false)
+            .create()
+
+        lockWarningDialog?.show()
+    }
+
+    private fun showLockCountdownWarning(warning: ContentSyncManager.LockWarning) {
+        // Don't show repeatedly
+        if (lockWarningDialog?.isShowing == true) return
+
+        val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
+        val message = if (warning.allowFinishCurrentVideo) {
+            getString(R.string.lock_warning_finish_video, contentType, warning.title, warning.minutesRemaining)
+        } else {
+            getString(R.string.lock_warning_message, contentType, warning.title, warning.minutesRemaining)
+        }
+
+        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.lock_warning_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.ok) { dialog, _ ->
+                dialog.dismiss()
+                app.contentSyncManager.dismissLockWarning()
+            }
+            .setCancelable(false)
+            .create()
+
+        lockWarningDialog?.show()
     }
 
     private fun showSoftOffWarning() {
@@ -551,6 +615,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         super.onDestroy()
+        lockWarningDialog?.dismiss()
+        lockWarningDialog = null
         releaseMediaPlayer()
     }
 }
