@@ -50,10 +50,18 @@ jobs:
           echo "=== LAST 200 LINES ==="
           tail -200 build.log
 
-      - name: Upload Debug APK
+      - name: Upload Kids App Debug APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: KidsMovies-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload Parent App Debug APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: KidsMovies-Parent-debug
+          path: parentapp/build/outputs/apk/debug/parentapp-debug.apk
           retention-days: 30
