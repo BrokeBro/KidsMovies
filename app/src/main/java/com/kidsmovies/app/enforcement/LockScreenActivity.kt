@@ -1,13 +1,19 @@
 package com.kidsmovies.app.enforcement
 
 import android.os.Bundle
+import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.databinding.ActivityLockScreenBinding
+import com.kidsmovies.app.sync.ContentSyncManager
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Friendly lock screen shown when viewing is not allowed.
@@ -25,8 +31,8 @@ class LockScreenActivity : AppCompatActivity() {
 
         app = application as KidsMoviesApp
 
-        // Observe timer state to auto-dismiss when unlocked
-        observeTimerState()
+        // Observe both timer state and app lock state
+        observeLockStates()
 
         // Handle back press - just exit the app (friendly behavior)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -37,20 +43,62 @@ class LockScreenActivity : AppCompatActivity() {
         })
     }
 
-    private fun observeTimerState() {
+    private fun observeLockStates() {
         lifecycleScope.launch {
-            app.viewingTimerManager.timerState.collectLatest { state ->
-                when (state.state) {
+            // Combine both timer state and app lock state
+            combine(
+                app.viewingTimerManager.timerState,
+                app.contentSyncManager.appLock
+            ) { timerState, appLockState ->
+                Pair(timerState, appLockState)
+            }.collectLatest { (timerState, appLockState) ->
+                // Check app lock first (parent-controlled)
+                val blockReason = app.contentSyncManager.shouldBlockApp()
+                if (blockReason != null) {
+                    // Show appropriate message based on block reason
+                    when (blockReason) {
+                        is ContentSyncManager.BlockReason.AppLocked -> {
+                            updateMessage(blockReason.message, blockReason.unlockAt)
+                        }
+                        is ContentSyncManager.BlockReason.ScheduleRestriction -> {
+                            updateMessage(blockReason.message, null)
+                        }
+                        is ContentSyncManager.BlockReason.TimeLimitReached -> {
+                            updateMessage(blockReason.message, null)
+                        }
+                    }
+                    return@collectLatest
+                }
+
+                // Check timer state
+                when (timerState.state) {
                     ViewingTimerManager.ViewingState.ACTIVE,
                     ViewingTimerManager.ViewingState.WATCHING -> {
-                        // Timer unlocked, close this screen
+                        // Both unlocked, close this screen
                         finish()
+                    }
+                    ViewingTimerManager.ViewingState.LOCKED -> {
+                        updateMessage(timerState.reason, null)
                     }
                     else -> {
                         // Stay on lock screen
                     }
                 }
             }
+        }
+    }
+
+    private fun updateMessage(message: String, unlockAt: Long?) {
+        binding.lockMessage.text = message
+
+        // Show unlock time if available
+        if (unlockAt != null && unlockAt > System.currentTimeMillis()) {
+            val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val unlockTimeStr = timeFormat.format(Date(unlockAt))
+            binding.unlockTimeText.text = "Unlocks at $unlockTimeStr"
+            binding.unlockTimeText.visibility = View.VISIBLE
+        } else {
+            binding.unlockTimeText.visibility = View.GONE
         }
     }
 

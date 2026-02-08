@@ -143,7 +143,8 @@ class ContentSyncManager(
 
         appLockListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val isLocked = snapshot.child("isLocked").getValue(Boolean::class.java) ?: false
+                // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
+                val isLocked = snapshot.child("locked").getValue(Boolean::class.java) ?: false
                 val message = snapshot.child("message").getValue(String::class.java) ?: "App is locked by parent"
                 val unlockAt = snapshot.child("unlockAt").getValue(Long::class.java)
                 val warningMinutes = snapshot.child("warningMinutes").getValue(Int::class.java) ?: 0
@@ -359,7 +360,8 @@ class ContentSyncManager(
             val lockId = lockSnapshot.key ?: continue
             val videoTitle = lockSnapshot.child("videoTitle").getValue(String::class.java)
             val collectionName = lockSnapshot.child("collectionName").getValue(String::class.java)
-            val isLocked = lockSnapshot.child("isLocked").getValue(Boolean::class.java) ?: false
+            // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
+            val isLocked = lockSnapshot.child("locked").getValue(Boolean::class.java) ?: false
             val warningMinutes = lockSnapshot.child("warningMinutes").getValue(Int::class.java) ?: 5
             val lockedAt = lockSnapshot.child("lockedAt").getValue(Long::class.java) ?: now
             val allowFinishCurrentVideo = lockSnapshot.child("allowFinishCurrentVideo").getValue(Boolean::class.java) ?: false
@@ -713,7 +715,8 @@ class ContentSyncManager(
         val childUid = currentChildUid ?: return
 
         val key = sanitizeFirebaseKey(videoTitle)
-        database.getReference("families/$familyId/children/$childUid/videos/$key/isEnabled")
+        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+        database.getReference("families/$familyId/children/$childUid/videos/$key/enabled")
             .setValue(isEnabled).await()
     }
 
@@ -725,7 +728,8 @@ class ContentSyncManager(
         val childUid = currentChildUid ?: return
 
         val key = sanitizeFirebaseKey(collectionName)
-        database.getReference("families/$familyId/children/$childUid/collections/$key/isEnabled")
+        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+        database.getReference("families/$familyId/children/$childUid/collections/$key/enabled")
             .setValue(isEnabled).await()
     }
 
@@ -916,7 +920,8 @@ class ContentSyncManager(
         val childUid = currentChildUid ?: return
 
         try {
-            database.getReference("families/$familyId/children/$childUid/appLock/isLocked")
+            // Note: Firebase serializes 'isLocked' as 'locked'
+            database.getReference("families/$familyId/children/$childUid/appLock/locked")
                 .setValue(false).await()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear app lock", e)

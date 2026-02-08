@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         loadGreeting()
         loadTabsFromSettings()
         observeViewingState()
+        observeAppLock()
         observeLockWarnings()
 
         // Register scan receiver
@@ -125,6 +126,28 @@ class MainActivity : AppCompatActivity() {
                     }
                     else -> {
                         // App is usable
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeAppLock() {
+        lifecycleScope.launch {
+            app.contentSyncManager.appLock.collectLatest { appLockState ->
+                if (appLockState != null && appLockState.isLocked) {
+                    val now = System.currentTimeMillis()
+                    // Check if lock has taken effect (warning period passed)
+                    if (appLockState.appliesAt <= now) {
+                        // Check if scheduled unlock time has passed
+                        val unlockAt = appLockState.unlockAt
+                        if (unlockAt == null || now < unlockAt) {
+                            // App should be locked - show lock screen
+                            val isPaired = app.pairingRepository.isPaired()
+                            if (isPaired) {
+                                showLockScreen()
+                            }
+                        }
                     }
                 }
             }
@@ -191,6 +214,14 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val isPaired = app.pairingRepository.isPaired()
             if (isPaired) {
+                // Check app lock from parent control
+                val blockReason = app.contentSyncManager.shouldBlockApp()
+                if (blockReason != null) {
+                    showLockScreen()
+                    return@launch
+                }
+
+                // Check viewing timer state
                 val state = app.viewingTimerManager.timerState.value
                 if (state.state == ViewingTimerManager.ViewingState.LOCKED) {
                     showLockScreen()

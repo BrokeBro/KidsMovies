@@ -206,8 +206,9 @@ class FamilyManager {
             .setValue(lockCommand)
             .await()
 
-        // Also update the video's isEnabled field directly for immediate effect
-        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$lockId/isEnabled")
+        // Also update the video's enabled field directly for immediate effect
+        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$lockId/enabled")
             .setValue(!isLocked)
             .await()
     }
@@ -243,8 +244,9 @@ class FamilyManager {
             .setValue(lockCommand)
             .await()
 
-        // Also update the collection's isEnabled field directly for immediate effect
-        database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$collectionKey/isEnabled")
+        // Also update the collection's enabled field directly for immediate effect
+        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+        database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$collectionKey/enabled")
             .setValue(!isLocked)
             .await()
     }
