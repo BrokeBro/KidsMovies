@@ -53,6 +53,24 @@ class VideoCarouselAdapter(
             // Show favourite indicator
             binding.favouriteIndicator.visibility = if (video.isFavourite) View.VISIBLE else View.GONE
 
+            // Show lock overlay if video is disabled (parental lock)
+            binding.lockOverlay.visibility = if (!video.isEnabled) View.VISIBLE else View.GONE
+
+            // Show watch progress bar
+            if (video.playbackPosition > 0 && video.duration > 0) {
+                val progressPercent = (video.playbackPosition.toFloat() / video.duration.toFloat()).coerceIn(0f, 1f)
+                binding.progressBar.visibility = View.VISIBLE
+                binding.progressBar.post {
+                    val parentWidth = binding.videoThumbnail.width
+                    val progressWidth = (parentWidth * progressPercent).toInt()
+                    binding.progressBar.layoutParams = binding.progressBar.layoutParams.apply {
+                        width = progressWidth
+                    }
+                }
+            } else {
+                binding.progressBar.visibility = View.GONE
+            }
+
             // Click listener
             binding.videoCard.setOnClickListener {
                 onVideoClick(video)

@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
         CachedDeviceOverrides::class,
         CachedSchedule::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(ScheduleConverters::class)
@@ -234,6 +234,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 10 to 11: Add parental lock to collections
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add isEnabled field to collections for parental control
+                db.execSQL("ALTER TABLE collections ADD COLUMN isEnabled INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -244,7 +252,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

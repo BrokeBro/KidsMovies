@@ -28,6 +28,7 @@ data class VideoCollection(
     val seasonNumber: Int? = null, // Season number for SEASON type collections
     val tmdbShowId: Int? = null, // TMDB TV show ID for fetching correct artwork
     val sortOrder: Int = 0, // For ordering collections on the home screen
+    val isEnabled: Boolean = true, // For parental control
     val dateCreated: Long = System.currentTimeMillis(),
     val dateModified: Long = System.currentTimeMillis()
 ) : Parcelable {

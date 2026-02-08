@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="8dp"
-    android:background="?attr/selectableItemBackgroundBorderless"
-    android:clickable="true"
-    android:focusable="true"
-    android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:id="@+id/contentLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="8dp">
 
     <!-- Collection thumbnail/icon -->
     <com.google.android.material.card.MaterialCardView
@@ -40,6 +45,20 @@
             android:src="@drawable/ic_collections"
             app:tint="@color/text_secondary" />
 
+        <!-- Lock overlay -->
+        <ImageView
+            android:id="@+id/lockOverlay"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/bg_lock_badge"
+            android:contentDescription="@string/cd_locked_content"
+            android:padding="4dp"
+            android:src="@drawable/ic_lock"
+            android:visibility="gone"
+            app:tint="@color/white" />
+
     </com.google.android.material.card.MaterialCardView>
 
     <!-- Collection name -->
@@ -57,4 +76,18 @@
         android:textStyle="bold"
         tools:text="Collection Name" />
 
-</LinearLayout>
+    </LinearLayout>
+
+    <!-- Reorder handle (visible in edit mode) -->
+    <ImageView
+        android:id="@+id/reorderHandle"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|end"
+        android:contentDescription="@string/cd_reorder_handle"
+        android:padding="2dp"
+        android:src="@drawable/ic_drag_handle"
+        android:visibility="gone"
+        app:tint="@color/text_secondary" />
+
+</FrameLayout>

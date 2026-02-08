@@ -58,6 +58,31 @@
             app:layout_constraintTop_toTopOf="@id/videoThumbnail"
             app:tint="@color/favourite_active" />
 
+        <!-- Parental lock overlay -->
+        <ImageView
+            android:id="@+id/lockOverlay"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_lock_badge"
+            android:contentDescription="@string/cd_locked_content"
+            android:padding="4dp"
+            android:src="@drawable/ic_lock"
+            android:visibility="gone"
+            app:layout_constraintStart_toStartOf="@id/videoThumbnail"
+            app:layout_constraintTop_toTopOf="@id/videoThumbnail"
+            app:tint="@color/white" />
+
+        <!-- Watch progress bar -->
+        <View
+            android:id="@+id/progressBar"
+            android:layout_width="0dp"
+            android:layout_height="3dp"
+            android:background="@color/progress_red"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/videoThumbnail"
+            app:layout_constraintStart_toStartOf="@id/videoThumbnail" />
+
         <!-- Video title -->
         <TextView
             android:id="@+id/videoTitle"

@@ -72,6 +72,29 @@
                 android:focusable="false"
                 android:visibility="gone" />
 
+            <!-- Parental lock overlay -->
+            <ImageView
+                android:id="@+id/lockOverlay"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_lock_badge"
+                android:contentDescription="@string/cd_locked_content"
+                android:padding="5dp"
+                android:src="@drawable/ic_lock"
+                android:visibility="gone"
+                app:tint="@color/white" />
+
+            <!-- Watch progress bar at bottom -->
+            <View
+                android:id="@+id/progressBar"
+                android:layout_width="0dp"
+                android:layout_height="3dp"
+                android:layout_gravity="bottom"
+                android:background="@color/progress_red"
+                android:visibility="gone" />
+
         </FrameLayout>
 
         <!-- Video info -->

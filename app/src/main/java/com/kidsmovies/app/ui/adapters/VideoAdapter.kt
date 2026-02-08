@@ -114,6 +114,25 @@ class VideoAdapter(
                 )
             }
 
+            // Show watch progress bar
+            if (video.playbackPosition > 0 && video.duration > 0) {
+                val progressPercent = (video.playbackPosition.toFloat() / video.duration.toFloat()).coerceIn(0f, 1f)
+                binding.progressBar.visibility = View.VISIBLE
+                // Set width as percentage of parent
+                binding.progressBar.post {
+                    val parentWidth = (binding.progressBar.parent as? View)?.width ?: 0
+                    val progressWidth = (parentWidth * progressPercent).toInt()
+                    binding.progressBar.layoutParams = binding.progressBar.layoutParams.apply {
+                        width = progressWidth
+                    }
+                }
+            } else {
+                binding.progressBar.visibility = View.GONE
+            }
+
+            // Show lock overlay if video is disabled (parental lock)
+            binding.lockOverlay.visibility = if (!video.isEnabled) View.VISIBLE else View.GONE
+
             // Handle selection mode UI
             val isSelected = selectedVideoIds.contains(video.id)
             binding.selectionCheckbox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE

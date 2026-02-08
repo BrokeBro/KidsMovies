@@ -152,6 +152,9 @@
     <string name="collection_deleted">Collection deleted</string>
     <string name="videos_in_collection">%d videos</string>
     <string name="manage_collections">Manage Collections</string>
+    <string name="reorder_collections">Reorder Collections</string>
+    <string name="reorder_mode_enabled">Drag to reorder collections</string>
+    <string name="reorder_mode_saved">Collection order saved</string>
 
     <!-- TV Shows and Seasons -->
     <string name="tv_shows">TV Shows</string>
@@ -177,6 +180,14 @@
     <string name="cd_search_button">Search button</string>
     <string name="cd_back_button">Back button</string>
     <string name="cd_color_option">Color option</string>
+    <string name="cd_locked_content">Locked content</string>
+    <string name="cd_reorder_handle">Reorder handle</string>
+
+    <!-- Parental Lock Messages -->
+    <string name="content_locked_title">Content Locked</string>
+    <string name="content_locked_message">This video is locked. Ask a parent to unlock it for you!</string>
+    <string name="collection_locked_message">This collection is locked. Ask a parent to unlock it for you!</string>
+    <string name="ask_parent">Ask Parent</string>
 
     <!-- Usage Metrics -->
     <string name="usage_metrics">Usage Metrics</string>

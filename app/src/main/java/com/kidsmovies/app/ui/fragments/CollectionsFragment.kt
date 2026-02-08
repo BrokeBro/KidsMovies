@@ -66,6 +66,7 @@ class CollectionsFragment : Fragment() {
         setupCollectionIcons()
         setupCollectionRows()
         setupSwipeRefresh()
+        setupReorderButton()
         observeCollections()
     }
 
@@ -102,12 +103,43 @@ class CollectionsFragment : Fragment() {
     private fun setupCollectionIcons() {
         collectionIconAdapter = CollectionIconAdapter(
             onCollectionClick = { collection -> scrollToCollection(collection) },
-            onCollectionLongClick = { collection -> showCollectionOptions(collection) }
+            onCollectionLongClick = { collection -> showCollectionOptions(collection) },
+            onOrderChanged = { newOrder -> saveCollectionOrder(newOrder) }
         )
 
         binding.collectionIconsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = collectionIconAdapter
+        }
+
+        collectionIconAdapter.attachToRecyclerView(binding.collectionIconsRecyclerView)
+    }
+
+    private fun setupReorderButton() {
+        binding.reorderButton.setOnClickListener {
+            if (collectionIconAdapter.isInReorderMode()) {
+                // Exit reorder mode
+                collectionIconAdapter.setReorderMode(false)
+                binding.reorderButton.setColorFilter(
+                    resources.getColor(R.color.text_secondary, null)
+                )
+            } else {
+                // Enter reorder mode
+                collectionIconAdapter.setReorderMode(true)
+                binding.reorderButton.setColorFilter(
+                    resources.getColor(R.color.primary, null)
+                )
+                Toast.makeText(requireContext(), R.string.reorder_mode_enabled, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun saveCollectionOrder(collections: List<VideoCollection>) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            collections.forEachIndexed { index, collection ->
+                app.collectionRepository.updateSortOrder(collection.id, index)
+            }
+            Toast.makeText(requireContext(), R.string.reorder_mode_saved, Toast.LENGTH_SHORT).show()
         }
     }
 

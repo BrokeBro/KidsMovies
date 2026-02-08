@@ -332,8 +332,13 @@ class TmdbArtworkManager(
             cleaned = pattern.replace(cleaned, "")
         }
 
-        // Replace separators with spaces
-        cleaned = cleaned.replace(Regex("""[-._]"""), " ")
+        // Replace common separators with spaces (dots, dashes, underscores)
+        // This handles naming like "Movie.Name.2024" or "Movie_Name_2024"
+        cleaned = cleaned.replace(Regex("""[-._]+"""), " ")
+
+        // Handle CamelCase by inserting spaces (e.g., "MovieName" -> "Movie Name")
+        // Only if there are consecutive lowercase-to-uppercase transitions
+        cleaned = cleaned.replace(Regex("""([a-z])([A-Z])"""), "$1 $2")
 
         // Remove quality/format words
         for (word in STRIP_WORDS) {
@@ -345,6 +350,9 @@ class TmdbArtworkManager(
 
         // Remove standalone year at end
         cleaned = cleaned.replace(Regex("""\s+\d{4}\s*$"""), "")
+
+        // Remove common release tags
+        cleaned = cleaned.replace(Regex("""\b(PROPER|REPACK|REAL|INTERNAL|LIMITED|UNRATED|EXTENDED|DIRECTORS\s*CUT|DC|THEATRICAL)\b""", RegexOption.IGNORE_CASE), "")
 
         // Clean up extra spaces
         cleaned = cleaned.replace(Regex("""\s+"""), " ").trim()
