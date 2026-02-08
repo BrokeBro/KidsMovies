@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kids Movies Parent</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">My Children</string>
+    <string name="no_children">No children connected yet</string>
+    <string name="add_child_hint">Tap + to generate a pairing code</string>
+    <string name="child_online">Online</string>
+    <string name="child_offline">Offline</string>
+    <string name="last_seen">Last seen: %s</string>
+    <string name="currently_watching">Watching: %s</string>
+    <string name="today_watch_time">Today: %s watched</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">Add Child Device</string>
+    <string name="pairing_instructions">Enter this code on the child\'s device to connect it to your family</string>
+    <string name="pairing_code_label">Pairing Code</string>
+    <string name="code_expires_in">Code expires in %s</string>
+    <string name="generate_new_code">Generate New Code</string>
+    <string name="code_expired">Code expired</string>
+    <string name="share_code">Share Code</string>
+    <string name="share_code_message">Use this code to connect your child\'s device: %s</string>
+
+    <!-- Child Detail -->
+    <string name="videos_tab">Videos</string>
+    <string name="collections_tab">Collections</string>
+    <string name="settings_tab">Settings</string>
+    <string name="all_videos">All Videos</string>
+    <string name="all_collections">All Collections</string>
+    <string name="no_videos">No videos found</string>
+    <string name="no_collections">No collections found</string>
+    <string name="request_sync">Refresh Content</string>
+    <string name="syncing">Syncing...</string>
+    <string name="sync_requested">Sync requested</string>
+
+    <!-- Lock Controls -->
+    <string name="lock_content">Lock</string>
+    <string name="unlock_content">Unlock</string>
+    <string name="locked">Locked</string>
+    <string name="unlocked">Available</string>
+    <string name="lock_dialog_title">Lock Content</string>
+    <string name="lock_video_message">Lock \"%s\"?</string>
+    <string name="lock_collection_message">Lock the collection \"%s\"? This will prevent access to all videos in this collection.</string>
+    <string name="warning_time">Warning time</string>
+    <string name="warning_time_desc">How much warning before lock takes effect</string>
+    <string name="minutes">%d minutes</string>
+    <string name="immediate">Immediate (no warning)</string>
+    <string name="allow_finish_video">Allow finish current video</string>
+    <string name="allow_finish_video_desc">Let them finish what they\'re watching before lock applies</string>
+    <string name="content_locked_success">Content locked</string>
+    <string name="content_unlocked_success">Content unlocked</string>
+
+    <!-- Time formats -->
+    <string name="time_format_hours">%dh %dm</string>
+    <string name="time_format_minutes">%d min</string>
+    <string name="just_now">Just now</string>
+    <string name="minutes_ago">%d min ago</string>
+    <string name="hours_ago">%d hours ago</string>
+    <string name="yesterday">Yesterday</string>
+
+    <!-- Dialogs -->
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="confirm">Confirm</string>
+    <string name="remove_child">Remove Child</string>
+    <string name="remove_child_message">Remove %s from your family? This will unpair their device.</string>
+    <string name="child_removed">Child removed</string>
+
+    <!-- Errors -->
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_network">No internet connection</string>
+    <string name="error_not_signed_in">Please sign in to continue</string>
+</resources>

@@ -1,17 +1,15 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'com.google.devtools.ksp'
-    id 'kotlin-parcelize'
     id 'com.google.gms.google-services'
 }
 
 android {
-    namespace 'com.kidsmovies.app'
+    namespace 'com.kidsmovies.parent'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.kidsmovies.app"
+        applicationId "com.kidsmovies.parent"
         minSdk 26
         targetSdk 34
         versionCode 1
@@ -54,38 +52,13 @@ dependencies {
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
-    // Navigation
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.6'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.7.6'
-
     // Lifecycle
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.2'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
 
-    // Room Database
-    implementation 'androidx.room:room-runtime:2.6.1'
-    implementation 'androidx.room:room-ktx:2.6.1'
-    ksp 'androidx.room:room-compiler:2.6.1'
-
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-
-    // Glide for image loading
-    implementation 'com.github.bumptech.glide:glide:4.16.0'
-    ksp 'com.github.bumptech.glide:ksp:4.16.0'
-
-    // Gson for JSON
-    implementation 'com.google.code.gson:gson:2.10.1'
-
-    // OkHttp for network calls
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // Preference
-    implementation 'androidx.preference:preference-ktx:1.2.1'
-
-    // Work Manager for background tasks
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 
     // Firebase
     implementation platform('com.google.firebase:firebase-bom:32.7.0')
