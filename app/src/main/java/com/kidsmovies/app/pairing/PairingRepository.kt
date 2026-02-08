@@ -109,10 +109,10 @@ class PairingRepository(
             val familyId = pairingCode.familyId
             val parentUid = pairingCode.parentUid
 
-            // Register this device under the family
+            // Register this device under the family (use 'children' path to match parent app)
             onStatus?.invoke("Registering device...")
-            Log.d(TAG, "Step 3: Registering device at $FAMILIES_PATH/$familyId/devices/$childUid")
-            val deviceRef = database.getReference("$FAMILIES_PATH/$familyId/devices/$childUid")
+            Log.d(TAG, "Step 3: Registering device at $FAMILIES_PATH/$familyId/children/$childUid/deviceInfo")
+            val deviceRef = database.getReference("$FAMILIES_PATH/$familyId/children/$childUid/deviceInfo")
             val deviceData = mapOf(
                 "deviceName" to deviceName,
                 "pairedAt" to System.currentTimeMillis(),
@@ -164,7 +164,7 @@ class PairingRepository(
 
         try {
             val deviceRef = database.getReference(
-                "$FAMILIES_PATH/${state.familyId}/devices/${state.childUid}/lastSeen"
+                "$FAMILIES_PATH/${state.familyId}/children/${state.childUid}/deviceInfo/lastSeen"
             )
             deviceRef.setValue(System.currentTimeMillis()).await()
         } catch (e: Exception) {

@@ -243,6 +243,157 @@ class FamilyManager {
             .await()
     }
 
+    /**
+     * Lock or unlock the entire app
+     */
+    suspend fun setAppLock(
+        familyId: String,
+        childUid: String,
+        isLocked: Boolean,
+        unlockAt: Long? = null,
+        message: String = "App is locked by parent",
+        warningMinutes: Int = 5,
+        allowFinishCurrentVideo: Boolean = false
+    ) {
+        val userId = auth.currentUser?.uid ?: return
+
+        val appLock = AppLockCommand(
+            isLocked = isLocked,
+            lockedBy = userId,
+            lockedAt = System.currentTimeMillis(),
+            unlockAt = unlockAt,
+            message = message,
+            warningMinutes = warningMinutes,
+            allowFinishCurrentVideo = allowFinishCurrentVideo
+        )
+
+        database.getReference(FirebasePaths.childAppLockPath(familyId, childUid))
+            .setValue(appLock)
+            .await()
+    }
+
+    /**
+     * Get app lock status as a Flow
+     */
+    fun getAppLockFlow(familyId: String, childUid: String): Flow<AppLockCommand?> = callbackFlow {
+        val appLockRef = database.getReference(FirebasePaths.childAppLockPath(familyId, childUid))
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val appLock = snapshot.getValue(AppLockCommand::class.java)
+                trySend(appLock)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "App lock listener cancelled", error.toException())
+            }
+        }
+
+        appLockRef.addValueEventListener(listener)
+
+        awaitClose {
+            appLockRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Set schedule settings for a child
+     */
+    suspend fun setScheduleSettings(
+        familyId: String,
+        childUid: String,
+        settings: ScheduleSettings
+    ) {
+        database.getReference(FirebasePaths.childSchedulePath(familyId, childUid))
+            .setValue(settings)
+            .await()
+    }
+
+    /**
+     * Get schedule settings as a Flow
+     */
+    fun getScheduleSettingsFlow(familyId: String, childUid: String): Flow<ScheduleSettings?> = callbackFlow {
+        val scheduleRef = database.getReference(FirebasePaths.childSchedulePath(familyId, childUid))
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val settings = snapshot.getValue(ScheduleSettings::class.java)
+                trySend(settings)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Schedule listener cancelled", error.toException())
+            }
+        }
+
+        scheduleRef.addValueEventListener(listener)
+
+        awaitClose {
+            scheduleRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Set time limit settings for a child
+     */
+    suspend fun setTimeLimitSettings(
+        familyId: String,
+        childUid: String,
+        settings: TimeLimitSettings
+    ) {
+        database.getReference(FirebasePaths.childTimeLimitsPath(familyId, childUid))
+            .setValue(settings)
+            .await()
+    }
+
+    /**
+     * Get time limit settings as a Flow
+     */
+    fun getTimeLimitSettingsFlow(familyId: String, childUid: String): Flow<TimeLimitSettings?> = callbackFlow {
+        val timeLimitsRef = database.getReference(FirebasePaths.childTimeLimitsPath(familyId, childUid))
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val settings = snapshot.getValue(TimeLimitSettings::class.java)
+                trySend(settings)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Time limits listener cancelled", error.toException())
+            }
+        }
+
+        timeLimitsRef.addValueEventListener(listener)
+
+        awaitClose {
+            timeLimitsRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Get viewing metrics for a child as a Flow
+     */
+    fun getViewingMetricsFlow(familyId: String, childUid: String): Flow<ViewingMetrics?> = callbackFlow {
+        val metricsRef = database.getReference(FirebasePaths.childMetricsPath(familyId, childUid))
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val metrics = snapshot.getValue(ViewingMetrics::class.java)
+                trySend(metrics)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Metrics listener cancelled", error.toException())
+            }
+        }
+
+        metricsRef.addValueEventListener(listener)
+
+        awaitClose {
+            metricsRef.removeEventListener(listener)
+        }
+    }
+
     private fun sanitizeFirebaseKey(key: String): String {
         return key.replace(Regex("[.\\$#\\[\\]/]"), "_")
     }

@@ -68,7 +68,7 @@ data class SyncRequest(
 }
 
 /**
- * Lock command from parent app
+ * Lock command from parent app for individual videos/collections
  */
 @IgnoreExtraProperties
 data class LockCommand(
@@ -82,6 +82,72 @@ data class LockCommand(
 ) {
     // No-arg constructor for Firebase
     constructor() : this(null, null, false, "", 0, 5, false)
+}
+
+/**
+ * App-level lock command - locks the entire kids app
+ */
+@IgnoreExtraProperties
+data class AppLockCommand(
+    val isLocked: Boolean = false,
+    val lockedBy: String = "",
+    val lockedAt: Long = 0,
+    val unlockAt: Long? = null, // Scheduled unlock time (null = manual unlock only)
+    val message: String = "App is locked by parent", // Message shown to child
+    val warningMinutes: Int = 5, // Warning before lock takes effect
+    val allowFinishCurrentVideo: Boolean = false
+) {
+    // No-arg constructor for Firebase
+    constructor() : this(false, "", 0, null, "App is locked by parent", 5, false)
+}
+
+/**
+ * Schedule settings for when the app can be used
+ */
+@IgnoreExtraProperties
+data class ScheduleSettings(
+    val enabled: Boolean = false,
+    val allowedDays: List<Int> = listOf(0, 1, 2, 3, 4, 5, 6), // 0=Sunday, 6=Saturday
+    val allowedStartHour: Int = 8, // 8 AM
+    val allowedStartMinute: Int = 0,
+    val allowedEndHour: Int = 20, // 8 PM
+    val allowedEndMinute: Int = 0,
+    val timezone: String = "UTC"
+) {
+    // No-arg constructor for Firebase
+    constructor() : this(false, listOf(0, 1, 2, 3, 4, 5, 6), 8, 0, 20, 0, "UTC")
+}
+
+/**
+ * Daily time limit settings
+ */
+@IgnoreExtraProperties
+data class TimeLimitSettings(
+    val enabled: Boolean = false,
+    val dailyLimitMinutes: Int = 120, // 2 hours default
+    val weekendLimitMinutes: Int = 180, // 3 hours on weekends
+    val warningAtMinutesRemaining: Int = 10 // Warn when 10 minutes left
+) {
+    // No-arg constructor for Firebase
+    constructor() : this(false, 120, 180, 10)
+}
+
+/**
+ * Viewing metrics for a child device
+ */
+@IgnoreExtraProperties
+data class ViewingMetrics(
+    val todayWatchTimeMinutes: Long = 0,
+    val weekWatchTimeMinutes: Long = 0,
+    val totalWatchTimeMinutes: Long = 0,
+    val lastWatchDate: String = "", // YYYY-MM-DD format
+    val videosWatchedToday: Int = 0,
+    val mostWatchedVideo: String? = null,
+    val lastVideoWatched: String? = null,
+    val lastWatchedAt: Long = 0
+) {
+    // No-arg constructor for Firebase
+    constructor() : this(0, 0, 0, "", 0, null, null, 0)
 }
 
 /**
@@ -130,6 +196,11 @@ object FirebasePaths {
     const val DEVICE_INFO = "deviceInfo"
     const val SYNC_REQUEST = "syncRequest"
     const val LOCKS = "locks"
+    const val APP_LOCK = "appLock"
+    const val SCHEDULE = "schedule"
+    const val TIME_LIMITS = "timeLimits"
+    const val METRICS = "metrics"
+    const val SETTINGS = "settings"
 
     fun familyPath(familyId: String) = "$FAMILIES/$familyId"
     fun childPath(familyId: String, childUid: String) = "$FAMILIES/$familyId/$CHILDREN/$childUid"
@@ -138,5 +209,9 @@ object FirebasePaths {
     fun childDeviceInfoPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$DEVICE_INFO"
     fun childLocksPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$LOCKS"
     fun childSyncRequestPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$SYNC_REQUEST"
+    fun childAppLockPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$APP_LOCK"
+    fun childSchedulePath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$SETTINGS/$SCHEDULE"
+    fun childTimeLimitsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$SETTINGS/$TIME_LIMITS"
+    fun childMetricsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$METRICS"
     fun pairingCodePath(code: String) = "$PAIRING_CODES/$code"
 }

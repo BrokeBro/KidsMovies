@@ -11,6 +11,7 @@ import com.kidsmovies.parent.ParentApp
 import com.kidsmovies.parent.R
 import com.kidsmovies.parent.databinding.ActivityChildDetailBinding
 import com.kidsmovies.parent.ui.fragments.ContentListFragment
+import com.kidsmovies.parent.ui.fragments.ChildSettingsFragment
 import kotlinx.coroutines.launch
 
 class ChildDetailActivity : AppCompatActivity() {
@@ -54,6 +55,7 @@ class ChildDetailActivity : AppCompatActivity() {
             tab.text = when (position) {
                 0 -> getString(R.string.videos_tab)
                 1 -> getString(R.string.collections_tab)
+                2 -> getString(R.string.settings_tab)
                 else -> ""
             }
         }.attach()
@@ -86,7 +88,7 @@ class ChildDetailActivity : AppCompatActivity() {
 
     private inner class ChildDetailPagerAdapter : FragmentStateAdapter(this) {
 
-        override fun getItemCount(): Int = 2
+        override fun getItemCount(): Int = 3
 
         override fun createFragment(position: Int): Fragment {
             return when (position) {
@@ -100,6 +102,7 @@ class ChildDetailActivity : AppCompatActivity() {
                     familyId,
                     childUid
                 )
+                2 -> ChildSettingsFragment.newInstance(familyId, childUid)
                 else -> ContentListFragment.newInstance(
                     ContentListFragment.TYPE_VIDEOS,
                     familyId,

@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class ContentSyncManager(
     private val pairingDao: PairingDao,
@@ -27,6 +32,9 @@ class ContentSyncManager(
 
     private var syncRequestListener: ValueEventListener? = null
     private var locksListener: ValueEventListener? = null
+    private var appLockListener: ValueEventListener? = null
+    private var scheduleListener: ValueEventListener? = null
+    private var timeLimitsListener: ValueEventListener? = null
     private var currentFamilyId: String? = null
     private var currentChildUid: String? = null
 
@@ -36,9 +44,29 @@ class ContentSyncManager(
     private val _lockWarning = MutableStateFlow<LockWarning?>(null)
     val lockWarning: StateFlow<LockWarning?> = _lockWarning
 
+    // App-level lock state
+    private val _appLock = MutableStateFlow<AppLockState?>(null)
+    val appLock: StateFlow<AppLockState?> = _appLock
+
+    // Schedule settings
+    private val _scheduleSettings = MutableStateFlow<ScheduleState?>(null)
+    val scheduleSettings: StateFlow<ScheduleState?> = _scheduleSettings
+
+    // Time limit settings
+    private val _timeLimitSettings = MutableStateFlow<TimeLimitState?>(null)
+    val timeLimitSettings: StateFlow<TimeLimitState?> = _timeLimitSettings
+
     // Track currently watching video for "finish current video" feature
     private var currentlyWatchingTitle: String? = null
     private var isWatchingVideo: Boolean = false
+
+    // Viewing metrics tracking
+    private var sessionStartTime: Long = 0
+    private var todayWatchTimeMinutes: Long = 0
+    private var weekWatchTimeMinutes: Long = 0
+    private var totalWatchTimeMinutes: Long = 0
+    private var videosWatchedToday: Int = 0
+    private var lastWatchDate: String = ""
 
     // Locks waiting for video to finish (allowFinishCurrentVideo = true)
     private val _locksWaitingForVideoEnd = MutableStateFlow<List<PendingLock>>(emptyList())
@@ -55,6 +83,29 @@ class ContentSyncManager(
         val appliesAt: Long,
         val allowFinishCurrentVideo: Boolean = false, // Can finish current video before lock
         val isLastOne: Boolean = false // Warning period expired, this is the last video
+    )
+
+    data class AppLockState(
+        val isLocked: Boolean,
+        val message: String,
+        val unlockAt: Long?,
+        val warningMinutes: Int,
+        val appliesAt: Long,
+        val allowFinishCurrentVideo: Boolean
+    )
+
+    data class ScheduleState(
+        val enabled: Boolean,
+        val isCurrentlyAllowed: Boolean,
+        val nextAllowedTime: Long?,
+        val message: String
+    )
+
+    data class TimeLimitState(
+        val enabled: Boolean,
+        val dailyLimitMinutes: Int,
+        val remainingMinutes: Int,
+        val isLimitReached: Boolean
     )
 
     /**
@@ -80,7 +131,182 @@ class ContentSyncManager(
 
             listenForSyncRequests(familyId, childUid)
             listenForLockCommands(familyId, childUid)
+            listenForAppLock(familyId, childUid)
+            listenForScheduleSettings(familyId, childUid)
+            listenForTimeLimitSettings(familyId, childUid)
+            loadViewingMetrics(familyId, childUid)
         }
+    }
+
+    private fun listenForAppLock(familyId: String, childUid: String) {
+        val appLockRef = database.getReference("families/$familyId/children/$childUid/appLock")
+
+        appLockListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val isLocked = snapshot.child("isLocked").getValue(Boolean::class.java) ?: false
+                val message = snapshot.child("message").getValue(String::class.java) ?: "App is locked by parent"
+                val unlockAt = snapshot.child("unlockAt").getValue(Long::class.java)
+                val warningMinutes = snapshot.child("warningMinutes").getValue(Int::class.java) ?: 0
+                val lockedAt = snapshot.child("lockedAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+                val allowFinishCurrentVideo = snapshot.child("allowFinishCurrentVideo").getValue(Boolean::class.java) ?: false
+
+                val appliesAt = lockedAt + (warningMinutes * 60 * 1000)
+
+                _appLock.value = AppLockState(
+                    isLocked = isLocked,
+                    message = message,
+                    unlockAt = unlockAt,
+                    warningMinutes = warningMinutes,
+                    appliesAt = appliesAt,
+                    allowFinishCurrentVideo = allowFinishCurrentVideo
+                )
+
+                Log.d(TAG, "App lock state updated: isLocked=$isLocked")
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "App lock listener cancelled", error.toException())
+            }
+        }
+
+        appLockRef.addValueEventListener(appLockListener!!)
+    }
+
+    private fun listenForScheduleSettings(familyId: String, childUid: String) {
+        val scheduleRef = database.getReference("families/$familyId/children/$childUid/settings/schedule")
+
+        scheduleListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val enabled = snapshot.child("enabled").getValue(Boolean::class.java) ?: false
+                if (!enabled) {
+                    _scheduleSettings.value = ScheduleState(
+                        enabled = false,
+                        isCurrentlyAllowed = true,
+                        nextAllowedTime = null,
+                        message = ""
+                    )
+                    return
+                }
+
+                val allowedDays = snapshot.child("allowedDays").children.mapNotNull {
+                    it.getValue(Int::class.java)
+                }
+                val startHour = snapshot.child("allowedStartHour").getValue(Int::class.java) ?: 8
+                val startMinute = snapshot.child("allowedStartMinute").getValue(Int::class.java) ?: 0
+                val endHour = snapshot.child("allowedEndHour").getValue(Int::class.java) ?: 20
+                val endMinute = snapshot.child("allowedEndMinute").getValue(Int::class.java) ?: 0
+
+                val calendar = Calendar.getInstance()
+                val currentDay = calendar.get(Calendar.DAY_OF_WEEK) - 1 // Convert to 0-based (Sunday = 0)
+                val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+                val currentMinute = calendar.get(Calendar.MINUTE)
+
+                val currentTimeMinutes = currentHour * 60 + currentMinute
+                val startTimeMinutes = startHour * 60 + startMinute
+                val endTimeMinutes = endHour * 60 + endMinute
+
+                val isDayAllowed = allowedDays.isEmpty() || allowedDays.contains(currentDay)
+                val isTimeAllowed = currentTimeMinutes in startTimeMinutes until endTimeMinutes
+
+                val isAllowed = isDayAllowed && isTimeAllowed
+
+                val message = if (!isAllowed) {
+                    if (!isDayAllowed) {
+                        "App is not available today"
+                    } else if (currentTimeMinutes < startTimeMinutes) {
+                        "App available from ${formatTime(startHour, startMinute)}"
+                    } else {
+                        "App time is over for today"
+                    }
+                } else ""
+
+                _scheduleSettings.value = ScheduleState(
+                    enabled = true,
+                    isCurrentlyAllowed = isAllowed,
+                    nextAllowedTime = null,
+                    message = message
+                )
+
+                Log.d(TAG, "Schedule settings updated: enabled=$enabled, allowed=$isAllowed")
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Schedule listener cancelled", error.toException())
+            }
+        }
+
+        scheduleRef.addValueEventListener(scheduleListener!!)
+    }
+
+    private fun listenForTimeLimitSettings(familyId: String, childUid: String) {
+        val timeLimitsRef = database.getReference("families/$familyId/children/$childUid/settings/timeLimits")
+
+        timeLimitsListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val enabled = snapshot.child("enabled").getValue(Boolean::class.java) ?: false
+                val dailyLimitMinutes = snapshot.child("dailyLimitMinutes").getValue(Int::class.java) ?: 120
+
+                if (!enabled || dailyLimitMinutes == 0) {
+                    _timeLimitSettings.value = TimeLimitState(
+                        enabled = false,
+                        dailyLimitMinutes = 0,
+                        remainingMinutes = Int.MAX_VALUE,
+                        isLimitReached = false
+                    )
+                    return
+                }
+
+                val remaining = (dailyLimitMinutes - todayWatchTimeMinutes).coerceAtLeast(0).toInt()
+                val isReached = remaining <= 0
+
+                _timeLimitSettings.value = TimeLimitState(
+                    enabled = true,
+                    dailyLimitMinutes = dailyLimitMinutes,
+                    remainingMinutes = remaining,
+                    isLimitReached = isReached
+                )
+
+                Log.d(TAG, "Time limits updated: enabled=$enabled, remaining=$remaining minutes")
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Time limits listener cancelled", error.toException())
+            }
+        }
+
+        timeLimitsRef.addValueEventListener(timeLimitsListener!!)
+    }
+
+    private fun loadViewingMetrics(familyId: String, childUid: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val metricsRef = database.getReference("families/$familyId/children/$childUid/metrics")
+                val snapshot = metricsRef.get().await()
+
+                todayWatchTimeMinutes = snapshot.child("todayWatchTimeMinutes").getValue(Long::class.java) ?: 0
+                weekWatchTimeMinutes = snapshot.child("weekWatchTimeMinutes").getValue(Long::class.java) ?: 0
+                totalWatchTimeMinutes = snapshot.child("totalWatchTimeMinutes").getValue(Long::class.java) ?: 0
+                videosWatchedToday = snapshot.child("videosWatchedToday").getValue(Int::class.java) ?: 0
+                lastWatchDate = snapshot.child("lastWatchDate").getValue(String::class.java) ?: ""
+
+                // Reset today's metrics if it's a new day
+                val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                if (lastWatchDate != todayDate) {
+                    todayWatchTimeMinutes = 0
+                    videosWatchedToday = 0
+                }
+
+                Log.d(TAG, "Loaded viewing metrics: today=$todayWatchTimeMinutes min")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load viewing metrics", e)
+            }
+        }
+    }
+
+    private fun formatTime(hour: Int, minute: Int): String {
+        val amPm = if (hour < 12) "AM" else "PM"
+        val hour12 = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+        return String.format("%d:%02d %s", hour12, minute, amPm)
     }
 
     private fun listenForSyncRequests(familyId: String, childUid: String) {
@@ -519,15 +745,187 @@ class ContentSyncManager(
                     database.getReference("families/$familyId/children/$childUid/locks")
                         .removeEventListener(it)
                 }
+                appLockListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/appLock")
+                        .removeEventListener(it)
+                }
+                scheduleListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/settings/schedule")
+                        .removeEventListener(it)
+                }
+                timeLimitsListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/settings/timeLimits")
+                        .removeEventListener(it)
+                }
             }
         }
         syncRequestListener = null
         locksListener = null
+        appLockListener = null
+        scheduleListener = null
+        timeLimitsListener = null
         currentFamilyId = null
         currentChildUid = null
     }
 
     fun dismissLockWarning() {
         _lockWarning.value = null
+    }
+
+    /**
+     * Called when app comes to foreground - marks device as online
+     */
+    fun onAppForeground() {
+        coroutineScope.launch(Dispatchers.IO) {
+            setOnlineStatus(true)
+        }
+    }
+
+    /**
+     * Called when app goes to background - marks device as offline
+     */
+    fun onAppBackground() {
+        coroutineScope.launch(Dispatchers.IO) {
+            // Update watch time when going to background
+            endWatchingSession()
+            setOnlineStatus(false)
+        }
+    }
+
+    private suspend fun setOnlineStatus(isOnline: Boolean) {
+        val familyId = currentFamilyId ?: run {
+            val pairingState = pairingDao.getPairingState()
+            pairingState?.familyId
+        } ?: return
+
+        val childUid = currentChildUid ?: run {
+            val pairingState = pairingDao.getPairingState()
+            pairingState?.childUid
+        } ?: return
+
+        try {
+            val updates = mutableMapOf<String, Any?>()
+            updates["families/$familyId/children/$childUid/deviceInfo/isOnline"] = isOnline
+            updates["families/$familyId/children/$childUid/deviceInfo/lastSeen"] = System.currentTimeMillis()
+
+            database.reference.updateChildren(updates).await()
+            Log.d(TAG, "Online status set to: $isOnline")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update online status", e)
+        }
+    }
+
+    /**
+     * Start watching session - call when video playback starts
+     */
+    fun startWatchingSession(videoTitle: String) {
+        sessionStartTime = System.currentTimeMillis()
+        videosWatchedToday++
+
+        coroutineScope.launch(Dispatchers.IO) {
+            updateCurrentlyWatching(videoTitle)
+        }
+    }
+
+    /**
+     * End watching session - call when video playback stops
+     */
+    fun endWatchingSession() {
+        if (sessionStartTime > 0) {
+            val sessionDuration = (System.currentTimeMillis() - sessionStartTime) / 60000 // Convert to minutes
+            todayWatchTimeMinutes += sessionDuration
+            weekWatchTimeMinutes += sessionDuration
+            totalWatchTimeMinutes += sessionDuration
+            sessionStartTime = 0
+
+            coroutineScope.launch(Dispatchers.IO) {
+                updateCurrentlyWatching(null)
+                uploadViewingMetrics()
+            }
+        }
+    }
+
+    private suspend fun uploadViewingMetrics() {
+        val familyId = currentFamilyId ?: return
+        val childUid = currentChildUid ?: return
+
+        val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+        try {
+            val metrics = mapOf(
+                "todayWatchTimeMinutes" to todayWatchTimeMinutes,
+                "weekWatchTimeMinutes" to weekWatchTimeMinutes,
+                "totalWatchTimeMinutes" to totalWatchTimeMinutes,
+                "lastWatchDate" to todayDate,
+                "videosWatchedToday" to videosWatchedToday,
+                "lastVideoWatched" to currentlyWatchingTitle,
+                "lastWatchedAt" to System.currentTimeMillis()
+            )
+
+            database.getReference("families/$familyId/children/$childUid/metrics")
+                .updateChildren(metrics).await()
+
+            // Also update deviceInfo with today's watch time
+            database.getReference("families/$familyId/children/$childUid/deviceInfo/todayWatchTime")
+                .setValue(todayWatchTimeMinutes).await()
+
+            Log.d(TAG, "Uploaded viewing metrics: today=$todayWatchTimeMinutes min")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to upload viewing metrics", e)
+        }
+    }
+
+    /**
+     * Check if app should be blocked based on app lock, schedule, or time limits
+     */
+    fun shouldBlockApp(): BlockReason? {
+        // Check app lock
+        val appLockState = _appLock.value
+        if (appLockState?.isLocked == true) {
+            val now = System.currentTimeMillis()
+            if (appLockState.appliesAt <= now) {
+                // Check if scheduled unlock time has passed
+                appLockState.unlockAt?.let { unlockTime ->
+                    if (now >= unlockTime) {
+                        // Scheduled unlock time passed, clear the lock
+                        coroutineScope.launch(Dispatchers.IO) { clearAppLock() }
+                        return null
+                    }
+                }
+                return BlockReason.AppLocked(appLockState.message, appLockState.unlockAt)
+            }
+        }
+
+        // Check schedule
+        val scheduleState = _scheduleSettings.value
+        if (scheduleState?.enabled == true && !scheduleState.isCurrentlyAllowed) {
+            return BlockReason.ScheduleRestriction(scheduleState.message)
+        }
+
+        // Check time limits
+        val timeLimitState = _timeLimitSettings.value
+        if (timeLimitState?.enabled == true && timeLimitState.isLimitReached) {
+            return BlockReason.TimeLimitReached("Daily time limit reached")
+        }
+
+        return null
+    }
+
+    private suspend fun clearAppLock() {
+        val familyId = currentFamilyId ?: return
+        val childUid = currentChildUid ?: return
+
+        try {
+            database.getReference("families/$familyId/children/$childUid/appLock/isLocked")
+                .setValue(false).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear app lock", e)
+        }
+    }
+
+    sealed class BlockReason {
+        data class AppLocked(val message: String, val unlockAt: Long?) : BlockReason()
+        data class ScheduleRestriction(val message: String) : BlockReason()
+        data class TimeLimitReached(val message: String) : BlockReason()
     }
 }
