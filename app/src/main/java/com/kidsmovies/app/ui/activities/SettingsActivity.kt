@@ -242,6 +242,48 @@ class SettingsActivity : AppCompatActivity() {
         binding.oneDriveOption.setOnClickListener {
             Toast.makeText(this, "OneDrive integration coming soon!", Toast.LENGTH_SHORT).show()
         }
+
+        binding.fetchArtworkOption.setOnClickListener {
+            fetchArtwork()
+        }
+
+        binding.clearArtworkCacheOption.setOnClickListener {
+            clearArtworkCache()
+        }
+
+        // Update artwork cache size display
+        updateArtworkCacheSize()
+    }
+
+    private fun fetchArtwork() {
+        binding.fetchArtworkStatus.text = getString(R.string.fetching_artwork)
+        Toast.makeText(this, R.string.fetching_artwork, Toast.LENGTH_SHORT).show()
+
+        // Fetch all missing artwork in background
+        app.artworkFetcher.fetchAllMissing()
+
+        // Update status after a delay (artwork fetches asynchronously)
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(2000)
+            binding.fetchArtworkStatus.text = getString(R.string.fetch_artwork_desc)
+            updateArtworkCacheSize()
+        }
+    }
+
+    private fun clearArtworkCache() {
+        app.tmdbArtworkManager.clearCache()
+        Toast.makeText(this, R.string.artwork_cache_cleared, Toast.LENGTH_SHORT).show()
+        updateArtworkCacheSize()
+    }
+
+    private fun updateArtworkCacheSize() {
+        val cacheSize = app.tmdbArtworkManager.getCacheSize()
+        val formattedSize = when {
+            cacheSize >= 1024 * 1024 -> String.format("%.1f MB", cacheSize / (1024.0 * 1024.0))
+            cacheSize >= 1024 -> String.format("%.1f KB", cacheSize / 1024.0)
+            else -> "$cacheSize bytes"
+        }
+        binding.artworkCacheSize.text = getString(R.string.artwork_cache_size, formattedSize)
     }
 
     private fun showColorSchemeDialog() {

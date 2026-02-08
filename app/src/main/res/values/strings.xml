@@ -216,4 +216,14 @@
     <!-- Time remaining -->
     <string name="time_remaining">%d min left</string>
     <string name="time_unlimited">Unlimited</string>
+
+    <!-- Artwork / TMDB -->
+    <string name="artwork_section">Artwork</string>
+    <string name="fetch_artwork">Fetch Movie Posters</string>
+    <string name="fetch_artwork_desc">Auto-download posters from TMDB by matching names</string>
+    <string name="fetching_artwork">Fetching artwork from TMDB…</string>
+    <string name="artwork_fetch_complete">Artwork fetch complete</string>
+    <string name="clear_artwork_cache">Clear Artwork Cache</string>
+    <string name="artwork_cache_size">Cache size: %s</string>
+    <string name="artwork_cache_cleared">Artwork cache cleared</string>
 </resources>
