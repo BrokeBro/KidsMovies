@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Background padding for adaptive icon safe zone -->
+    <group android:translateX="22" android:translateY="22">
+        <!-- Parent figure (larger) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M32,20 a10,10 0 1,0 0.01,0 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M22,34 L22,54 L28,54 L28,64 L36,64 L36,54 L42,54 L42,34 C42,30 38,28 32,28 C26,28 22,30 22,34 z" />
+
+        <!-- Child figure (smaller) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,28 a7,7 0 1,0 0.01,0 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M47,38 L47,52 L51,52 L51,64 L57,64 L57,52 L61,52 L61,38 C61,35 58,34 54,34 C50,34 47,35 47,38 z" />
+
+        <!-- Connection line between parent and child -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,44 L47,44 L47,42 L36,42 z" />
+    </group>
+</vector>

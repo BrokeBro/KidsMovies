@@ -52,7 +52,7 @@
     <string name="content_unlocked_success">Content unlocked</string>
 
     <!-- Time formats -->
-    <string name="time_format_hours">%dh %dm</string>
+    <string name="time_format_hours">%1$dh %2$dm</string>
     <string name="time_format_minutes">%d min</string>
     <string name="just_now">Just now</string>
     <string name="minutes_ago">%d min ago</string>
