@@ -48,6 +48,9 @@ class CollectionRowAdapter(
     // Cache for RecyclerView pools to improve performance
     private val viewPool = RecyclerView.RecycledViewPool()
 
+    // Enum to track which adapter type is currently set on the RecyclerView
+    private enum class AdapterType { VIDEO, SEASON }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CollectionViewHolder {
         val binding = ItemCollectionRowBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
@@ -78,8 +81,6 @@ class CollectionRowAdapter(
         )
 
         private var currentAdapterType: AdapterType = AdapterType.VIDEO
-
-        private enum class AdapterType { VIDEO, SEASON }
 
         init {
             binding.videosRecyclerView.apply {
