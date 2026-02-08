@@ -34,7 +34,19 @@ class MainActivity : AppCompatActivity() {
 
         setupUI()
         setupListeners()
-        signInAnonymouslyAndLoadFamily()
+
+        if (app.firebaseInitialized) {
+            signInAnonymouslyAndLoadFamily()
+        } else {
+            showFirebaseError()
+        }
+    }
+
+    private fun showFirebaseError() {
+        binding.childrenRecyclerView.visibility = View.GONE
+        binding.emptyState.visibility = View.VISIBLE
+        binding.emptyStateHint.text = "Firebase not configured.\n\nTo use this app, add your google-services.json file to the parentapp folder."
+        binding.addChildFab.isEnabled = false
     }
 
     private fun setupUI() {
