@@ -16,6 +16,7 @@ import com.kidsmovies.app.ui.adapters.SeasonCardAdapter
 import com.kidsmovies.app.ui.adapters.SeasonWithCount
 import com.kidsmovies.app.ui.adapters.VideoAdapter
 import com.kidsmovies.app.utils.ThemeManager
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class CollectionDetailActivity : AppCompatActivity() {
@@ -24,11 +25,13 @@ class CollectionDetailActivity : AppCompatActivity() {
     private lateinit var app: KidsMoviesApp
     private lateinit var videoAdapter: VideoAdapter
     private lateinit var seasonAdapter: SeasonCardAdapter
+    private var gridLayoutManager: GridLayoutManager? = null
 
     private var collectionId: Long = -1
     private var collectionName: String = ""
     private var collection: VideoCollection? = null
     private var isTvShow: Boolean = false
+    private var currentGridColumns: Int = 4
 
     companion object {
         const val EXTRA_COLLECTION_ID = "extra_collection_id"
@@ -52,7 +55,24 @@ class CollectionDetailActivity : AppCompatActivity() {
 
         setupToolbar()
         setupSwipeRefresh()
+        observeSettings()
         loadCollection()
+    }
+
+    private fun observeSettings() {
+        lifecycleScope.launch {
+            app.settingsRepository.getSettingsFlow().collectLatest { settings ->
+                settings?.let {
+                    if (it.gridColumns != currentGridColumns) {
+                        currentGridColumns = it.gridColumns
+                        gridLayoutManager?.spanCount = currentGridColumns
+                        if (!isTvShow) {
+                            videoAdapter.notifyDataSetChanged()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -81,8 +101,10 @@ class CollectionDetailActivity : AppCompatActivity() {
             onFavouriteClick = { video -> toggleFavourite(video) }
         )
 
+        gridLayoutManager = GridLayoutManager(this@CollectionDetailActivity, currentGridColumns)
+
         binding.videosRecyclerView.apply {
-            layoutManager = GridLayoutManager(this@CollectionDetailActivity, 4)
+            layoutManager = gridLayoutManager
             adapter = videoAdapter
         }
     }

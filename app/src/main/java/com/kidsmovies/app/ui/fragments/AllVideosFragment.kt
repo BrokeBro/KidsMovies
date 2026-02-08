@@ -90,6 +90,8 @@ class AllVideosFragment : Fragment() {
                     if (it.gridColumns != currentGridColumns) {
                         currentGridColumns = it.gridColumns
                         gridLayoutManager.spanCount = currentGridColumns
+                        // Force re-layout of all items to update thumbnail sizes
+                        videoAdapter.notifyDataSetChanged()
                     }
                 }
             }
