@@ -61,9 +61,10 @@ class ArtworkFetcher(
     }
 
     /**
-     * Fetch artwork for a collection if it doesn't have TMDB artwork yet
+     * Fetch artwork for a collection if it doesn't have TMDB artwork yet.
+     * Handles TV shows and seasons appropriately.
      */
-    fun fetchForCollection(collection: VideoCollection, parentCollectionName: String? = null) {
+    fun fetchForCollection(collection: VideoCollection, parentCollection: VideoCollection? = null) {
         // Skip if already has thumbnail
         if (collection.thumbnailPath != null || collection.tmdbArtworkPath != null) return
 
@@ -74,8 +75,19 @@ class ArtworkFetcher(
             }
 
             try {
-                Log.d(TAG, "Fetching artwork for collection: ${collection.name}")
-                val result = tmdbArtworkManager.getCollectionArtwork(collection.name, parentCollectionName)
+                Log.d(TAG, "Fetching artwork for collection: ${collection.name} (type: ${collection.collectionType})")
+
+                // Determine parent name for seasons
+                val parentName = when {
+                    collection.isSeason() && parentCollection != null -> parentCollection.name
+                    collection.isSeason() && collection.parentCollectionId != null -> {
+                        // Fetch parent collection name
+                        collectionRepository.getCollectionById(collection.parentCollectionId)?.name
+                    }
+                    else -> null
+                }
+
+                val result = tmdbArtworkManager.getCollectionArtwork(collection.name, parentName)
 
                 if (result.localPath != null) {
                     collectionRepository.updateTmdbArtwork(collection.id, result.localPath)
@@ -104,17 +116,51 @@ class ArtworkFetcher(
      * Fetch artwork for multiple collections
      */
     fun fetchForCollections(collections: List<VideoCollection>) {
-        collections.forEach { collection ->
-            fetchForCollection(collection)
+        scope.launch(Dispatchers.IO) {
+            // Build a map of collection ID to collection for parent lookups
+            val collectionMap = collections.associateBy { it.id }
+
+            collections.forEach { collection ->
+                val parent = collection.parentCollectionId?.let { collectionMap[it] }
+                fetchForCollection(collection, parent)
+            }
         }
     }
 
     /**
-     * Fetch artwork for all videos and collections that need it
+     * Fetch artwork for all videos and collections that need it.
+     * Processes TV shows first, then seasons (to allow parent lookup).
      */
     fun fetchAllMissing() {
         scope.launch(Dispatchers.IO) {
             try {
+                // Fetch for collections without artwork
+                val allCollections = collectionRepository.getAllCollections()
+                val collectionsNeedingArtwork = allCollections.filter {
+                    it.thumbnailPath == null && it.tmdbArtworkPath == null
+                }
+
+                // Process TV shows first
+                val tvShows = collectionsNeedingArtwork.filter { it.isTvShow() }
+                Log.d(TAG, "Found ${tvShows.size} TV shows needing artwork")
+                tvShows.forEach { fetchForCollection(it, null) }
+
+                // Then process seasons (need TV show info)
+                val seasons = collectionsNeedingArtwork.filter { it.isSeason() }
+                Log.d(TAG, "Found ${seasons.size} seasons needing artwork")
+                val collectionMap = allCollections.associateBy { it.id }
+                seasons.forEach { season ->
+                    val parent = season.parentCollectionId?.let { collectionMap[it] }
+                    fetchForCollection(season, parent)
+                }
+
+                // Then regular collections
+                val regularCollections = collectionsNeedingArtwork.filter {
+                    !it.isTvShow() && !it.isSeason()
+                }
+                Log.d(TAG, "Found ${regularCollections.size} regular collections needing artwork")
+                regularCollections.forEach { fetchForCollection(it, null) }
+
                 // Fetch for videos without TMDB artwork
                 val videos = videoRepository.getAllVideos()
                 val videosNeedingArtwork = videos.filter {
@@ -123,13 +169,6 @@ class ArtworkFetcher(
                 Log.d(TAG, "Found ${videosNeedingArtwork.size} videos needing artwork")
                 fetchForVideos(videosNeedingArtwork)
 
-                // Fetch for collections without artwork
-                val collections = collectionRepository.getAllCollections()
-                val collectionsNeedingArtwork = collections.filter {
-                    it.thumbnailPath == null && it.tmdbArtworkPath == null
-                }
-                Log.d(TAG, "Found ${collectionsNeedingArtwork.size} collections needing artwork")
-                fetchForCollections(collectionsNeedingArtwork)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch missing artwork", e)
             }

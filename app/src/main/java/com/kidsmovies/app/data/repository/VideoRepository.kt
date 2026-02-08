@@ -84,6 +84,12 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun updateTmdbArtwork(videoId: Long, artworkPath: String?) = videoDao.updateTmdbArtwork(videoId, artworkPath)
 
+    suspend fun updateEpisodeInfo(videoId: Long, seasonNumber: Int?, episodeNumber: Int?) =
+        videoDao.updateEpisodeInfo(videoId, seasonNumber, episodeNumber)
+
+    suspend fun updateTmdbEpisodeId(videoId: Long, tmdbEpisodeId: Int?) =
+        videoDao.updateTmdbEpisodeId(videoId, tmdbEpisodeId)
+
     suspend fun updateCollection(videoId: Long, collectionId: Long?) = videoDao.updateCollection(videoId, collectionId)
 
     suspend fun updateCollectionForVideos(videoIds: List<Long>, collectionId: Long?) = videoDao.updateCollectionForVideos(videoIds, collectionId)

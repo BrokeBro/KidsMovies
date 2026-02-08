@@ -12,9 +12,13 @@ import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
-import com.kidsmovies.app.data.database.entities.ScanFolder
+import com.kidsmovies.app.data.database.entities.CollectionType
 import com.kidsmovies.app.data.database.entities.Video
+import com.kidsmovies.app.data.database.entities.VideoCollection
+import com.kidsmovies.app.data.repository.CollectionRepository
+import com.kidsmovies.app.data.repository.VideoRepository
 import com.kidsmovies.app.utils.Constants
+import com.kidsmovies.app.utils.EpisodeParser
 import com.kidsmovies.app.utils.FileUtils
 import com.kidsmovies.app.utils.ThumbnailUtils
 import kotlinx.coroutines.*
@@ -76,6 +80,7 @@ class VideoScannerService : Service() {
 
     private suspend fun scanVideos() {
         val videoRepository = app.videoRepository
+        val collectionRepository = app.collectionRepository
         val settingsRepository = app.settingsRepository
 
         // Get configured scan folders - only scan user-selected folders
@@ -114,6 +119,9 @@ class VideoScannerService : Service() {
             removedCount++
         }
 
+        // Track folders containing new videos for hierarchy detection
+        val foldersWithNewVideos = mutableSetOf<String>()
+
         // Add new videos
         val totalNew = newVideoFiles.size
         newVideoFiles.forEachIndexed { index, file ->
@@ -130,10 +138,19 @@ class VideoScannerService : Service() {
                     videoRepository.updateThumbnail(videoId, thumbnailPath)
                 }
 
+                // Track the folder for hierarchy detection
+                file.parent?.let { foldersWithNewVideos.add(it) }
+
                 addedCount++
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding video: ${file.absolutePath}", e)
             }
+        }
+
+        // Detect and create TV show/season hierarchy for new videos
+        if (foldersWithNewVideos.isNotEmpty()) {
+            updateNotification("Detecting TV shows and seasons...")
+            detectAndCreateHierarchy(foldersWithNewVideos, videoRepository, collectionRepository)
         }
 
         // Update last scan time
@@ -141,6 +158,183 @@ class VideoScannerService : Service() {
 
         // Send completion broadcast
         sendCompletionBroadcast(allVideoFiles.size, addedCount, removedCount)
+    }
+
+    /**
+     * Detect folder hierarchy and create TV Show/Season collections automatically.
+     * Analyzes folder structure to find patterns like:
+     * - Show Name/Season 1/episode.mp4
+     * - Show Name/S01/episode.mp4
+     */
+    private suspend fun detectAndCreateHierarchy(
+        foldersWithVideos: Set<String>,
+        videoRepository: VideoRepository,
+        collectionRepository: CollectionRepository
+    ) {
+        // Group videos by their parent folders to detect season structures
+        val folderToVideos = mutableMapOf<String, MutableList<Video>>()
+
+        for (folderPath in foldersWithVideos) {
+            val folder = File(folderPath)
+            if (!folder.exists()) continue
+
+            // Get videos in this folder
+            val videosInFolder = videoRepository.getAllVideos().filter {
+                File(it.filePath).parent == folderPath
+            }
+            if (videosInFolder.isNotEmpty()) {
+                folderToVideos[folderPath] = videosInFolder.toMutableList()
+            }
+        }
+
+        // For each folder with videos, check if it looks like a season folder
+        for ((folderPath, videos) in folderToVideos) {
+            val folder = File(folderPath)
+            val folderName = folder.name
+            val parentFolder = folder.parentFile
+
+            // Try to parse season info from folder name
+            val seasonInfo = EpisodeParser.parseSeason(folderName)
+
+            if (seasonInfo != null && parentFolder != null) {
+                // This looks like a season folder
+                val showName = seasonInfo.showName ?: parentFolder.name
+
+                // Check if parent has other season-like folders (confirms it's a TV show)
+                val siblingFolders = parentFolder.listFiles { file -> file.isDirectory }?.map { it.name } ?: emptyList()
+                val hasSiblingSeasons = siblingFolders.any { sibling ->
+                    sibling != folderName && EpisodeParser.parseSeason(sibling) != null
+                }
+
+                // Create TV show collection if needed
+                val tvShowCollection = getOrCreateTvShowCollection(showName, collectionRepository)
+
+                // Create season collection
+                val seasonCollection = getOrCreateSeasonCollection(
+                    tvShowId = tvShowCollection.id,
+                    seasonNumber = seasonInfo.seasonNumber,
+                    seasonName = folderName,
+                    collectionRepository = collectionRepository
+                )
+
+                // Add videos to season and parse episode info
+                for (video in videos) {
+                    val episodeInfo = EpisodeParser.parseEpisode(video.title)
+
+                    // Update video with episode info
+                    if (episodeInfo.hasEpisodeInfo()) {
+                        videoRepository.updateEpisodeInfo(
+                            video.id,
+                            episodeInfo.seasonNumber ?: seasonInfo.seasonNumber,
+                            episodeInfo.episodeNumber
+                        )
+                    }
+
+                    // Add to season collection if not already
+                    if (!collectionRepository.isVideoInCollection(video.id, seasonCollection.id)) {
+                        collectionRepository.addVideoToCollection(seasonCollection.id, video.id)
+                    }
+                }
+
+                Log.d(TAG, "Created TV hierarchy: $showName > Season ${seasonInfo.seasonNumber} with ${videos.size} episodes")
+            } else {
+                // Not a season folder - check if videos have episode patterns
+                val hasEpisodes = videos.any { EpisodeParser.parseEpisode(it.title).hasEpisodeInfo() }
+
+                if (hasEpisodes) {
+                    // Folder contains episode files but no season structure
+                    // Could be a single-season show or standalone episodes
+                    val showName = folderName
+
+                    // Create as TV show with Season 1
+                    val tvShowCollection = getOrCreateTvShowCollection(showName, collectionRepository)
+                    val seasonCollection = getOrCreateSeasonCollection(
+                        tvShowId = tvShowCollection.id,
+                        seasonNumber = 1,
+                        seasonName = "Season 1",
+                        collectionRepository = collectionRepository
+                    )
+
+                    for (video in videos) {
+                        val episodeInfo = EpisodeParser.parseEpisode(video.title)
+                        if (episodeInfo.hasEpisodeInfo()) {
+                            videoRepository.updateEpisodeInfo(
+                                video.id,
+                                episodeInfo.seasonNumber ?: 1,
+                                episodeInfo.episodeNumber
+                            )
+                        }
+
+                        if (!collectionRepository.isVideoInCollection(video.id, seasonCollection.id)) {
+                            collectionRepository.addVideoToCollection(seasonCollection.id, video.id)
+                        }
+                    }
+
+                    Log.d(TAG, "Created single-season show: $showName with ${videos.size} episodes")
+                }
+            }
+        }
+    }
+
+    /**
+     * Get or create a TV Show collection.
+     */
+    private suspend fun getOrCreateTvShowCollection(
+        showName: String,
+        collectionRepository: CollectionRepository
+    ): VideoCollection {
+        // Check if collection already exists
+        val existing = collectionRepository.getCollectionByName(showName)
+        if (existing != null) {
+            // If it's already a TV show, return it
+            if (existing.isTvShow()) {
+                return existing
+            }
+            // Convert to TV show if it was a regular collection
+            collectionRepository.updateCollectionType(
+                existing.id,
+                CollectionType.TV_SHOW.name,
+                null,
+                null
+            )
+            return existing.copy(collectionType = CollectionType.TV_SHOW.name)
+        }
+
+        // Create new TV show collection
+        val newCollection = VideoCollection(
+            name = showName,
+            collectionType = CollectionType.TV_SHOW.name
+        )
+        val id = collectionRepository.insertCollection(newCollection)
+        return newCollection.copy(id = id)
+    }
+
+    /**
+     * Get or create a Season collection linked to a TV Show.
+     */
+    private suspend fun getOrCreateSeasonCollection(
+        tvShowId: Long,
+        seasonNumber: Int,
+        seasonName: String,
+        collectionRepository: CollectionRepository
+    ): VideoCollection {
+        // Check if season already exists for this TV show
+        val existingSeasons = collectionRepository.getSeasonsForShow(tvShowId)
+        val existing = existingSeasons.find { it.seasonNumber == seasonNumber }
+        if (existing != null) {
+            return existing
+        }
+
+        // Create new season collection
+        val newSeason = VideoCollection(
+            name = seasonName,
+            collectionType = CollectionType.SEASON.name,
+            parentCollectionId = tvShowId,
+            seasonNumber = seasonNumber,
+            sortOrder = seasonNumber // Sort by season number
+        )
+        val id = collectionRepository.insertCollection(newSeason)
+        return newSeason.copy(id = id)
     }
 
     private fun createVideoFromFile(file: File): Video {

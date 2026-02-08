@@ -165,6 +165,35 @@
 
     </LinearLayout>
 
+    <!-- Remove from Collection Option (only shown if video is in collections) -->
+    <LinearLayout
+        android:id="@+id/removeFromCollectionOption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="16dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_close"
+            app:tint="@color/text_secondary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/remove_from_collection"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
     <!-- Toggle Favourite Option -->
     <LinearLayout
         android:id="@+id/toggleFavouriteOption"

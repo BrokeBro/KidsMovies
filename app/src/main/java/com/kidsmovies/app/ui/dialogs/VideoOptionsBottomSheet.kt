@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -18,6 +19,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
+import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.BottomSheetVideoOptionsBinding
 import kotlinx.coroutines.launch
 import java.io.File
@@ -34,6 +36,7 @@ class VideoOptionsBottomSheet : BottomSheetDialogFragment() {
     private var onVideoUpdated: ((Video) -> Unit)? = null
     private var onVideoRemoved: ((Video) -> Unit)? = null
     private var onAddToCollection: ((Video) -> Unit)? = null
+    private var onRemoveFromCollection: ((Video, VideoCollection) -> Unit)? = null
 
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -85,6 +88,21 @@ class VideoOptionsBottomSheet : BottomSheetDialogFragment() {
 
             // Update favourite icon and text
             updateFavouriteUI(v.isFavourite)
+
+            // Check if video is in any collections and show/hide remove from collection option
+            checkVideoCollections(v)
+        }
+    }
+
+    private fun checkVideoCollections(v: Video) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val allCollections = app.collectionRepository.getAllCollections()
+            val containingCollections = allCollections.filter { collection ->
+                app.collectionRepository.isVideoInCollection(v.id, collection.id)
+            }
+
+            binding.removeFromCollectionOption.visibility =
+                if (containingCollections.isNotEmpty()) View.VISIBLE else View.GONE
         }
     }
 
@@ -120,6 +138,13 @@ class VideoOptionsBottomSheet : BottomSheetDialogFragment() {
             video?.let { v ->
                 onAddToCollection?.invoke(v)
                 dismiss()
+            }
+        }
+
+        // Remove from collection
+        binding.removeFromCollectionOption.setOnClickListener {
+            video?.let { v ->
+                showRemoveFromCollectionDialog(v)
             }
         }
 
@@ -233,6 +258,49 @@ class VideoOptionsBottomSheet : BottomSheetDialogFragment() {
         }
     }
 
+    private fun showRemoveFromCollectionDialog(v: Video) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val allCollections = app.collectionRepository.getAllCollections()
+            val containingCollections = allCollections.filter { collection ->
+                app.collectionRepository.isVideoInCollection(v.id, collection.id)
+            }
+
+            if (containingCollections.isEmpty()) {
+                Toast.makeText(requireContext(), "Video is not in any collection", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            val collectionNames = containingCollections.map { it.name }.toTypedArray()
+
+            AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
+                .setTitle(R.string.remove_from_collection)
+                .setItems(collectionNames) { _, which ->
+                    val selectedCollection = containingCollections[which]
+                    removeFromCollection(v, selectedCollection)
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }
+    }
+
+    private fun removeFromCollection(v: Video, collection: VideoCollection) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.collectionRepository.removeVideoFromCollection(collection.id, v.id)
+
+            Toast.makeText(
+                requireContext(),
+                "Removed from \"${collection.name}\"",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            onRemoveFromCollection?.invoke(v, collection)
+            onVideoUpdated?.invoke(v)
+
+            // Update the UI to reflect the change
+            checkVideoCollections(v)
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
@@ -245,13 +313,15 @@ class VideoOptionsBottomSheet : BottomSheetDialogFragment() {
             video: Video,
             onVideoUpdated: ((Video) -> Unit)? = null,
             onVideoRemoved: ((Video) -> Unit)? = null,
-            onAddToCollection: ((Video) -> Unit)? = null
+            onAddToCollection: ((Video) -> Unit)? = null,
+            onRemoveFromCollection: ((Video, VideoCollection) -> Unit)? = null
         ): VideoOptionsBottomSheet {
             return VideoOptionsBottomSheet().apply {
                 this.video = video
                 this.onVideoUpdated = onVideoUpdated
                 this.onVideoRemoved = onVideoRemoved
                 this.onAddToCollection = onAddToCollection
+                this.onRemoveFromCollection = onRemoveFromCollection
             }
         }
     }

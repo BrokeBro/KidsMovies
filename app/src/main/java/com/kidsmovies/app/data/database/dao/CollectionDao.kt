@@ -78,4 +78,51 @@ interface CollectionDao {
 
     @Query("SELECT COUNT(*) FROM video_collection_cross_ref WHERE videoId = :videoId AND collectionId = :collectionId")
     suspend fun isVideoInCollection(videoId: Long, collectionId: Long): Int
+
+    // TV Show and Season queries
+    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    suspend fun getTvShows(): List<VideoCollection>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    fun getTvShowsFlow(): Flow<List<VideoCollection>>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId ORDER BY seasonNumber ASC, name ASC")
+    suspend fun getSeasonsForShow(tvShowId: Long): List<VideoCollection>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'SEASON' AND parentCollectionId = :tvShowId ORDER BY seasonNumber ASC, name ASC")
+    fun getSeasonsForShowFlow(tvShowId: Long): Flow<List<VideoCollection>>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    suspend fun getRegularCollections(): List<VideoCollection>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'REGULAR' AND parentCollectionId IS NULL ORDER BY sortOrder ASC, name ASC")
+    fun getRegularCollectionsFlow(): Flow<List<VideoCollection>>
+
+    // Get videos in a season sorted by episode number
+    @Query("""
+        SELECT v.* FROM videos v
+        INNER JOIN video_collection_cross_ref vc ON v.id = vc.videoId
+        WHERE vc.collectionId = :collectionId
+        ORDER BY
+            CASE WHEN v.episodeNumber IS NOT NULL THEN v.episodeNumber ELSE 999999 END ASC,
+            v.title ASC
+    """)
+    suspend fun getVideosInCollectionSorted(collectionId: Long): List<Video>
+
+    @Query("""
+        SELECT v.* FROM videos v
+        INNER JOIN video_collection_cross_ref vc ON v.id = vc.videoId
+        WHERE vc.collectionId = :collectionId
+        ORDER BY
+            CASE WHEN v.episodeNumber IS NOT NULL THEN v.episodeNumber ELSE 999999 END ASC,
+            v.title ASC
+    """)
+    fun getVideosInCollectionSortedFlow(collectionId: Long): Flow<List<Video>>
+
+    // Update collection type and parent
+    @Query("UPDATE collections SET collectionType = :type, parentCollectionId = :parentId, seasonNumber = :seasonNumber WHERE id = :collectionId")
+    suspend fun updateCollectionType(collectionId: Long, type: String, parentId: Long?, seasonNumber: Int?)
+
+    @Query("UPDATE collections SET tmdbShowId = :tmdbShowId WHERE id = :collectionId")
+    suspend fun updateTmdbShowId(collectionId: Long, tmdbShowId: Int?)
 }

@@ -62,4 +62,42 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
 
     suspend fun isVideoInCollection(videoId: Long, collectionId: Long): Boolean =
         collectionDao.isVideoInCollection(videoId, collectionId) > 0
+
+    // TV Show and Season methods
+    suspend fun getTvShows(): List<VideoCollection> = collectionDao.getTvShows()
+
+    fun getTvShowsFlow(): Flow<List<VideoCollection>> = collectionDao.getTvShowsFlow()
+
+    suspend fun getSeasonsForShow(tvShowId: Long): List<VideoCollection> =
+        collectionDao.getSeasonsForShow(tvShowId)
+
+    fun getSeasonsForShowFlow(tvShowId: Long): Flow<List<VideoCollection>> =
+        collectionDao.getSeasonsForShowFlow(tvShowId)
+
+    suspend fun getRegularCollections(): List<VideoCollection> = collectionDao.getRegularCollections()
+
+    fun getRegularCollectionsFlow(): Flow<List<VideoCollection>> = collectionDao.getRegularCollectionsFlow()
+
+    suspend fun getVideosInCollectionSorted(collectionId: Long): List<Video> =
+        collectionDao.getVideosInCollectionSorted(collectionId)
+
+    fun getVideosInCollectionSortedFlow(collectionId: Long): Flow<List<Video>> =
+        collectionDao.getVideosInCollectionSortedFlow(collectionId)
+
+    suspend fun updateCollectionType(collectionId: Long, type: String, parentId: Long?, seasonNumber: Int?) =
+        collectionDao.updateCollectionType(collectionId, type, parentId, seasonNumber)
+
+    suspend fun updateTmdbShowId(collectionId: Long, tmdbShowId: Int?) =
+        collectionDao.updateTmdbShowId(collectionId, tmdbShowId)
+
+    /**
+     * Get episode count for all seasons of a TV show.
+     * Returns a map of seasonId to episode count.
+     */
+    suspend fun getSeasonEpisodeCounts(tvShowId: Long): Map<Long, Int> {
+        val seasons = getSeasonsForShow(tvShowId)
+        return seasons.associate { season ->
+            season.id to getVideoCountInCollection(season.id)
+        }
+    }
 }

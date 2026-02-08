@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.data.database.entities.CollectionType
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.FragmentVideoGridBinding
@@ -174,7 +175,16 @@ class AllVideosFragment : Fragment() {
     }
 
     private fun showCollectionPickerDialog(collections: List<VideoCollection>, selectedVideoIds: Set<Long>) {
-        val options = collections.map { it.name }.toMutableList()
+        // Filter out TV shows (videos go into seasons or regular collections, not TV shows)
+        val eligibleCollections = collections.filter { !it.isTvShow() }
+
+        // Build display names with type indicator
+        val options = eligibleCollections.map { collection ->
+            when (collection.getType()) {
+                CollectionType.SEASON -> "${collection.name} (Season)"
+                else -> collection.name
+            }
+        }.toMutableList()
         options.add(getString(R.string.new_collection))
 
         AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
@@ -185,7 +195,7 @@ class AllVideosFragment : Fragment() {
                     showCreateCollectionDialog(selectedVideoIds)
                 } else {
                     // Add to existing collection
-                    addVideosToCollection(collections[which], selectedVideoIds)
+                    addVideosToCollection(eligibleCollections[which], selectedVideoIds)
                 }
             }
             .setNegativeButton(R.string.cancel, null)

@@ -17,11 +17,14 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.databinding.FragmentCollectionsBinding
+import com.kidsmovies.app.data.database.entities.CollectionType
 import com.kidsmovies.app.ui.activities.CollectionDetailActivity
 import com.kidsmovies.app.ui.activities.VideoPlayerActivity
 import com.kidsmovies.app.ui.adapters.CollectionIconAdapter
 import com.kidsmovies.app.ui.adapters.CollectionRowAdapter
+import com.kidsmovies.app.ui.adapters.CollectionRowItem
 import com.kidsmovies.app.ui.adapters.CollectionWithVideos
+import com.kidsmovies.app.ui.adapters.SeasonWithCount
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
@@ -76,17 +79,23 @@ class CollectionsFragment : Fragment() {
         if (allCollections.isEmpty()) return
 
         viewLifecycleOwner.lifecycleScope.launch {
+            val rowItems = buildRowItems(allCollections)
+
             val newCollectionsWithVideos = allCollections.mapNotNull { collection ->
-                val videos = app.collectionRepository.getVideosInCollection(collection.id)
-                if (videos.isNotEmpty()) {
-                    CollectionWithVideos(collection, videos)
-                } else {
+                if (collection.isTvShow()) {
                     null
+                } else {
+                    val videos = app.collectionRepository.getVideosInCollection(collection.id)
+                    if (videos.isNotEmpty()) {
+                        CollectionWithVideos(collection, videos)
+                    } else {
+                        null
+                    }
                 }
             }
 
             collectionsWithVideos = newCollectionsWithVideos
-            collectionRowAdapter.submitList(newCollectionsWithVideos.toList())
+            collectionRowAdapter.submitList(rowItems.toList())
         }
     }
 
@@ -105,7 +114,8 @@ class CollectionsFragment : Fragment() {
     private fun setupCollectionRows() {
         collectionRowAdapter = CollectionRowAdapter(
             onVideoClick = { video, collection -> playVideo(video, collection) },
-            onCollectionClick = { collection -> viewCollection(collection) }
+            onCollectionClick = { collection -> viewCollection(collection) },
+            onSeasonClick = { season -> viewCollection(season) }
         )
 
         binding.collectionsRecyclerView.apply {
@@ -124,27 +134,69 @@ class CollectionsFragment : Fragment() {
     private fun observeCollections() {
         viewLifecycleOwner.lifecycleScope.launch {
             app.collectionRepository.getAllCollectionsFlow().collectLatest { collections ->
-                allCollections = collections
+                // Filter to only top-level collections (not seasons)
+                val topLevelCollections = collections.filter { it.parentCollectionId == null }
+                allCollections = topLevelCollections
 
-                if (collections.isEmpty()) {
+                if (topLevelCollections.isEmpty()) {
                     showEmptyState()
                 } else {
-                    // Load videos for each collection
-                    val newCollectionsWithVideos = collections.mapNotNull { collection ->
-                        val videos = app.collectionRepository.getVideosInCollection(collection.id)
-                        if (videos.isNotEmpty()) {
-                            CollectionWithVideos(collection, videos)
+                    // Build row items based on collection type
+                    val rowItems = buildRowItems(topLevelCollections)
+                    // Also build CollectionWithVideos for backward compatibility
+                    val newCollectionsWithVideos = topLevelCollections.mapNotNull { collection ->
+                        if (collection.isTvShow()) {
+                            // For TV shows, we don't use CollectionWithVideos
+                            null
                         } else {
-                            null // Don't show empty collections in row view
+                            val videos = app.collectionRepository.getVideosInCollection(collection.id)
+                            if (videos.isNotEmpty()) {
+                                CollectionWithVideos(collection, videos)
+                            } else {
+                                null
+                            }
                         }
                     }
 
                     collectionsWithVideos = newCollectionsWithVideos
 
-                    if (newCollectionsWithVideos.isEmpty()) {
+                    if (rowItems.isEmpty()) {
                         showEmptyState()
                     } else {
-                        showCollections(collections, newCollectionsWithVideos)
+                        showCollections(topLevelCollections, rowItems)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun buildRowItems(collections: List<VideoCollection>): List<CollectionRowItem> {
+        return collections.mapNotNull { collection ->
+            when (collection.getType()) {
+                CollectionType.TV_SHOW -> {
+                    // Load seasons for this TV show
+                    val seasons = app.collectionRepository.getSeasonsForShow(collection.id)
+                    if (seasons.isNotEmpty()) {
+                        val seasonsWithCounts = seasons.map { season ->
+                            val episodeCount = app.collectionRepository.getVideoCountInCollection(season.id)
+                            SeasonWithCount(season, episodeCount)
+                        }
+                        CollectionRowItem.SeasonsRow(collection, seasonsWithCounts)
+                    } else {
+                        null // TV show with no seasons yet
+                    }
+                }
+                CollectionType.SEASON -> {
+                    // Seasons should be handled by their parent TV show, skip them at top level
+                    null
+                }
+                CollectionType.REGULAR -> {
+                    // Regular collection - show videos
+                    val videos = app.collectionRepository.getVideosInCollection(collection.id)
+                    if (videos.isNotEmpty()) {
+                        CollectionRowItem.VideosRow(collection, videos)
+                    } else {
+                        null
                     }
                 }
             }
@@ -158,27 +210,28 @@ class CollectionsFragment : Fragment() {
 
     private fun showCollections(
         collections: List<VideoCollection>,
-        collectionsWithVideos: List<CollectionWithVideos>
+        rowItems: List<CollectionRowItem>
     ) {
         binding.emptyState.visibility = View.GONE
         binding.contentLayout.visibility = View.VISIBLE
 
-        // Show all collections in the icon row (even empty ones)
+        // Show all top-level collections in the icon row (even empty ones)
         collectionIconAdapter.submitList(collections.toList())
 
-        // Show only collections with videos in the row view
-        collectionRowAdapter.submitList(collectionsWithVideos.toList())
+        // Show row items (both regular collections with videos and TV shows with seasons)
+        collectionRowAdapter.submitList(rowItems.toList())
     }
 
     private fun scrollToCollection(collection: VideoCollection) {
-        // Find the position of this collection in the video rows
-        val position = collectionsWithVideos.indexOfFirst { it.collection.id == collection.id }
+        // Find the position of this collection in the row items
+        val rowItems = collectionRowAdapter.currentList
+        val position = rowItems.indexOfFirst { it.collection.id == collection.id }
         if (position >= 0) {
             binding.collectionsRecyclerView.smoothScrollToPosition(position)
             // Highlight the selected collection icon
             collectionIconAdapter.setSelectedCollection(collection.id)
         } else {
-            // Collection has no videos, go to detail view
+            // Collection not in list, go to detail view
             viewCollection(collection)
         }
     }

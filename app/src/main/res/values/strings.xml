@@ -153,6 +153,21 @@
     <string name="videos_in_collection">%d videos</string>
     <string name="manage_collections">Manage Collections</string>
 
+    <!-- TV Shows and Seasons -->
+    <string name="tv_shows">TV Shows</string>
+    <string name="seasons">Seasons</string>
+    <string name="view_all_seasons">View All Seasons</string>
+    <string name="season_number">Season %d</string>
+    <string name="no_seasons">No seasons yet</string>
+    <string name="collection_type">Collection Type</string>
+    <string name="type_regular">Regular Collection</string>
+    <string name="type_tv_show">TV Show</string>
+    <string name="type_season">Season</string>
+    <string name="parent_tv_show">Parent TV Show</string>
+    <string name="select_parent_show">Select TV Show</string>
+    <string name="convert_to_tv_show">Convert to TV Show</string>
+    <string name="convert_to_season">Convert to Season</string>
+
     <!-- Content descriptions -->
     <string name="cd_video_thumbnail">Video thumbnail</string>
     <string name="cd_favourite_button">Favourite button</string>
@@ -226,4 +241,14 @@
     <string name="clear_artwork_cache">Clear Artwork Cache</string>
     <string name="artwork_cache_size">Cache size: %s</string>
     <string name="artwork_cache_cleared">Artwork cache cleared</string>
+
+    <!-- Plurals -->
+    <plurals name="episode_count">
+        <item quantity="one">%d Episode</item>
+        <item quantity="other">%d Episodes</item>
+    </plurals>
+    <plurals name="season_count">
+        <item quantity="one">%d Season</item>
+        <item quantity="other">%d Seasons</item>
+    </plurals>
 </resources>

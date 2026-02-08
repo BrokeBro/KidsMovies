@@ -26,7 +26,10 @@ data class Video(
     val isEnabled: Boolean = true, // For parental control
     val folderPath: String = "",
     val mimeType: String = "video/*",
-    val collectionId: Long? = null // For grouping into collections
+    val collectionId: Long? = null, // For grouping into collections
+    val seasonNumber: Int? = null, // Detected season number for TV episodes
+    val episodeNumber: Int? = null, // Detected episode number for sorting
+    val tmdbEpisodeId: Int? = null // TMDB episode ID for fetching correct artwork
 ) : Parcelable {
 
     fun getDisplayThumbnail(): String? {
@@ -60,4 +63,21 @@ data class Video(
     }
 
     fun hasResumePosition(): Boolean = playbackPosition > 0
+
+    /**
+     * Check if this video has episode info detected
+     */
+    fun hasEpisodeInfo(): Boolean = episodeNumber != null
+
+    /**
+     * Get formatted episode string (e.g., "S01E05" or "E05")
+     */
+    fun getEpisodeLabel(): String? {
+        if (episodeNumber == null) return null
+        return if (seasonNumber != null) {
+            "S${seasonNumber.toString().padStart(2, '0')}E${episodeNumber.toString().padStart(2, '0')}"
+        } else {
+            "E${episodeNumber.toString().padStart(2, '0')}"
+        }
+    }
 }
