@@ -46,7 +46,17 @@
     <string name="warning_time_desc">How much warning before lock takes effect</string>
     <string name="minutes">%d minutes</string>
     <string name="immediate">Immediate (no warning)</string>
+    <string name="one_minute">1 minute warning</string>
+    <string name="five_minutes">5 minutes warning</string>
+    <string name="ten_minutes">10 minutes warning</string>
+    <string name="fifteen_minutes">15 minutes warning</string>
+    <string name="warning_time_label">Warning Time</string>
     <string name="allow_finish_video">Allow finish current video</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="schedule_unlock_time">Schedule unlock time</string>
+    <string name="unlock_at">Unlock at:</string>
+    <string name="lock_app_title">Lock App</string>
+    <string name="lock_app_message">Lock the app on the child\'s device?</string>
     <string name="allow_finish_video_desc">Let them finish what they\'re watching before lock applies</string>
     <string name="content_locked_success">Content locked</string>
     <string name="content_unlocked_success">Content unlocked</string>

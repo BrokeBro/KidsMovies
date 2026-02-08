@@ -200,8 +200,15 @@ class FamilyManager {
         )
 
         val lockId = sanitizeFirebaseKey(videoTitle)
+
+        // Write lock command to locks path
         database.getReference("${FirebasePaths.childLocksPath(familyId, childUid)}/$lockId")
             .setValue(lockCommand)
+            .await()
+
+        // Also update the video's isEnabled field directly for immediate effect
+        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$lockId/isEnabled")
+            .setValue(!isLocked)
             .await()
     }
 
@@ -229,8 +236,16 @@ class FamilyManager {
         )
 
         val lockId = "collection_${sanitizeFirebaseKey(collectionName)}"
+        val collectionKey = sanitizeFirebaseKey(collectionName)
+
+        // Write lock command to locks path
         database.getReference("${FirebasePaths.childLocksPath(familyId, childUid)}/$lockId")
             .setValue(lockCommand)
+            .await()
+
+        // Also update the collection's isEnabled field directly for immediate effect
+        database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$collectionKey/isEnabled")
+            .setValue(!isLocked)
             .await()
     }
 

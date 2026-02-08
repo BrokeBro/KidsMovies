@@ -260,46 +260,52 @@ class ChildSettingsFragment : Fragment() {
     }
 
     private fun showAppLockDialog() {
-        val warningOptions = arrayOf("Immediate", "1 minute", "5 minutes", "10 minutes", "15 minutes")
-        val warningMinutes = intArrayOf(0, 1, 5, 10, 15)
-        var selectedWarning = 2 // Default: 5 minutes
-        var allowFinishVideo = true
-        var scheduleUnlock = false
         var unlockHour = 17 // 5 PM default
         var unlockMinute = 0
 
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.dialog_app_lock, null)
+
+        val warningGroup = dialogView.findViewById<android.widget.RadioGroup>(R.id.warningTimeGroup)
+        val allowFinishCheckbox = dialogView.findViewById<android.widget.CheckBox>(R.id.allowFinishVideoCheckbox)
+        val scheduleUnlockCheckbox = dialogView.findViewById<android.widget.CheckBox>(R.id.scheduleUnlockCheckbox)
+        val unlockTimeContainer = dialogView.findViewById<android.widget.LinearLayout>(R.id.unlockTimeContainer)
+        val unlockTimeButton = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.unlockTimeButton)
+
+        unlockTimeButton.text = formatTime(unlockHour, unlockMinute)
+
+        scheduleUnlockCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            unlockTimeContainer.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+
+        unlockTimeButton.setOnClickListener {
+            TimePickerDialog(
+                requireContext(),
+                { _, hour, minute ->
+                    unlockHour = hour
+                    unlockMinute = minute
+                    unlockTimeButton.text = formatTime(hour, minute)
+                },
+                unlockHour,
+                unlockMinute,
+                false
+            ).show()
+        }
+
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Lock App")
-            .setMessage("Lock the app on the child's device?")
-            .setSingleChoiceItems(warningOptions, selectedWarning) { _, which ->
-                selectedWarning = which
-            }
-            .setMultiChoiceItems(
-                arrayOf("Allow finish current video", "Schedule unlock time"),
-                booleanArrayOf(allowFinishVideo, scheduleUnlock)
-            ) { _, which, isChecked ->
-                when (which) {
-                    0 -> allowFinishVideo = isChecked
-                    1 -> {
-                        scheduleUnlock = isChecked
-                        if (isChecked) {
-                            // Show time picker for unlock time
-                            TimePickerDialog(
-                                requireContext(),
-                                { _, hour, minute ->
-                                    unlockHour = hour
-                                    unlockMinute = minute
-                                },
-                                unlockHour,
-                                unlockMinute,
-                                false
-                            ).show()
-                        }
-                    }
+            .setTitle(R.string.lock_app_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.lock_content) { _, _ ->
+                val warningMinutes = when (warningGroup.checkedRadioButtonId) {
+                    R.id.radioImmediate -> 0
+                    R.id.radio1Min -> 1
+                    R.id.radio5Min -> 5
+                    R.id.radio10Min -> 10
+                    R.id.radio15Min -> 15
+                    else -> 5
                 }
-            }
-            .setPositiveButton("Lock") { _, _ ->
-                val unlockAt = if (scheduleUnlock) {
+
+                val unlockAt = if (scheduleUnlockCheckbox.isChecked) {
                     Calendar.getInstance().apply {
                         set(Calendar.HOUR_OF_DAY, unlockHour)
                         set(Calendar.MINUTE, unlockMinute)
@@ -309,9 +315,9 @@ class ChildSettingsFragment : Fragment() {
                     }.timeInMillis
                 } else null
 
-                lockApp(warningMinutes[selectedWarning], allowFinishVideo, unlockAt)
+                lockApp(warningMinutes, allowFinishCheckbox.isChecked, unlockAt)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -393,6 +399,7 @@ class ChildSettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 app.familyManager.setScheduleSettings(familyId, childUid, schedule)
+                showMessage(getString(R.string.settings_saved))
             } catch (e: Exception) {
                 showError("Failed to save schedule")
             }
@@ -413,6 +420,7 @@ class ChildSettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 app.familyManager.setTimeLimitSettings(familyId, childUid, settings)
+                showMessage(getString(R.string.settings_saved))
             } catch (e: Exception) {
                 showError("Failed to save time limits")
             }

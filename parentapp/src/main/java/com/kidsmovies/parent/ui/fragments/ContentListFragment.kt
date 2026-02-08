@@ -163,30 +163,25 @@ class ContentListFragment : Fragment() {
     }
 
     private fun showLockOptionsDialog(item: ContentItem, name: String) {
-        val warningOptions = arrayOf(
-            getString(R.string.immediate),
-            getString(R.string.minutes, 1),
-            getString(R.string.minutes, 5),
-            getString(R.string.minutes, 10),
-            getString(R.string.minutes, 15)
-        )
-        val warningMinutes = intArrayOf(0, 1, 5, 10, 15)
-        var selectedWarning = 2 // Default: 5 minutes
-        var allowFinishVideo = true
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.dialog_lock_options, null)
+
+        val warningGroup = dialogView.findViewById<android.widget.RadioGroup>(R.id.warningTimeGroup)
+        val allowFinishCheckbox = dialogView.findViewById<android.widget.CheckBox>(R.id.allowFinishVideoCheckbox)
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.lock_dialog_title)
-            .setSingleChoiceItems(warningOptions, selectedWarning) { _, which ->
-                selectedWarning = which
-            }
-            .setMultiChoiceItems(
-                arrayOf(getString(R.string.allow_finish_video)),
-                booleanArrayOf(allowFinishVideo)
-            ) { _, _, isChecked ->
-                allowFinishVideo = isChecked
-            }
+            .setView(dialogView)
             .setPositiveButton(R.string.lock_content) { _, _ ->
-                performLock(item, name, warningMinutes[selectedWarning], allowFinishVideo)
+                val warningMinutes = when (warningGroup.checkedRadioButtonId) {
+                    R.id.radioImmediate -> 0
+                    R.id.radio1Min -> 1
+                    R.id.radio5Min -> 5
+                    R.id.radio10Min -> 10
+                    R.id.radio15Min -> 15
+                    else -> 5
+                }
+                performLock(item, name, warningMinutes, allowFinishCheckbox.isChecked)
             }
             .setNegativeButton(R.string.cancel) { _, _ ->
                 // Revert the switch
