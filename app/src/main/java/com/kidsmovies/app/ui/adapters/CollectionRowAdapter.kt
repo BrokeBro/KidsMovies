@@ -80,13 +80,16 @@ class CollectionRowAdapter(
             }
         )
 
-        private var currentAdapterType: AdapterType = AdapterType.VIDEO
+        private var currentAdapterType: AdapterType? = null
 
         init {
             binding.videosRecyclerView.apply {
                 layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
                 setRecycledViewPool(viewPool)
+                // Set default adapter - will be swapped if needed in bind
+                adapter = videoAdapter
             }
+            currentAdapterType = AdapterType.VIDEO
         }
 
         fun bind(rowItem: CollectionRowItem) {

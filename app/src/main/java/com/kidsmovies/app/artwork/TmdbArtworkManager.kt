@@ -65,7 +65,7 @@ class TmdbArtworkManager(
     )
 
     enum class ContentType {
-        MOVIE, TV_SHOW, TV_SEASON, TV_EPISODE, UNKNOWN
+        MOVIE, TV_SHOW, TV_SEASON, TV_EPISODE, COLLECTION, COMPANY, UNKNOWN
     }
 
     /**
@@ -108,7 +108,7 @@ class TmdbArtworkManager(
     }
 
     /**
-     * Get artwork for a collection (may be a TV show with seasons)
+     * Get artwork for a collection (may be a TV show with seasons, movie collection, or company/studio)
      */
     suspend fun getCollectionArtwork(
         collectionName: String,
@@ -141,6 +141,18 @@ class TmdbArtworkManager(
         val movieResult = fetchMovieArtwork(cleanName, cacheKey)
         if (movieResult.localPath != null) {
             return@withContext movieResult
+        }
+
+        // Try as a TMDB collection (movie series like "Toy Story Collection")
+        val collectionResult = fetchTmdbCollectionArtwork(cleanName, cacheKey)
+        if (collectionResult.localPath != null) {
+            return@withContext collectionResult
+        }
+
+        // Try as a company/studio (e.g., Disney, Pixar, DreamWorks)
+        val companyResult = fetchCompanyArtwork(cleanName, cacheKey)
+        if (companyResult.localPath != null) {
+            return@withContext companyResult
         }
 
         ArtworkResult(null, null, ContentType.UNKNOWN, cleanName)
@@ -219,6 +231,31 @@ class TmdbArtworkManager(
 
         val localPath = downloadAndCache(imageUrl, cacheKey)
         return ArtworkResult(localPath, show.id, ContentType.TV_SHOW, show.name)
+    }
+
+    private suspend fun fetchTmdbCollectionArtwork(name: String, cacheKey: String): ArtworkResult {
+        val results = tmdbService.searchCollection(name)
+        val collection = results.firstOrNull()
+            ?: return ArtworkResult(null, null, ContentType.COLLECTION, name)
+
+        val imageUrl = tmdbService.getImageUrl(collection.posterPath, TmdbService.POSTER_SIZE_LARGE)
+            ?: return ArtworkResult(null, collection.id, ContentType.COLLECTION, collection.name)
+
+        val localPath = downloadAndCache(imageUrl, cacheKey)
+        return ArtworkResult(localPath, collection.id, ContentType.COLLECTION, collection.name)
+    }
+
+    private suspend fun fetchCompanyArtwork(name: String, cacheKey: String): ArtworkResult {
+        val results = tmdbService.searchCompany(name)
+        val company = results.firstOrNull()
+            ?: return ArtworkResult(null, null, ContentType.COMPANY, name)
+
+        // Company logos use a different size - use original for best quality
+        val imageUrl = tmdbService.getImageUrl(company.logoPath, TmdbService.POSTER_SIZE_ORIGINAL)
+            ?: return ArtworkResult(null, company.id, ContentType.COMPANY, company.name)
+
+        val localPath = downloadAndCache(imageUrl, cacheKey)
+        return ArtworkResult(localPath, company.id, ContentType.COMPANY, company.name)
     }
 
     private suspend fun fetchTvSeasonArtwork(

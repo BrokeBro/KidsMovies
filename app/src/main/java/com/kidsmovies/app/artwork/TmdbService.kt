@@ -99,6 +99,30 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
         val overview: String?
     )
 
+    // Company/Studio search for collection artwork
+    data class SearchCompanyResponse(
+        val results: List<CompanyResult>
+    )
+
+    data class CompanyResult(
+        val id: Int,
+        val name: String,
+        @SerializedName("logo_path") val logoPath: String?,
+        @SerializedName("origin_country") val originCountry: String?
+    )
+
+    // TMDB Collection (movie series like "Toy Story Collection")
+    data class SearchCollectionResponse(
+        val results: List<CollectionResult>
+    )
+
+    data class CollectionResult(
+        val id: Int,
+        val name: String,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("backdrop_path") val backdropPath: String?
+    )
+
     /**
      * Search for movies by title
      */
@@ -203,6 +227,62 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
                 null
             }
         }
+
+    /**
+     * Search for companies/studios (e.g., Disney, Pixar, DreamWorks)
+     */
+    suspend fun searchCompany(query: String): List<CompanyResult> = withContext(Dispatchers.IO) {
+        if (apiKey.isEmpty()) {
+            Log.w(TAG, "TMDB API key not configured")
+            return@withContext emptyList()
+        }
+
+        try {
+            val url = "$BASE_URL/search/company?api_key=$apiKey&query=${query.encodeUrl()}"
+            val request = Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: return@withContext emptyList()
+                val searchResponse = gson.fromJson(body, SearchCompanyResponse::class.java)
+                searchResponse.results
+            } else {
+                Log.e(TAG, "Company search failed: ${response.code}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Company search error", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Search for TMDB collections (movie series like "Toy Story Collection")
+     */
+    suspend fun searchCollection(query: String): List<CollectionResult> = withContext(Dispatchers.IO) {
+        if (apiKey.isEmpty()) {
+            Log.w(TAG, "TMDB API key not configured")
+            return@withContext emptyList()
+        }
+
+        try {
+            val url = "$BASE_URL/search/collection?api_key=$apiKey&query=${query.encodeUrl()}"
+            val request = Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: return@withContext emptyList()
+                val searchResponse = gson.fromJson(body, SearchCollectionResponse::class.java)
+                searchResponse.results
+            } else {
+                Log.e(TAG, "Collection search failed: ${response.code}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Collection search error", e)
+            emptyList()
+        }
+    }
 
     /**
      * Build full image URL from TMDB path

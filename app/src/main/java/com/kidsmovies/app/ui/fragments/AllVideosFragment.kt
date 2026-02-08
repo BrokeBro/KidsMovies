@@ -31,9 +31,11 @@ class AllVideosFragment : Fragment() {
 
     private lateinit var app: KidsMoviesApp
     private lateinit var videoAdapter: VideoAdapter
+    private lateinit var gridLayoutManager: GridLayoutManager
 
     private var currentQuery: String = ""
     private var allVideos: List<Video> = emptyList()
+    private var currentGridColumns: Int = 4
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -52,6 +54,7 @@ class AllVideosFragment : Fragment() {
         setupRecyclerView()
         setupSwipeRefresh()
         setupSelectionToolbar()
+        observeSettings()
         observeVideos()
     }
 
@@ -72,9 +75,24 @@ class AllVideosFragment : Fragment() {
             onOptionsClick = { video -> showVideoOptionsBottomSheet(video) }
         )
 
+        gridLayoutManager = GridLayoutManager(context, currentGridColumns)
+
         binding.videoRecyclerView.apply {
-            layoutManager = GridLayoutManager(context, 4)
+            layoutManager = gridLayoutManager
             adapter = videoAdapter
+        }
+    }
+
+    private fun observeSettings() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.settingsRepository.getSettingsFlow().collectLatest { settings ->
+                settings?.let {
+                    if (it.gridColumns != currentGridColumns) {
+                        currentGridColumns = it.gridColumns
+                        gridLayoutManager.spanCount = currentGridColumns
+                    }
+                }
+            }
         }
     }
 

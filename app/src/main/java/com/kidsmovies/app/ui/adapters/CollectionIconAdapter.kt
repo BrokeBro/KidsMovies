@@ -50,8 +50,8 @@ class CollectionIconAdapter(
         fun bind(collection: VideoCollection) {
             binding.collectionName.text = collection.name
 
-            // Load thumbnail if available
-            val thumbnailPath = collection.thumbnailPath
+            // Load thumbnail if available (custom or TMDB)
+            val thumbnailPath = collection.getDisplayThumbnail()
             if (thumbnailPath != null && File(thumbnailPath).exists()) {
                 binding.defaultIcon.visibility = View.GONE
                 binding.collectionIcon.visibility = View.VISIBLE
