@@ -8,6 +8,7 @@ import com.google.firebase.database.ValueEventListener
 import com.google.gson.Gson
 import com.kidsmovies.app.pairing.PairingDao
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -263,10 +264,4 @@ class SettingsSyncManager(
         }
     }
 
-    private suspend fun DataSnapshot.await(): DataSnapshot = this
-}
-
-// Extension to make Firebase call suspendable
-private suspend fun com.google.firebase.database.DatabaseReference.get(): DataSnapshot {
-    return kotlinx.coroutines.tasks.await(this.get())
 }
