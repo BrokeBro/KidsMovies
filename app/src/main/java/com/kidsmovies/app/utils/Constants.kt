@@ -120,6 +120,69 @@ object ColorSchemes {
             accentColor = "#FF5252",
             backgroundColor = "#2E1A1A",
             cardColor = "#3E2121"
+        ),
+        "teal" to ColorScheme(
+            name = "teal",
+            displayName = "Tropical Teal",
+            primaryColor = "#009688",
+            primaryDarkColor = "#00796B",
+            accentColor = "#4DB6AC",
+            backgroundColor = "#1A2E2A",
+            cardColor = "#213E38"
+        ),
+        "indigo" to ColorScheme(
+            name = "indigo",
+            displayName = "Indigo Night",
+            primaryColor = "#3F51B5",
+            primaryDarkColor = "#303F9F",
+            accentColor = "#536DFE",
+            backgroundColor = "#1A1A2E",
+            cardColor = "#1E2040"
+        ),
+        "cyan" to ColorScheme(
+            name = "cyan",
+            displayName = "Cool Cyan",
+            primaryColor = "#00BCD4",
+            primaryDarkColor = "#0097A7",
+            accentColor = "#18FFFF",
+            backgroundColor = "#1A2A2E",
+            cardColor = "#1E3540"
+        ),
+        "amber" to ColorScheme(
+            name = "amber",
+            displayName = "Golden Amber",
+            primaryColor = "#FFC107",
+            primaryDarkColor = "#FFA000",
+            accentColor = "#FFD54F",
+            backgroundColor = "#2E2A1A",
+            cardColor = "#403820"
+        ),
+        "lime" to ColorScheme(
+            name = "lime",
+            displayName = "Lime Green",
+            primaryColor = "#CDDC39",
+            primaryDarkColor = "#AFB42B",
+            accentColor = "#EEFF41",
+            backgroundColor = "#2A2E1A",
+            cardColor = "#353D20"
+        ),
+        "deepPurple" to ColorScheme(
+            name = "deepPurple",
+            displayName = "Deep Purple",
+            primaryColor = "#673AB7",
+            primaryDarkColor = "#512DA8",
+            accentColor = "#7C4DFF",
+            backgroundColor = "#201A2E",
+            cardColor = "#2A2140"
+        ),
+        "brown" to ColorScheme(
+            name = "brown",
+            displayName = "Chocolate Brown",
+            primaryColor = "#795548",
+            primaryDarkColor = "#5D4037",
+            accentColor = "#A1887F",
+            backgroundColor = "#2E241A",
+            cardColor = "#3D3025"
         )
     )
 

@@ -60,6 +60,12 @@
     <string name="allow_finish_video_desc">Let them finish what they\'re watching before lock applies</string>
     <string name="content_locked_success">Content locked</string>
     <string name="content_unlocked_success">Content unlocked</string>
+    <string name="lock_tv_show_title">Lock TV Show</string>
+    <string name="lock_season_title">Lock Season</string>
+    <string name="lock_collection_title">Lock Collection</string>
+    <string name="unlock">Unlock</string>
+    <string name="unlock_exception_title">Unlock Episode</string>
+    <string name="unlock_exception_message">Unlock \"%s\" even though its parent collection is locked? This will allow access to just this item.</string>
 
     <!-- Time formats -->
     <string name="time_format_hours">%1$dh %2$dm</string>

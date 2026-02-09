@@ -534,7 +534,8 @@ class ContentSyncManager(
     }
 
     /**
-     * Apply lock/unlock to video or collection
+     * Apply lock/unlock to video or collection.
+     * When locking a collection, also locks all videos within it.
      */
     private suspend fun applyLock(videoTitle: String?, collectionName: String?, isLocked: Boolean) {
         val enabled = !isLocked
@@ -556,6 +557,29 @@ class ContentSyncManager(
             if (collection != null) {
                 collectionRepository.updateEnabled(collection.id, enabled)
                 Log.d(TAG, "Applied lock to collection: $collectionName, enabled=$enabled")
+
+                // Also lock/unlock all videos in this collection
+                val videosInCollection = collectionRepository.getVideosInCollection(collection.id)
+                for (video in videosInCollection) {
+                    videoRepository.updateEnabled(video.id, enabled)
+                    Log.d(TAG, "Applied collection lock to video: ${video.title}, enabled=$enabled")
+                }
+
+                // If this is a TV show, also lock all seasons and their episodes
+                if (collection.isTvShow()) {
+                    val seasons = collectionRepository.getSubCollections(collection.id)
+                    for (season in seasons) {
+                        collectionRepository.updateEnabled(season.id, enabled)
+                        Log.d(TAG, "Applied lock to season: ${season.name}, enabled=$enabled")
+
+                        // Lock episodes in this season
+                        val episodes = collectionRepository.getVideosInCollection(season.id)
+                        for (episode in episodes) {
+                            videoRepository.updateEnabled(episode.id, enabled)
+                            Log.d(TAG, "Applied season lock to episode: ${episode.title}, enabled=$enabled")
+                        }
+                    }
+                }
             } else {
                 Log.w(TAG, "Collection not found for lock: $collectionName")
             }

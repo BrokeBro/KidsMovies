@@ -29,7 +29,20 @@ class PairingActivity : AppCompatActivity() {
         app = application as KidsMoviesApp
 
         setupListeners()
+        loadDefaultDeviceName()
         checkExistingPairing()
+    }
+
+    private fun loadDefaultDeviceName() {
+        lifecycleScope.launch {
+            val settings = app.settingsRepository.getSettings()
+            val childName = settings?.childName
+            if (!childName.isNullOrBlank()) {
+                // Use child's name to generate default device name
+                val deviceName = getString(R.string.device_name_template, childName)
+                binding.deviceNameInput.setText(deviceName)
+            }
+        }
     }
 
     private fun checkExistingPairing() {

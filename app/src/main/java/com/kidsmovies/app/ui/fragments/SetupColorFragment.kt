@@ -42,7 +42,7 @@ class SetupColorFragment : Fragment() {
             adapter.setSelected(scheme.name)
         }
 
-        binding.colorGrid.layoutManager = GridLayoutManager(context, 3)
+        binding.colorGrid.layoutManager = GridLayoutManager(context, 4)
         binding.colorGrid.adapter = adapter
     }
 

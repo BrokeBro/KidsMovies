@@ -118,7 +118,18 @@ class SetupActivity : AppCompatActivity() {
     private fun updateNextButton() {
         val currentPage = binding.setupViewPager.currentItem
         when (currentPage) {
-            0, 1, 2 -> {
+            0 -> {
+                binding.nextButton.text = getString(R.string.setup_next)
+                binding.nextButton.isEnabled = true
+                binding.skipButton.visibility = View.GONE
+            }
+            1 -> {
+                // Name page - button enabled based on name input (required)
+                binding.nextButton.text = getString(R.string.setup_next)
+                binding.nextButton.isEnabled = isNameValid()
+                binding.skipButton.visibility = View.GONE
+            }
+            2 -> {
                 binding.nextButton.text = getString(R.string.setup_next)
                 binding.nextButton.isEnabled = true
                 binding.skipButton.visibility = View.GONE
@@ -134,6 +145,21 @@ class SetupActivity : AppCompatActivity() {
                 binding.nextButton.isEnabled = true
                 binding.skipButton.visibility = View.GONE
             }
+        }
+    }
+
+    private fun isNameValid(): Boolean {
+        val fragment = supportFragmentManager.findFragmentByTag("f1")
+        if (fragment is SetupNameFragment) {
+            return fragment.getName().isNotBlank()
+        }
+        return childName.isNotBlank()
+    }
+
+    fun onNameChanged() {
+        // Called from SetupNameFragment when name changes
+        if (binding.setupViewPager.currentItem == 1) {
+            binding.nextButton.isEnabled = isNameValid()
         }
     }
 

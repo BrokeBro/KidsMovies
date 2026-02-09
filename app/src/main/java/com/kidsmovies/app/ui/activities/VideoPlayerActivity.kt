@@ -68,12 +68,28 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var lastOneWarningShown = false
     private var lockWarningDialog: AlertDialog? = null
 
+    // Next episode auto-play
+    private var nextEpisode: Video? = null
+    private var countdownSeconds = 5
+    private var isCountdownActive = false
+
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { hideControls() }
     private val updateProgressRunnable = object : Runnable {
         override fun run() {
             updateProgress()
             handler.postDelayed(this, PROGRESS_UPDATE_INTERVAL)
+        }
+    }
+    private val countdownRunnable = object : Runnable {
+        override fun run() {
+            if (countdownSeconds > 0) {
+                countdownSeconds--
+                updateCountdownUI()
+                handler.postDelayed(this, 1000)
+            } else {
+                playNextEpisode()
+            }
         }
     }
 
@@ -118,7 +134,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         val videoId = video?.id ?: return
         lifecycleScope.launch {
             app.videoRepository.getVideoByIdFlow(videoId).collectLatest { currentVideo ->
-                if (currentVideo != null && !currentVideo.isEnabled) {
+                if (currentVideo != null && !currentVideo.isEnabled && !isFinishing) {
                     // Video has been locked - stop playback
                     stopVideoAndShowLock("${currentVideo.title} is locked")
                 }
@@ -189,18 +205,22 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private fun observeLockWarnings() {
         lifecycleScope.launch {
             app.contentSyncManager.lockWarning.collectLatest { warning ->
-                if (warning != null) {
+                if (warning != null && !isFinishing) {
                     // Check if this lock applies to the current video
                     val currentVideoTitle = video?.title ?: return@collectLatest
-                    val currentCollections = video?.let { v ->
-                        // Get collections this video belongs to
-                        app.collectionRepository.getCollectionsForVideo(v.id).map { it.name }
-                    } ?: emptyList()
+                    val currentCollections = try {
+                        video?.let { v ->
+                            // Get collections this video belongs to
+                            app.collectionRepository.getCollectionsForVideo(v.id).map { it.name }
+                        } ?: emptyList()
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
 
                     val locksCurrentVideo = warning.title == currentVideoTitle ||
                             (!warning.isVideo && currentCollections.contains(warning.title))
 
-                    if (locksCurrentVideo) {
+                    if (locksCurrentVideo && !isFinishing) {
                         if (warning.isLastOne) {
                             if (!lastOneWarningShown) {
                                 showLastOneWarning(warning)
@@ -208,8 +228,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         } else if (warning.minutesRemaining <= 0 && !warning.allowFinishCurrentVideo) {
                             // Lock applies immediately and no finish allowed
                             stopVideoAndShowLock("${warning.title} is locked")
-                        } else if (warning.minutesRemaining <= 2) {
-                            // Show countdown warning when less than 2 minutes remain
+                        } else if (warning.minutesRemaining > 0) {
+                            // Show countdown warning
                             showLockCountdownWarning(warning)
                         }
                     }
@@ -219,8 +239,14 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun showLastOneWarning(warning: ContentSyncManager.LockWarning) {
+        if (isFinishing) return
         lastOneWarningShown = true
-        lockWarningDialog?.dismiss()
+
+        try {
+            lockWarningDialog?.dismiss()
+        } catch (e: Exception) {
+            // Ignore dismiss errors
+        }
 
         val message = if (warning.isVideo) {
             getString(R.string.last_one_message, warning.title)
@@ -228,20 +254,26 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             getString(R.string.last_one_collection_message, warning.title)
         }
 
-        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-            .setTitle(R.string.last_one_title)
-            .setMessage(message)
-            .setPositiveButton(R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-                app.contentSyncManager.dismissLockWarning()
-            }
-            .setCancelable(false)
-            .create()
+        try {
+            lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+                .setTitle(R.string.last_one_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.ok) { dialog, _ ->
+                    dialog.dismiss()
+                    app.contentSyncManager.dismissLockWarning()
+                }
+                .setCancelable(false)
+                .create()
 
-        lockWarningDialog?.show()
+            lockWarningDialog?.show()
+        } catch (e: Exception) {
+            // Activity may be finishing
+        }
     }
 
     private fun showLockCountdownWarning(warning: ContentSyncManager.LockWarning) {
+        if (isFinishing) return
+
         // Don't show repeatedly
         if (lockWarningDialog?.isShowing == true) return
 
@@ -252,17 +284,21 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             getString(R.string.lock_warning_message, contentType, warning.title, warning.minutesRemaining)
         }
 
-        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-            .setTitle(R.string.lock_warning_title)
-            .setMessage(message)
-            .setPositiveButton(R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-                app.contentSyncManager.dismissLockWarning()
-            }
-            .setCancelable(false)
-            .create()
+        try {
+            lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+                .setTitle(R.string.lock_warning_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.ok) { dialog, _ ->
+                    dialog.dismiss()
+                    app.contentSyncManager.dismissLockWarning()
+                }
+                .setCancelable(false)
+                .create()
 
-        lockWarningDialog?.show()
+            lockWarningDialog?.show()
+        } catch (e: Exception) {
+            // Activity may be finishing
+        }
     }
 
     private fun showSoftOffWarning() {
@@ -457,6 +493,97 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 app.videoRepository.updatePlaybackPosition(it.id, 0)
             }
         }
+
+        // Check for next episode if this is part of a collection
+        checkForNextEpisode()
+    }
+
+    private fun checkForNextEpisode() {
+        val currentVideo = video ?: return
+        val currentCollectionId = collectionId ?: return
+
+        lifecycleScope.launch {
+            try {
+                // Get all videos in the same collection
+                val videosInCollection = app.videoRepository.getVideosByCollection(currentCollectionId)
+
+                if (videosInCollection.size <= 1) return@launch
+
+                // Sort by episode number if available, otherwise by title
+                val sortedVideos = videosInCollection.sortedWith(
+                    compareBy(
+                        { it.seasonNumber ?: Int.MAX_VALUE },
+                        { it.episodeNumber ?: Int.MAX_VALUE },
+                        { it.title }
+                    )
+                )
+
+                // Find current video index
+                val currentIndex = sortedVideos.indexOfFirst { it.id == currentVideo.id }
+                if (currentIndex == -1 || currentIndex >= sortedVideos.size - 1) return@launch
+
+                // Get next video
+                val next = sortedVideos[currentIndex + 1]
+
+                // Check if next video is enabled (not locked)
+                if (!next.isEnabled) return@launch
+
+                // Show next episode countdown
+                nextEpisode = next
+                showNextEpisodeCountdown(next)
+            } catch (e: Exception) {
+                // Ignore errors
+            }
+        }
+    }
+
+    private fun showNextEpisodeCountdown(next: Video) {
+        binding.nextEpisodeCard.visibility = View.VISIBLE
+        binding.nextEpisodeTitle.text = next.title
+        countdownSeconds = 5
+        isCountdownActive = true
+        updateCountdownUI()
+
+        binding.cancelNextButton.setOnClickListener {
+            cancelNextEpisodeCountdown()
+        }
+
+        binding.nextEpisodeCard.setOnClickListener {
+            // Skip countdown and play immediately
+            cancelNextEpisodeCountdown()
+            playNextEpisode()
+        }
+
+        // Start countdown
+        handler.postDelayed(countdownRunnable, 1000)
+    }
+
+    private fun updateCountdownUI() {
+        binding.countdownText.text = countdownSeconds.toString()
+        binding.countdownProgress.progress = (countdownSeconds * 20) // 5 seconds = 100%
+    }
+
+    private fun cancelNextEpisodeCountdown() {
+        isCountdownActive = false
+        handler.removeCallbacks(countdownRunnable)
+        binding.nextEpisodeCard.visibility = View.GONE
+        nextEpisode = null
+    }
+
+    private fun playNextEpisode() {
+        val next = nextEpisode ?: return
+        isCountdownActive = false
+        handler.removeCallbacks(countdownRunnable)
+        binding.nextEpisodeCard.visibility = View.GONE
+
+        // Start the next episode
+        val intent = Intent(this, VideoPlayerActivity::class.java).apply {
+            putExtra(EXTRA_VIDEO, next)
+            putExtra(EXTRA_COLLECTION_ID, collectionId ?: -1L)
+            putExtra(EXTRA_COLLECTION_NAME, collectionName)
+        }
+        startActivity(intent)
+        finish()
     }
 
     private fun adjustVideoSize() {
@@ -671,6 +798,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onPause() {
         super.onPause()
+        cancelNextEpisodeCountdown()
         savePlaybackPosition()
         endViewingSession(completed = false)
         mediaPlayer?.pause()
@@ -683,6 +811,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelNextEpisodeCountdown()
         lockWarningDialog?.dismiss()
         lockWarningDialog = null
         releaseMediaPlayer()
