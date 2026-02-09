@@ -1,5 +1,6 @@
 name: Build Android APK
 
+# CI build for Kids Movies and Parent apps
 on:
   workflow_dispatch:
   push:
