@@ -35,6 +35,8 @@ class ContentSyncManager(
     private var appLockListener: ValueEventListener? = null
     private var scheduleListener: ValueEventListener? = null
     private var timeLimitsListener: ValueEventListener? = null
+    private var videosStatusListener: ValueEventListener? = null
+    private var collectionsStatusListener: ValueEventListener? = null
     private var currentFamilyId: String? = null
     private var currentChildUid: String? = null
 
@@ -134,6 +136,8 @@ class ContentSyncManager(
             listenForAppLock(familyId, childUid)
             listenForScheduleSettings(familyId, childUid)
             listenForTimeLimitSettings(familyId, childUid)
+            listenForVideoStatusChanges(familyId, childUid)
+            listenForCollectionStatusChanges(familyId, childUid)
             loadViewingMetrics(familyId, childUid)
         }
     }
@@ -302,6 +306,87 @@ class ContentSyncManager(
                 Log.e(TAG, "Failed to load viewing metrics", e)
             }
         }
+    }
+
+    /**
+     * Listen for video enabled/hidden status changes from Firebase.
+     * This provides a backup sync mechanism when the lock commands path is missed.
+     */
+    private fun listenForVideoStatusChanges(familyId: String, childUid: String) {
+        val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
+
+        videosStatusListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    for (videoSnapshot in snapshot.children) {
+                        val videoKey = videoSnapshot.key ?: continue
+                        val title = videoSnapshot.child("title").getValue(String::class.java) ?: continue
+                        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+                        val enabled = videoSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
+                        val hidden = videoSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
+
+                        // Find video by title and update status
+                        val video = videoRepository.getVideoByTitle(title)
+                        if (video != null) {
+                            if (video.isEnabled != enabled) {
+                                videoRepository.updateEnabled(video.id, enabled)
+                                Log.d(TAG, "Synced video enabled status from Firebase: $title, enabled=$enabled")
+                            }
+                            if (video.isHidden != hidden) {
+                                videoRepository.updateHidden(video.id, hidden)
+                                Log.d(TAG, "Synced video hidden status from Firebase: $title, hidden=$hidden")
+                            }
+                        }
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Videos status listener cancelled", error.toException())
+            }
+        }
+
+        videosRef.addValueEventListener(videosStatusListener!!)
+    }
+
+    /**
+     * Listen for collection enabled/hidden status changes from Firebase.
+     */
+    private fun listenForCollectionStatusChanges(familyId: String, childUid: String) {
+        val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
+
+        collectionsStatusListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                coroutineScope.launch(Dispatchers.IO) {
+                    for (collectionSnapshot in snapshot.children) {
+                        val collectionKey = collectionSnapshot.key ?: continue
+                        val name = collectionSnapshot.child("name").getValue(String::class.java) ?: continue
+                        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
+                        val enabled = collectionSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
+                        val hidden = collectionSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
+
+                        // Find collection by name and update status
+                        val collection = collectionRepository.getCollectionByName(name)
+                        if (collection != null) {
+                            if (collection.isEnabled != enabled) {
+                                collectionRepository.updateEnabled(collection.id, enabled)
+                                Log.d(TAG, "Synced collection enabled status from Firebase: $name, enabled=$enabled")
+                            }
+                            if (collection.isHidden != hidden) {
+                                collectionRepository.updateHidden(collection.id, hidden)
+                                Log.d(TAG, "Synced collection hidden status from Firebase: $name, hidden=$hidden")
+                            }
+                        }
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Collections status listener cancelled", error.toException())
+            }
+        }
+
+        collectionsRef.addValueEventListener(collectionsStatusListener!!)
     }
 
     private fun formatTime(hour: Int, minute: Int): String {
@@ -789,6 +874,14 @@ class ContentSyncManager(
                     database.getReference("families/$familyId/children/$childUid/settings/timeLimits")
                         .removeEventListener(it)
                 }
+                videosStatusListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/videos")
+                        .removeEventListener(it)
+                }
+                collectionsStatusListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/collections")
+                        .removeEventListener(it)
+                }
             }
         }
         syncRequestListener = null
@@ -796,6 +889,8 @@ class ContentSyncManager(
         appLockListener = null
         scheduleListener = null
         timeLimitsListener = null
+        videosStatusListener = null
+        collectionsStatusListener = null
         currentFamilyId = null
         currentChildUid = null
     }

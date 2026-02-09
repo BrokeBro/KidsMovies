@@ -110,7 +110,20 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         setupBackHandler()
         observeViewingTimer()
         observeAppLock()
+        observeVideoLock()
         observeLockWarnings()
+    }
+
+    private fun observeVideoLock() {
+        val videoId = video?.id ?: return
+        lifecycleScope.launch {
+            app.videoRepository.getVideoByIdFlow(videoId).collectLatest { currentVideo ->
+                if (currentVideo != null && !currentVideo.isEnabled) {
+                    // Video has been locked - stop playback
+                    stopVideoAndShowLock("${currentVideo.title} is locked")
+                }
+            }
+        }
     }
 
     private fun observeAppLock() {

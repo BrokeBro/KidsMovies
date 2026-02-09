@@ -133,6 +133,9 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE id = :videoId")
     suspend fun getVideoById(videoId: Long): Video?
 
+    @Query("SELECT * FROM videos WHERE id = :videoId")
+    fun getVideoByIdFlow(videoId: Long): Flow<Video?>
+
     @Query("SELECT * FROM videos WHERE filePath = :filePath")
     suspend fun getVideoByPath(filePath: String): Video?
 

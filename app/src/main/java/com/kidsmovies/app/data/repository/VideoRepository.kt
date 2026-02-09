@@ -48,6 +48,8 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun getVideoById(videoId: Long): Video? = videoDao.getVideoById(videoId)
 
+    fun getVideoByIdFlow(videoId: Long): Flow<Video?> = videoDao.getVideoByIdFlow(videoId)
+
     suspend fun getVideoByPath(filePath: String): Video? = videoDao.getVideoByPath(filePath)
 
     suspend fun getVideoByTitle(title: String): Video? = videoDao.getVideoByTitle(title)
