@@ -46,7 +46,7 @@ object DatabaseExportImport {
             val parentalControl = database.parentalControlDao().getParentalControl()
             val tags = database.tagDao().getAllTags()
             val scanFolders = database.scanFolderDao().getAllFolders()
-            val videos = database.videoDao().getAllVideosIncludingDisabled()
+            val videos = database.videoDao().getAllVideos()
 
             // Collect video-tag relationships
             val videoTagCrossRefs = mutableListOf<VideoTagCrossRefExport>()
@@ -91,7 +91,7 @@ object DatabaseExportImport {
             val parentalControl = database.parentalControlDao().getParentalControl()
             val tags = database.tagDao().getAllTags()
             val scanFolders = database.scanFolderDao().getAllFolders()
-            val videos = database.videoDao().getAllVideosIncludingDisabled()
+            val videos = database.videoDao().getAllVideos()
 
             // Collect video-tag relationships
             val videoTagCrossRefs = mutableListOf<VideoTagCrossRefExport>()

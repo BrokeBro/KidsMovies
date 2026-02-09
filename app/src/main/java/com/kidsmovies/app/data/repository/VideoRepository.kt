@@ -10,7 +10,7 @@ class VideoRepository(private val videoDao: VideoDao) {
     // Flow getters for observing data
     fun getAllVideosFlow(): Flow<List<Video>> = videoDao.getAllVideosFlow()
 
-    fun getAllVideosIncludingDisabledFlow(): Flow<List<Video>> = videoDao.getAllVideosIncludingDisabledFlow()
+    fun getAllVideosIncludingHiddenFlow(): Flow<List<Video>> = videoDao.getAllVideosIncludingHiddenFlow()
 
     fun getFavouritesFlow(): Flow<List<Video>> = videoDao.getFavouritesFlow()
 
@@ -36,7 +36,7 @@ class VideoRepository(private val videoDao: VideoDao) {
     // Suspend functions for one-time operations
     suspend fun getAllVideos(): List<Video> = videoDao.getAllVideos()
 
-    suspend fun getAllVideosIncludingDisabled(): List<Video> = videoDao.getAllVideosIncludingDisabled()
+    suspend fun getAllVideosIncludingHidden(): List<Video> = videoDao.getAllVideos()
 
     suspend fun getFavourites(): List<Video> = videoDao.getFavourites()
 
@@ -75,6 +75,8 @@ class VideoRepository(private val videoDao: VideoDao) {
     suspend fun updateFavourite(videoId: Long, isFavourite: Boolean) = videoDao.updateFavourite(videoId, isFavourite)
 
     suspend fun updateEnabled(videoId: Long, isEnabled: Boolean) = videoDao.updateEnabled(videoId, isEnabled)
+
+    suspend fun updateHidden(videoId: Long, isHidden: Boolean) = videoDao.updateHidden(videoId, isHidden)
 
     suspend fun updatePlayStats(videoId: Long) = videoDao.updatePlayStats(videoId, System.currentTimeMillis())
 

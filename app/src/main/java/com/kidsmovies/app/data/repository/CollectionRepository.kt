@@ -63,6 +63,9 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
     suspend fun isVideoInCollection(videoId: Long, collectionId: Long): Boolean =
         collectionDao.isVideoInCollection(videoId, collectionId) > 0
 
+    suspend fun getCollectionsForVideo(videoId: Long): List<VideoCollection> =
+        collectionDao.getCollectionsForVideo(videoId)
+
     // TV Show and Season methods
     suspend fun getTvShows(): List<VideoCollection> = collectionDao.getTvShows()
 
@@ -92,6 +95,9 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
 
     suspend fun updateEnabled(collectionId: Long, isEnabled: Boolean) =
         collectionDao.updateEnabled(collectionId, isEnabled)
+
+    suspend fun updateHidden(collectionId: Long, isHidden: Boolean) =
+        collectionDao.updateHidden(collectionId, isHidden)
 
     /**
      * Get episode count for all seasons of a TV show.

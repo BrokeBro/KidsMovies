@@ -85,6 +85,9 @@ interface CollectionDao {
     @Query("SELECT COUNT(*) FROM video_collection_cross_ref WHERE videoId = :videoId AND collectionId = :collectionId")
     suspend fun isVideoInCollection(videoId: Long, collectionId: Long): Int
 
+    @Query("SELECT c.* FROM collections c INNER JOIN video_collection_cross_ref vc ON c.id = vc.collectionId WHERE vc.videoId = :videoId ORDER BY c.name ASC")
+    suspend fun getCollectionsForVideo(videoId: Long): List<VideoCollection>
+
     // TV Show and Season queries (excludes hidden)
     @Query("SELECT * FROM collections WHERE collectionType = 'TV_SHOW' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
     suspend fun getTvShows(): List<VideoCollection>
