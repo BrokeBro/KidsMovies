@@ -214,7 +214,7 @@ class FamilyManager {
     }
 
     /**
-     * Lock or unlock a collection
+     * Lock or unlock a collection, cascading to child seasons and videos
      */
     suspend fun setCollectionLock(
         familyId: String,
@@ -249,6 +249,97 @@ class FamilyManager {
         database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$collectionKey/enabled")
             .setValue(!isLocked)
             .await()
+
+        // Cascade lock to child seasons and videos within this collection
+        cascadeLockToChildren(familyId, childUid, collectionName, isLocked, userId, warningMinutes, allowFinishCurrentVideo)
+    }
+
+    /**
+     * Cascade a lock to all child seasons and videos under a collection.
+     * When locking, all children are locked. When unlocking, all children are unlocked.
+     * Parents can then granularly re-unlock individual items.
+     */
+    private suspend fun cascadeLockToChildren(
+        familyId: String,
+        childUid: String,
+        parentCollectionName: String,
+        isLocked: Boolean,
+        userId: String,
+        warningMinutes: Int,
+        allowFinishCurrentVideo: Boolean
+    ) {
+        try {
+            // Cascade to child seasons (collections whose parentName matches)
+            val collectionsSnapshot = database.getReference(
+                FirebasePaths.childCollectionsPath(familyId, childUid)
+            ).get().await()
+
+            val childSeasonNames = mutableListOf<String>()
+            for (collectionSnapshot in collectionsSnapshot.children) {
+                val collection = collectionSnapshot.getValue(SyncedCollection::class.java) ?: continue
+                if (collection.parentName == parentCollectionName) {
+                    // This is a child season - cascade the lock
+                    val seasonKey = collectionSnapshot.key ?: continue
+                    childSeasonNames.add(collection.name)
+
+                    database.getReference(
+                        "${FirebasePaths.childCollectionsPath(familyId, childUid)}/$seasonKey/enabled"
+                    ).setValue(!isLocked).await()
+
+                    // Write a lock command for the season too
+                    val seasonLockId = "collection_${sanitizeFirebaseKey(collection.name)}"
+                    database.getReference(
+                        "${FirebasePaths.childLocksPath(familyId, childUid)}/$seasonLockId"
+                    ).setValue(
+                        LockCommand(
+                            collectionName = collection.name,
+                            isLocked = isLocked,
+                            lockedBy = userId,
+                            lockedAt = System.currentTimeMillis(),
+                            warningMinutes = warningMinutes,
+                            allowFinishCurrentVideo = allowFinishCurrentVideo
+                        )
+                    ).await()
+                }
+            }
+
+            // Cascade to videos in this collection and any child seasons
+            val allCollectionNames = mutableListOf(parentCollectionName).apply { addAll(childSeasonNames) }
+
+            val videosSnapshot = database.getReference(
+                FirebasePaths.childVideosPath(familyId, childUid)
+            ).get().await()
+
+            for (videoSnapshot in videosSnapshot.children) {
+                val video = videoSnapshot.getValue(SyncedVideo::class.java) ?: continue
+                val videoKey = videoSnapshot.key ?: continue
+
+                // Check if video belongs to the parent collection or any child season
+                val belongsToLockedCollection = video.collectionNames.any { it in allCollectionNames }
+                if (belongsToLockedCollection) {
+                    database.getReference(
+                        "${FirebasePaths.childVideosPath(familyId, childUid)}/$videoKey/enabled"
+                    ).setValue(!isLocked).await()
+
+                    // Write a lock command for the video
+                    val videoLockId = sanitizeFirebaseKey(video.title)
+                    database.getReference(
+                        "${FirebasePaths.childLocksPath(familyId, childUid)}/$videoLockId"
+                    ).setValue(
+                        LockCommand(
+                            videoTitle = video.title,
+                            isLocked = isLocked,
+                            lockedBy = userId,
+                            lockedAt = System.currentTimeMillis(),
+                            warningMinutes = warningMinutes,
+                            allowFinishCurrentVideo = allowFinishCurrentVideo
+                        )
+                    ).await()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cascading lock to children", e)
+        }
     }
 
     /**

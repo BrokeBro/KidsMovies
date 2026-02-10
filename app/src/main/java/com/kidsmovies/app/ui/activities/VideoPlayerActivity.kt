@@ -67,6 +67,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var softOffWarningShown = false
     private var lastOneWarningShown = false
     private var lockWarningDialog: AlertDialog? = null
+    private var isStoppingForLock = false
 
     // Next episode auto-play
     private var nextEpisode: Video? = null
@@ -162,19 +163,32 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun stopVideoAndShowLock(message: String) {
-        if (isFinishing) return
+        if (isFinishing || isStoppingForLock) return
+        isStoppingForLock = true
+
+        // Dismiss any warning dialogs
+        try { lockWarningDialog?.dismiss() } catch (_: Exception) {}
 
         // Stop playback
         mediaPlayer?.pause()
         isPlaying = false
 
-        // Save position and end session
-        savePlaybackPosition()
+        // Save position and end session before releasing player
+        savePlaybackPositionSync()
         endViewingSession(completed = false)
         notifyTimerVideoEnded()
 
+        // Release media player before finishing to prevent access after destroy
+        releaseMediaPlayer()
+
+        // Notify sync manager that video stopped
+        app.onVideoStopped()
+
         // Go to lock screen
-        goToLockScreen()
+        val intent = Intent(this, LockScreenActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        finish()
     }
 
     private fun observeViewingTimer() {
@@ -315,7 +329,15 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun goToLockScreen() {
-        savePlaybackPosition()
+        if (isFinishing || isStoppingForLock) return
+        isStoppingForLock = true
+
+        savePlaybackPositionSync()
+        endViewingSession(completed = false)
+        notifyTimerVideoEnded()
+        releaseMediaPlayer()
+        app.onVideoStopped()
+
         val intent = Intent(this, LockScreenActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -688,28 +710,35 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun savePlaybackPosition() {
-        mediaPlayer?.let { mp ->
-            try {
-                val position = mp.currentPosition.toLong()
-                val duration = mp.duration.toLong()
-                
-                // Only save if we're not at the beginning or end
-                val shouldSave = position > MIN_RESUME_POSITION && 
-                                 position < duration * END_THRESHOLD_PERCENT
-                
-                video?.let { v ->
-                    lifecycleScope.launch {
-                        app.videoRepository.updatePlaybackPosition(
-                            v.id, 
-                            if (shouldSave) position else 0
-                        )
-                    }
+    /**
+     * Save playback position synchronously (captures position from mediaPlayer
+     * and launches a coroutine to persist it). Safe to call even if mediaPlayer
+     * has been released - it simply does nothing in that case.
+     */
+    private fun savePlaybackPositionSync() {
+        val mp = mediaPlayer ?: return
+        try {
+            val position = mp.currentPosition.toLong()
+            val duration = mp.duration.toLong()
+
+            val shouldSave = position > MIN_RESUME_POSITION &&
+                    position < duration * END_THRESHOLD_PERCENT
+
+            video?.let { v ->
+                lifecycleScope.launch {
+                    app.videoRepository.updatePlaybackPosition(
+                        v.id,
+                        if (shouldSave) position else 0
+                    )
                 }
-            } catch (e: Exception) {
-                // MediaPlayer may be in invalid state
             }
+        } catch (_: Exception) {
+            // MediaPlayer may be in invalid state
         }
+    }
+
+    private fun savePlaybackPosition() {
+        savePlaybackPositionSync()
     }
 
     private fun formatTime(milliseconds: Int): String {
@@ -799,6 +828,10 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onPause() {
         super.onPause()
         cancelNextEpisodeCountdown()
+
+        // If we're already stopping for a lock, cleanup was done there
+        if (isStoppingForLock) return
+
         savePlaybackPosition()
         endViewingSession(completed = false)
         mediaPlayer?.pause()
@@ -812,7 +845,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onDestroy() {
         super.onDestroy()
         cancelNextEpisodeCountdown()
-        lockWarningDialog?.dismiss()
+        try { lockWarningDialog?.dismiss() } catch (_: Exception) {}
         lockWarningDialog = null
         releaseMediaPlayer()
     }
