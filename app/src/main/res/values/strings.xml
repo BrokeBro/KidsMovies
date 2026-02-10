@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kids Movies</string>
+
+    <!-- Setup -->
+    <string name="setup_welcome">Welcome!</string>
+    <string name="setup_welcome_message">Let\'s set up your movie library</string>
+    <string name="setup_enter_name">What\'s your name?</string>
+    <string name="setup_name_hint">Your name</string>
+    <string name="setup_choose_color">Pick your favorite color!</string>
+    <string name="setup_scanning">Finding your movies…</string>
+    <string name="setup_complete">All done!</string>
+    <string name="setup_movies_found">%d movies found!</string>
+    <string name="setup_no_movies">No movies found yet</string>
+    <string name="setup_next">Next</string>
+    <string name="setup_start">Let\'s Go!</string>
+    <string name="setup_skip">Skip</string>
+    <string name="name_required">Please enter your name to continue</string>
+    <string name="device_name_template">%s\'s Tablet</string>
+
+    <!-- Main -->
+    <string name="all_movies">All Movies</string>
+    <string name="my_favourites">My Favourites</string>
+    <string name="recently_watched">Recently Watched</string>
+    <string name="online_videos">Online Videos</string>
+    <string name="no_movies">No movies yet</string>
+    <string name="no_favourites">No favourites yet</string>
+    <string name="tap_heart">Tap the heart on any movie to add it here!</string>
+    <string name="search_hint">Search movies…</string>
+    <string name="refresh">Refresh</string>
+    <string name="settings">Settings</string>
+
+    <!-- Video Player -->
+    <string name="now_playing">Now Playing</string>
+    <string name="play">Play</string>
+    <string name="up_next">Up Next</string>
+    <string name="next_episode_in">Next episode in %d</string>
+    <string name="pause">Pause</string>
+    <string name="rewind">Rewind</string>
+    <string name="forward">Forward</string>
+    <string name="fullscreen">Fullscreen</string>
+    <string name="exit_fullscreen">Exit Fullscreen</string>
+
+    <!-- Video Details -->
+    <string name="add_to_favourites">Add to Favourites</string>
+    <string name="remove_from_favourites">Remove from Favourites</string>
+    <string name="video_duration">Duration: %s</string>
+    <string name="video_size">Size: %s</string>
+    <string name="play_video">Play Video</string>
+    <string name="edit_tags">Edit Tags</string>
+    <string name="change_thumbnail">Change Thumbnail</string>
+    <string name="thumbnail_recommendation">Recommended: 480x270 pixels (16:9 ratio)</string>
+    <string name="reset_thumbnail">Reset to Default Thumbnail</string>
+    <string name="thumbnail_changed">Thumbnail updated successfully</string>
+    <string name="thumbnail_reset">Thumbnail reset to default</string>
+    <string name="select_image">Select an image</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="appearance">Appearance</string>
+    <string name="color_scheme">Color Scheme</string>
+    <string name="grid_columns">Grid Columns</string>
+    <string name="library">Library</string>
+    <string name="scan_folders">Scan Folders</string>
+    <string name="scan_folders_desc">Choose which folders to scan for videos</string>
+    <string name="scan_now">Scan Now</string>
+    <string name="auto_scan">Auto-scan on startup</string>
+    <string name="manage_tags">Manage Tags</string>
+    <string name="data">Data</string>
+    <string name="export_data">Export Data</string>
+    <string name="import_data">Import Data</string>
+    <string name="clear_thumbnails">Clear Thumbnails</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="online_section">Online</string>
+    <string name="onedrive_settings">OneDrive Settings</string>
+    <string name="onedrive_desc">Connect to OneDrive for online videos</string>
+    <string name="navigation">Navigation</string>
+    <string name="navigation_tabs_desc">Choose which tabs to show in the navigation</string>
+    <string name="show_all_movies_tab">All Movies</string>
+    <string name="show_favourites_tab">My Favourites</string>
+    <string name="show_collections_tab">Collections</string>
+    <string name="show_recent_tab">Recently Watched</string>
+    <string name="show_online_tab">Online Videos</string>
+
+    <!-- Folder Picker -->
+    <string name="select_folder">Select Folder</string>
+    <string name="add_folder">Add Folder</string>
+    <string name="include_subfolders">Include subfolders</string>
+    <string name="folder_path">Folder path</string>
+    <string name="no_folders">No folders configured</string>
+    <string name="add_your_first_folder">Add your first folder to scan for videos</string>
+
+    <!-- Tags -->
+    <string name="tags">Tags</string>
+    <string name="add_tag">Add Tag</string>
+    <string name="edit_tag">Edit Tag</string>
+    <string name="tag_name">Tag name</string>
+    <string name="tag_color">Tag color</string>
+    <string name="delete_tag">Delete Tag</string>
+    <string name="no_tags">No tags</string>
+
+    <!-- Dialogs -->
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="ok">OK</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="error">Error</string>
+    <string name="success">Success</string>
+
+    <!-- Export/Import -->
+    <string name="export_success">Export completed successfully</string>
+    <string name="import_success">Imported %1$d videos, %2$d tags, %3$d folders</string>
+    <string name="export_error">Error exporting data</string>
+    <string name="import_error">Error importing data</string>
+    <string name="clear_before_import">Clear existing data before import?</string>
+
+    <!-- Parental Control -->
+    <string name="app_blocked">App Blocked</string>
+    <string name="app_blocked_message">Ask your parent to enable video time!</string>
+    <string name="outside_schedule">Outside viewing time</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">Permission Required</string>
+    <string name="storage_permission_message">This app needs storage access to find your videos</string>
+    <string name="grant_permission">Grant Permission</string>
+
+    <!-- Scanning -->
+    <string name="scanning_videos">Scanning for videos…</string>
+    <string name="scan_complete">Scan complete</string>
+    <string name="videos_found">%d videos found</string>
+    <string name="videos_added">%d new videos added</string>
+    <string name="videos_removed">%d videos removed</string>
+
+    <!-- Selection mode -->
+    <string name="items_selected">%d selected</string>
+    <string name="select_all">Select all</string>
+    <string name="remove_from_library">Remove from Library</string>
+    <string name="remove_videos_message">Remove %d video(s) from your library?\n\nThis will NOT delete the videos from your device, only from this app.</string>
+    <string name="remove">Remove</string>
+    <string name="videos_removed_from_library">%d video(s) removed from library</string>
+
+    <!-- Collections -->
+    <string name="collections">Collections</string>
+    <string name="new_collection">New Collection</string>
+    <string name="collection_name">Collection name</string>
+    <string name="edit_collection">Edit Collection</string>
+    <string name="delete_collection">Delete Collection</string>
+    <string name="add_to_collection">Add to Collection</string>
+    <string name="remove_from_collection">Remove from Collection</string>
+    <string name="no_collections">No collections yet</string>
+    <string name="create_collection_hint">Create a collection to group related movies together</string>
+    <string name="collection_deleted">Collection deleted</string>
+    <string name="videos_in_collection">%d videos</string>
+    <string name="manage_collections">Manage Collections</string>
+    <string name="reorder_collections">Reorder Collections</string>
+    <string name="reorder_mode_enabled">Drag to reorder collections</string>
+    <string name="reorder_mode_saved">Collection order saved</string>
+
+    <!-- TV Shows and Seasons -->
+    <string name="tv_shows">TV Shows</string>
+    <string name="seasons">Seasons</string>
+    <string name="view_all_seasons">View All Seasons</string>
+    <string name="season_number">Season %d</string>
+    <string name="no_seasons">No seasons yet</string>
+    <string name="collection_type">Collection Type</string>
+    <string name="type_regular">Regular Collection</string>
+    <string name="type_tv_show">TV Show</string>
+    <string name="type_season">Season</string>
+    <string name="parent_tv_show">Parent TV Show</string>
+    <string name="select_parent_show">Select TV Show</string>
+    <string name="convert_to_tv_show">Convert to TV Show</string>
+    <string name="convert_to_season">Convert to Season</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_video_thumbnail">Video thumbnail</string>
+    <string name="cd_favourite_button">Favourite button</string>
+    <string name="cd_play_button">Play button</string>
+    <string name="cd_settings_button">Settings button</string>
+    <string name="cd_refresh_button">Refresh button</string>
+    <string name="cd_search_button">Search button</string>
+    <string name="cd_back_button">Back button</string>
+    <string name="cd_color_option">Color option</string>
+    <string name="cd_locked_content">Locked content</string>
+    <string name="cd_reorder_handle">Reorder handle</string>
+
+    <!-- Parental Lock Messages -->
+    <string name="content_locked_title">Content Locked</string>
+    <string name="content_locked_message">This video is locked. Ask a parent to unlock it for you!</string>
+    <string name="collection_locked_message">This collection is locked. Ask a parent to unlock it for you!</string>
+    <string name="ask_parent">Ask Parent</string>
+    <string name="lock_warning_title">Heads Up!</string>
+    <string name="lock_warning_message">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes.</string>
+    <string name="lock_warning_finish_video">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes. You can finish this video first!</string>
+    <string name="last_one_title">Last One!</string>
+    <string name="last_one_message">This is your last video! After this one, \"%1$s\" will be locked.</string>
+    <string name="last_one_collection_message">This is your last video! After this one, you won\'t be able to access more videos from \"%1$s\".</string>
+    <string name="video">video</string>
+    <string name="collection">collection</string>
+
+    <!-- Usage Metrics -->
+    <string name="usage_metrics">Usage Metrics</string>
+    <string name="usage_metrics_desc">View watch time and usage statistics</string>
+    <string name="parental_section">Parental</string>
+    <string name="top_collections">Top Collections</string>
+    <string name="top_collections_by_watch_time">Top 5 Collections by Watch Time</string>
+    <string name="session_statistics">Session Statistics</string>
+    <string name="break_analysis">Break Analysis</string>
+    <string name="total_watch_time">Total Watch Time</string>
+    <string name="total_sessions">Total Sessions</string>
+    <string name="completed_sessions">Completed Videos</string>
+    <string name="average_session">Average Session</string>
+    <string name="average_break">Average Break</string>
+    <string name="longest_break">Longest Break</string>
+    <string name="shortest_break">Shortest Break</string>
+    <string name="no_data_yet">No viewing data yet</string>
+    <string name="no_data_message">Start watching videos to see usage statistics</string>
+    <string name="clear_metrics">Clear All Metrics</string>
+    <string name="clear_metrics_confirm">Are you sure you want to clear all viewing history? This cannot be undone.</string>
+    <string name="metrics_cleared">Viewing history cleared</string>
+    <string name="hours_watched">%s watched</string>
+    <string name="sessions_count">%d sessions</string>
+
+    <!-- Parent Control / Pairing -->
+    <string name="connect_to_parent">Connect to Parent</string>
+    <string name="pairing_title">Connect to Parent App</string>
+    <string name="pairing_instructions">Ask your parent for the 6-digit code from their app</string>
+    <string name="enter_code">Enter code</string>
+    <string name="pairing_code_hint">000000</string>
+    <string name="connect">Connect</string>
+    <string name="pairing_success">Connected!</string>
+    <string name="pairing_error">Couldn\'t connect. Please check the code and try again.</string>
+    <string name="code_expired">This code has expired. Ask for a new code.</string>
+    <string name="code_invalid">Invalid code. Please check and try again.</string>
+    <string name="network_error">No internet connection. Please connect and try again.</string>
+    <string name="device_name_label">Device name</string>
+    <string name="device_name_hint">Kid\'s Tablet</string>
+    <string name="skip_pairing">Skip for now</string>
+    <string name="already_paired">Connected to parent app</string>
+    <string name="disconnect_from_parent">Disconnect</string>
+
+    <!-- Lock Screen -->
+    <string name="lock_screen_message">See you next time!</string>
+    <string name="lock_screen_sub_message">Movie time is all done for now</string>
+    <string name="time_up_message">Time\'s up!</string>
+    <string name="finish_video_message">You can finish watching this video</string>
+    <string name="soft_off_title">Time\'s Up!</string>
+    <string name="soft_off_message">You can finish this episode, then it\'s time for a break!</string>
+    <string name="soft_off_dismiss">OK</string>
+
+    <!-- Time remaining -->
+    <string name="time_remaining">%d min left</string>
+    <string name="time_unlimited">Unlimited</string>
+
+    <!-- Artwork / TMDB -->
+    <string name="artwork_section">Artwork</string>
+    <string name="fetch_artwork">Fetch Movie Posters</string>
+    <string name="fetch_artwork_desc">Auto-download posters from TMDB by matching names</string>
+    <string name="fetching_artwork">Fetching artwork from TMDB…</string>
+    <string name="artwork_fetch_complete">Artwork fetch complete</string>
+    <string name="clear_artwork_cache">Clear Artwork Cache</string>
+    <string name="artwork_cache_size">Cache size: %s</string>
+    <string name="artwork_cache_cleared">Artwork cache cleared</string>
+
+    <!-- Plurals -->
+    <plurals name="episode_count">
+        <item quantity="one">%d Episode</item>
+        <item quantity="other">%d Episodes</item>
+    </plurals>
+    <plurals name="season_count">
+        <item quantity="one">%d Season</item>
+        <item quantity="other">%d Seasons</item>
+    </plurals>
+</resources>

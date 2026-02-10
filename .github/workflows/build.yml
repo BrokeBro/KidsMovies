@@ -1,0 +1,68 @@
+name: Build Android APK
+
+# CI build for Kids Movies and Parent apps
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log; exit ${PIPESTATUS[0]}
+
+      - name: Show build errors on failure
+        if: failure()
+        run: |
+          echo "=== BUILD ERRORS ==="
+          grep -A 5 -B 2 "error:" build.log || true
+          echo "=== KOTLIN COMPILER ERRORS ==="
+          grep -E "e:|w:|error:|Unresolved reference|Cannot find|not found" build.log || true
+          echo "=== KSP ERRORS ==="
+          grep -A 5 "\[ksp\]" build.log || true
+          echo "=== LAST 200 LINES ==="
+          tail -200 build.log
+
+      - name: Upload Kids App Debug APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: KidsMovies-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload Parent App Debug APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: KidsMovies-Parent-debug
+          path: parentapp/build/outputs/apk/debug/parentapp-debug.apk
+          retention-days: 30

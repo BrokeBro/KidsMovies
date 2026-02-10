@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/contentCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="2dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="1dp"
+    app:rippleColor="@color/ripple_color">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="12dp"
+        android:paddingEnd="12dp">
+
+        <!-- Indent space - dynamically set based on depth -->
+        <View
+            android:id="@+id/indentSpace"
+            android:layout_width="0dp"
+            android:layout_height="1dp" />
+
+        <!-- Expand/collapse indicator for collections -->
+        <ImageView
+            android:id="@+id/expandIndicator"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="4dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_expand_more"
+            android:visibility="gone"
+            app:tint="@color/text_secondary" />
+
+        <!-- Icon -->
+        <ImageView
+            android:id="@+id/iconImage"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_movie"
+            app:tint="@color/primary" />
+
+        <!-- Content info -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/titleText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                tools:text="Frozen" />
+
+            <TextView
+                android:id="@+id/subtitleText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:visibility="gone"
+                tools:text="TV Show • 3 Seasons"
+                tools:visibility="visible" />
+
+            <!-- Type badge for clarity -->
+            <TextView
+                android:id="@+id/typeBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/badge_type_background"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp"
+                android:visibility="gone"
+                tools:text="SEASON 1"
+                tools:visibility="visible" />
+
+        </LinearLayout>
+
+        <!-- Lock status badge -->
+        <TextView
+            android:id="@+id/statusBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/badge_background"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:textColor="@android:color/white"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="LOCKED" />
+
+        <!-- Lock switch -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/lockSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

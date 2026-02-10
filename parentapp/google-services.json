@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "195366973224",
+    "firebase_url": "https://kidsmovies-6479d-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "kidsmovies-6479d",
+    "storage_bucket": "kidsmovies-6479d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:195366973224:android:874bda8685eae3e50f2a1d",
+        "android_client_info": {
+          "package_name": "com.kidsmovies.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2hxDoncBV6YlDIrOf8tbj058caGSmjsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:195366973224:android:760f121b454d9a960f2a1d",
+        "android_client_info": {
+          "package_name": "com.kidsmovies.parent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2hxDoncBV6YlDIrOf8tbj058caGSmjsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

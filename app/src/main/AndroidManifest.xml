@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Storage permissions for accessing videos -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- Network permission for parental control and OneDrive -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- For foreground service when scanning videos -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application
+        android:name=".KidsMoviesApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.KidsMovies"
+        tools:targetApi="31">
+
+        <!-- Splash/Setup Activity -->
+        <activity
+            android:name=".ui.activities.SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.KidsMovies.Splash">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Setup Wizard Activity -->
+        <activity
+            android:name=".ui.activities.SetupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Main Activity -->
+        <activity
+            android:name=".ui.activities.MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Video Player Activity -->
+        <activity
+            android:name=".ui.activities.VideoPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.KidsMovies.Player" />
+
+        <!-- Settings Activity -->
+        <activity
+            android:name=".ui.activities.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Folder Picker Activity -->
+        <activity
+            android:name=".ui.activities.FolderPickerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Tag Manager Activity -->
+        <activity
+            android:name=".ui.activities.TagManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Collection Detail Activity -->
+        <activity
+            android:name=".ui.activities.CollectionDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Usage Metrics Activity -->
+        <activity
+            android:name=".ui.activities.UsageMetricsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Pairing Activity -->
+        <activity
+            android:name=".pairing.PairingActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Lock Screen Activity -->
+        <activity
+            android:name=".enforcement.LockScreenActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KidsMovies" />
+
+        <!-- Video Scanner Service -->
+        <service
+            android:name=".services.VideoScannerService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- Parental Control Check Service -->
+        <service
+            android:name=".services.ParentalControlService"
+            android:exported="false" />
+
+        <!-- File Provider for sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+
+</manifest>
