@@ -1,7 +1,10 @@
 package com.kidsmovies.parent.ui.activities
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +35,8 @@ class MainActivity : AppCompatActivity() {
 
         app = application as ParentApp
 
+        setSupportActionBar(binding.toolbar)
+
         setupUI()
         setupListeners()
 
@@ -39,6 +44,22 @@ class MainActivity : AppCompatActivity() {
             signInAnonymouslyAndLoadFamily()
         } else {
             showFirebaseError()
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_donate -> {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.kofi_url)))
+                startActivity(intent)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
 
