@@ -505,6 +505,51 @@
 
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Support Development -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/supportCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/support_development"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/support_desc"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/donateButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/donate_button"
+                    app:icon="@drawable/ic_favorite"
+                    app:iconTint="@color/on_primary"
+                    app:backgroundTint="@color/kofi_brand" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
     </LinearLayout>
 
 </ScrollView>

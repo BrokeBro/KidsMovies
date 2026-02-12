@@ -82,9 +82,16 @@
     <string name="remove_child">Remove Child</string>
     <string name="remove_child_message">Remove %s from your family? This will unpair their device.</string>
     <string name="child_removed">Child removed</string>
+    <string name="child_paired_success">Child device connected!</string>
 
     <!-- Errors -->
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_network">No internet connection</string>
     <string name="error_not_signed_in">Please sign in to continue</string>
+
+    <!-- Support / Donate -->
+    <string name="support_development">Support Development</string>
+    <string name="support_desc">Help keep KidsMovies free and ad-free. Your donation goes directly towards server costs and development.</string>
+    <string name="donate_button">Donate via Ko-fi</string>
+    <string name="kofi_url">https://ko-fi.com/kidsmovies</string>
 </resources>
