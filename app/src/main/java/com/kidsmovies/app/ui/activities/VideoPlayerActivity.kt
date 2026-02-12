@@ -12,6 +12,8 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.SeekBar
 import androidx.activity.OnBackPressedCallback
+import android.app.Dialog
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -264,24 +266,17 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             // Ignore dismiss errors
         }
 
-        val message = if (warning.isVideo) {
-            getString(R.string.last_one_message, warning.title)
-        } else {
-            getString(R.string.last_one_collection_message, warning.title)
-        }
+        val message = getString(R.string.last_one_message)
 
         try {
-            lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-                .setTitle(R.string.last_one_title)
-                .setMessage(message)
-                .setPositiveButton(R.string.ok) { dialog, _ ->
-                    dialog.dismiss()
-                    app.contentSyncManager.dismissLockWarning()
-                }
-                .setCancelable(false)
-                .create()
-
-            lockWarningDialog?.show()
+            lockWarningDialog = showKidDialog(
+                layoutRes = R.layout.dialog_kid_warning,
+                emoji = getString(R.string.emoji_star),
+                title = getString(R.string.last_one_title),
+                message = message,
+                buttonText = getString(R.string.kid_button_got_it),
+                onDismiss = { app.contentSyncManager.dismissLockWarning() }
+            )
         } catch (e: Exception) {
             // Activity may be finishing
         }
@@ -293,25 +288,21 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // Don't show repeatedly
         if (lockWarningDialog?.isShowing == true) return
 
-        val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
         val message = if (warning.allowFinishCurrentVideo) {
-            getString(R.string.lock_warning_finish_video, contentType, warning.title, warning.minutesRemaining)
+            getString(R.string.lock_warning_finish_video)
         } else {
-            getString(R.string.lock_warning_message, contentType, warning.title, warning.minutesRemaining)
+            getString(R.string.lock_warning_message, warning.minutesRemaining)
         }
 
         try {
-            lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-                .setTitle(R.string.lock_warning_title)
-                .setMessage(message)
-                .setPositiveButton(R.string.ok) { dialog, _ ->
-                    dialog.dismiss()
-                    app.contentSyncManager.dismissLockWarning()
-                }
-                .setCancelable(false)
-                .create()
-
-            lockWarningDialog?.show()
+            lockWarningDialog = showKidDialog(
+                layoutRes = R.layout.dialog_kid_warning,
+                emoji = getString(R.string.emoji_wave),
+                title = getString(R.string.lock_warning_title),
+                message = message,
+                buttonText = getString(R.string.kid_button_got_it),
+                onDismiss = { app.contentSyncManager.dismissLockWarning() }
+            )
         } catch (e: Exception) {
             // Activity may be finishing
         }
@@ -319,15 +310,50 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun showSoftOffWarning() {
         softOffWarningShown = true
-        AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-            .setTitle(R.string.soft_off_title)
-            .setMessage(R.string.soft_off_message)
-            .setPositiveButton(R.string.soft_off_dismiss) { dialog, _ ->
-                dialog.dismiss()
-                app.viewingTimerManager.dismissSoftOffWarning()
-            }
+        try {
+            showKidDialog(
+                layoutRes = R.layout.dialog_kid_times_up,
+                emoji = getString(R.string.emoji_clock),
+                title = getString(R.string.soft_off_title),
+                message = getString(R.string.soft_off_message),
+                buttonText = getString(R.string.kid_button_okay),
+                onDismiss = { app.viewingTimerManager.dismissSoftOffWarning() }
+            )
+        } catch (e: Exception) {
+            // Activity may be finishing
+        }
+    }
+
+    private fun showKidDialog(
+        layoutRes: Int,
+        emoji: String,
+        title: String,
+        message: String,
+        buttonText: String,
+        onDismiss: () -> Unit
+    ): AlertDialog {
+        val dialogView = layoutInflater.inflate(layoutRes, null)
+        dialogView.findViewById<TextView>(R.id.dialogEmoji).text = emoji
+        dialogView.findViewById<TextView>(R.id.dialogTitle).text = title
+        dialogView.findViewById<TextView>(R.id.dialogMessage).text = message
+
+        val dialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_KidDialog)
+            .setView(dialogView)
             .setCancelable(false)
-            .show()
+            .create()
+
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.dialogButton).apply {
+            text = buttonText
+            setOnClickListener {
+                dialog.dismiss()
+                onDismiss()
+            }
+        }
+
+        dialog.show()
+        return dialog
     }
 
     private fun goToLockScreen() {
