@@ -135,8 +135,24 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         lifecycleScope.launch {
             app.videoRepository.getVideoByIdFlow(videoId).collectLatest { currentVideo ->
                 if (currentVideo != null && !currentVideo.isEnabled && !isFinishing) {
-                    // Video has been locked - stop playback
-                    stopVideoAndShowLock("${currentVideo.title} is locked")
+                    // Check if there's a pending lock warning for this video -
+                    // if so, let the warning flow handle it instead of stopping immediately
+                    val warning = app.contentSyncManager.lockWarning.value
+                    val pendingLocks = app.contentSyncManager.pendingLocks.value
+
+                    val hasActiveWarning = warning != null &&
+                            (warning.minutesRemaining > 0 || warning.allowFinishCurrentVideo)
+
+                    val hasPendingLock = pendingLocks.any {
+                        it.videoTitle == currentVideo.title ||
+                                it.collectionName != null
+                    }
+
+                    if (!hasActiveWarning && !hasPendingLock) {
+                        // No warning period - stop immediately
+                        stopVideoAndShowLock("${currentVideo.title} is locked")
+                    }
+                    // Otherwise, the lock warning observers will handle the countdown/finish
                 }
             }
         }
