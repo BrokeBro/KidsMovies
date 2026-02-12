@@ -4,11 +4,17 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.kidsmovies.parent.ParentApp
 import com.kidsmovies.parent.R
 import com.kidsmovies.parent.databinding.ActivityPairingBinding
+import com.kidsmovies.shared.models.FirebasePaths
 import com.kidsmovies.shared.models.PairingCode
 import kotlinx.coroutines.launch
 
@@ -24,6 +30,7 @@ class PairingActivity : AppCompatActivity() {
     private var familyId: String? = null
     private var currentCode: PairingCode? = null
     private var countdownTimer: CountDownTimer? = null
+    private var codeListener: ValueEventListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +78,7 @@ class PairingActivity : AppCompatActivity() {
 
                 currentCode?.let { code ->
                     displayCode(code)
+                    listenForPairing(code.code)
                 } ?: run {
                     showError()
                 }
@@ -110,6 +118,44 @@ class PairingActivity : AppCompatActivity() {
         }
     }
 
+    private fun listenForPairing(code: String) {
+        // Remove previous listener
+        stopListening()
+
+        val ref = FirebaseDatabase.getInstance()
+            .getReference(FirebasePaths.pairingCodePath(code))
+
+        codeListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val pairingCode = snapshot.getValue(PairingCode::class.java)
+                if (pairingCode?.used == true) {
+                    Toast.makeText(
+                        this@PairingActivity,
+                        getString(R.string.child_paired_success),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    finish()
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                // Ignore cancellation
+            }
+        }
+
+        ref.addValueEventListener(codeListener!!)
+    }
+
+    private fun stopListening() {
+        val code = currentCode?.code ?: return
+        codeListener?.let {
+            FirebaseDatabase.getInstance()
+                .getReference(FirebasePaths.pairingCodePath(code))
+                .removeEventListener(it)
+        }
+        codeListener = null
+    }
+
     private fun shareCode() {
         val code = currentCode?.code ?: return
 
@@ -128,5 +174,6 @@ class PairingActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         countdownTimer?.cancel()
+        stopListening()
     }
 }
