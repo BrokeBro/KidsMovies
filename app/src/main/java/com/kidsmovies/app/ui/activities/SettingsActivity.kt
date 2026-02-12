@@ -243,6 +243,10 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(this, "OneDrive integration coming soon!", Toast.LENGTH_SHORT).show()
         }
 
+        binding.donateOption.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.kofi_url))))
+        }
+
         binding.fetchArtworkOption.setOnClickListener {
             fetchArtwork()
         }

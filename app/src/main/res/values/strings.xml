@@ -274,4 +274,11 @@
         <item quantity="one">%d Season</item>
         <item quantity="other">%d Seasons</item>
     </plurals>
+
+    <!-- Support / Donate -->
+    <string name="support_section">Support</string>
+    <string name="support_development">Support Development</string>
+    <string name="support_desc">Help keep KidsMovies free and ad-free</string>
+    <string name="donate_button">Donate via Ko-fi</string>
+    <string name="kofi_url">https://ko-fi.com/kidsmovies</string>
 </resources>
