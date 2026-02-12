@@ -102,4 +102,7 @@
 
     <!-- Ripple -->
     <color name="ripple_color">#40FFFFFF</color>
+
+    <!-- Ko-fi -->
+    <color name="kofi_brand">#FF5E5B</color>
 </resources>
