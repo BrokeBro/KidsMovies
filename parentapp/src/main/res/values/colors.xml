@@ -29,4 +29,7 @@
 
     <color name="card_background">#FFFFFF</color>
     <color name="divider">#E0E0E0</color>
+
+    <color name="ripple_color">#1F000000</color>
+    <color name="kofi_brand">#FF5E5BFF</color>
 </resources>

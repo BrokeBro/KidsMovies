@@ -1,6 +1,8 @@
 package com.kidsmovies.parent.ui.fragments
 
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -118,6 +120,12 @@ class ChildSettingsFragment : Fragment() {
         binding.dayThursday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
         binding.dayFriday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
         binding.daySaturday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
+
+        // Donate button
+        binding.donateButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.kofi_url)))
+            startActivity(intent)
+        }
 
         // Time limits toggle
         binding.timeLimitSwitch.setOnCheckedChangeListener { _, isChecked ->
