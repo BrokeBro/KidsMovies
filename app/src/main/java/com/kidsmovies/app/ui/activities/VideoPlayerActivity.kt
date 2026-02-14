@@ -138,24 +138,26 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         lifecycleScope.launch {
             app.videoRepository.getVideoByIdFlow(videoId).collectLatest { currentVideo ->
                 if (currentVideo != null && !currentVideo.isEnabled && !isFinishing) {
-                    // Check if there's a pending lock warning for this video -
-                    // if so, let the warning flow handle it instead of stopping immediately
+                    // Check if there's a pending lock with a future warning period
+                    // that explicitly allows finishing the current video
                     val warning = app.contentSyncManager.lockWarning.value
                     val pendingLocks = app.contentSyncManager.pendingLocks.value
 
-                    val hasActiveWarning = warning != null &&
-                            (warning.minutesRemaining > 0 || warning.allowFinishCurrentVideo)
+                    // Only defer if there's a warning with time remaining, or one that
+                    // explicitly allows finishing the current video
+                    val hasDeferrableWarning = warning != null &&
+                            (warning.minutesRemaining > 0 ||
+                                    (warning.allowFinishCurrentVideo && warning.isLastOne))
 
-                    val hasPendingLock = pendingLocks.any {
-                        it.videoTitle == currentVideo.title ||
-                                it.collectionName != null
+                    val hasFuturePendingLock = pendingLocks.any {
+                        it.appliesAt > System.currentTimeMillis() &&
+                                (it.videoTitle == currentVideo.title || it.collectionName != null)
                     }
 
-                    if (!hasActiveWarning && !hasPendingLock) {
-                        // No warning period - stop immediately
+                    if (!hasDeferrableWarning && !hasFuturePendingLock) {
+                        // No active deferral - stop immediately
                         stopVideoAndShowLock("${currentVideo.title} is locked")
                     }
-                    // Otherwise, the lock warning observers will handle the countdown/finish
                 }
             }
         }
@@ -242,7 +244,6 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     val currentVideoTitle = video?.title ?: return@collectLatest
                     val currentCollections = try {
                         video?.let { v ->
-                            // Get collections this video belongs to
                             app.collectionRepository.getCollectionsForVideo(v.id).map { it.name }
                         } ?: emptyList()
                     } catch (e: Exception) {
@@ -253,12 +254,13 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                             (!warning.isVideo && currentCollections.contains(warning.title))
 
                     if (locksCurrentVideo && !isFinishing) {
-                        if (warning.isLastOne) {
+                        if (warning.isLastOne && warning.allowFinishCurrentVideo) {
+                            // "Last one" - child can finish this video, then lock applies
                             if (!lastOneWarningShown) {
                                 showLastOneWarning(warning)
                             }
-                        } else if (warning.minutesRemaining <= 0 && !warning.allowFinishCurrentVideo) {
-                            // Lock applies immediately and no finish allowed
+                        } else if (warning.minutesRemaining <= 0) {
+                            // Warning period expired (or immediate lock) - stop now
                             stopVideoAndShowLock("${warning.title} is locked")
                         } else if (warning.minutesRemaining > 0) {
                             // Show countdown warning
@@ -266,6 +268,15 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         }
                     }
                 }
+            }
+        }
+
+        // Periodically re-check pending locks so they get enforced when their timer expires
+        lifecycleScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15_000) // Check every 15 seconds
+                if (isFinishing || isStoppingForLock) break
+                app.contentSyncManager.checkPendingLocks()
             }
         }
     }
