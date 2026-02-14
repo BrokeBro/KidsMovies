@@ -6,6 +6,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.kidsmovies.app.KidsMoviesApp
+import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivityLockScreenBinding
 import com.kidsmovies.app.sync.ContentSyncManager
 import kotlinx.coroutines.flow.collectLatest

@@ -185,7 +185,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         isStoppingForLock = true
 
         // Dismiss any warning dialogs
-        try { lockWarningDialog?.dismiss() } catch (_: Exception) {}
+        try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
 
         // Stop playback
         mediaPlayer?.pause()
@@ -774,7 +774,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     )
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             // MediaPlayer may be in invalid state
         }
     }
@@ -887,7 +887,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onDestroy() {
         super.onDestroy()
         cancelNextEpisodeCountdown()
-        try { lockWarningDialog?.dismiss() } catch (_: Exception) {}
+        try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
         lockWarningDialog = null
         releaseMediaPlayer()
     }
