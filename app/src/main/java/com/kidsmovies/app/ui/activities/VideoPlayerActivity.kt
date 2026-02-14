@@ -155,8 +155,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     }
 
                     if (!hasDeferrableWarning && !hasFuturePendingLock) {
-                        // No active deferral - stop immediately
-                        stopVideoAndShowLock("${currentVideo.title} is locked")
+                        // No active deferral - stop and return to video list
+                        stopVideoAndReturn()
                     }
                 }
             }
@@ -172,8 +172,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     if (appLockState.appliesAt <= now) {
                         // Check if we should allow finishing current video
                         if (!appLockState.allowFinishCurrentVideo) {
-                            // Immediate lock - stop video and go to lock screen
-                            stopVideoAndShowLock("App is locked by parent")
+                            // App-level lock - go to lock screen
+                            stopVideoAndShowLock()
                         }
                         // If allowFinishCurrentVideo is true, video continues until completion
                     }
@@ -182,7 +182,11 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun stopVideoAndShowLock(message: String) {
+    /**
+     * Stop video and return to the video list (for content locks).
+     * The child stays in the app but the locked video closes gracefully.
+     */
+    private fun stopVideoAndReturn() {
         if (isFinishing || isStoppingForLock) return
         isStoppingForLock = true
 
@@ -204,7 +208,37 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // Notify sync manager that video stopped
         app.onVideoStopped()
 
-        // Go to lock screen
+        // Just finish - the previous activity (video list) is still in the back stack
+        finish()
+    }
+
+    /**
+     * Stop video and go to the lock screen (for app-level locks, timer, schedule).
+     * The entire app is locked so we clear the task.
+     */
+    private fun stopVideoAndShowLock() {
+        if (isFinishing || isStoppingForLock) return
+        isStoppingForLock = true
+
+        // Dismiss any warning dialogs
+        try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
+
+        // Stop playback
+        mediaPlayer?.pause()
+        isPlaying = false
+
+        // Save position and end session before releasing player
+        savePlaybackPositionSync()
+        endViewingSession(completed = false)
+        notifyTimerVideoEnded()
+
+        // Release media player before finishing to prevent access after destroy
+        releaseMediaPlayer()
+
+        // Notify sync manager that video stopped
+        app.onVideoStopped()
+
+        // Go to lock screen - app is locked
         val intent = Intent(this, LockScreenActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -260,8 +294,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                                 showLastOneWarning(warning)
                             }
                         } else if (warning.minutesRemaining <= 0) {
-                            // Warning period expired (or immediate lock) - stop now
-                            stopVideoAndShowLock("${warning.title} is locked")
+                            // Warning period expired (or immediate lock) - return to video list
+                            stopVideoAndReturn()
                         } else if (warning.minutesRemaining > 0) {
                             // Show countdown warning
                             showLockCountdownWarning(warning)
