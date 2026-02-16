@@ -114,4 +114,17 @@ class VideoRepository(private val videoDao: VideoDao) {
     suspend fun deleteVideosByFolderPathPrefix(folderPathPrefix: String) = videoDao.deleteByFolderPathPrefix(folderPathPrefix)
 
     suspend fun deleteAllVideos() = videoDao.deleteAll()
+
+    // OneDrive/SharePoint remote video operations
+    fun getVideosBySourceFlow(sourceType: String): Flow<List<Video>> = videoDao.getVideosBySourceFlow(sourceType)
+
+    suspend fun getVideosBySource(sourceType: String): List<Video> = videoDao.getVideosBySource(sourceType)
+
+    suspend fun getVideoByRemoteId(remoteId: String): Video? = videoDao.getVideoByRemoteId(remoteId)
+
+    suspend fun updateRemoteUrl(remoteId: String, url: String, expiry: Long) = videoDao.updateRemoteUrl(remoteId, url, expiry)
+
+    suspend fun deleteBySourceType(sourceType: String) = videoDao.deleteBySourceType(sourceType)
+
+    suspend fun getAllRemoteIds(): List<String> = videoDao.getAllRemoteIds()
 }

@@ -2,7 +2,7 @@ package com.kidsmovies.app.ui.activities
 
 import android.content.Intent
 import android.content.res.Configuration
-import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -27,6 +27,9 @@ import com.kidsmovies.app.data.database.entities.ViewingSession
 import com.kidsmovies.app.databinding.ActivityVideoPlayerBinding
 import com.kidsmovies.app.enforcement.LockScreenActivity
 import com.kidsmovies.app.enforcement.ViewingTimerManager
+import com.kidsmovies.app.player.ExoPlayerWrapper
+import com.kidsmovies.app.player.LegacyPlayerWrapper
+import com.kidsmovies.app.player.PlayerWrapper
 import com.kidsmovies.app.sync.ContentSyncManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -48,7 +51,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var app: KidsMoviesApp
 
     private var video: Video? = null
-    private var mediaPlayer: MediaPlayer? = null
+    private var player: PlayerWrapper? = null
     private var isPlaying = false
     private var controlsVisible = true
     private var resumePosition: Long = 0
@@ -194,7 +197,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
 
         // Stop playback
-        mediaPlayer?.pause()
+        player?.pause()
         isPlaying = false
 
         // Save position and end session before releasing player
@@ -202,8 +205,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         endViewingSession(completed = false)
         notifyTimerVideoEnded()
 
-        // Release media player before finishing to prevent access after destroy
-        releaseMediaPlayer()
+        // Release player before finishing to prevent access after destroy
+        releasePlayer()
 
         // Notify sync manager that video stopped
         app.onVideoStopped()
@@ -224,7 +227,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
 
         // Stop playback
-        mediaPlayer?.pause()
+        player?.pause()
         isPlaying = false
 
         // Save position and end session before releasing player
@@ -232,8 +235,8 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         endViewingSession(completed = false)
         notifyTimerVideoEnded()
 
-        // Release media player before finishing to prevent access after destroy
-        releaseMediaPlayer()
+        // Release player before finishing to prevent access after destroy
+        releasePlayer()
 
         // Notify sync manager that video stopped
         app.onVideoStopped()
@@ -422,7 +425,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         savePlaybackPositionSync()
         endViewingSession(completed = false)
         notifyTimerVideoEnded()
-        releaseMediaPlayer()
+        releasePlayer()
         app.onVideoStopped()
 
         val intent = Intent(this, LockScreenActivity::class.java)
@@ -492,7 +495,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
             }
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                mediaPlayer?.seekTo(seekBar?.progress ?: 0)
+                player?.seekTo((seekBar?.progress ?: 0).toLong())
                 resetHideControlsTimer()
             }
         })
@@ -503,7 +506,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        initializeMediaPlayer(holder)
+        initializePlayer(holder)
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -521,21 +524,58 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         savePlaybackPosition()
-        releaseMediaPlayer()
+        releasePlayer()
     }
 
-    private fun initializeMediaPlayer(holder: SurfaceHolder) {
+    private fun initializePlayer(holder: SurfaceHolder) {
+        val currentVideo = video ?: return
+
         try {
-            mediaPlayer = MediaPlayer().apply {
-                setDisplay(holder)
-                setDataSource(video?.filePath)
-                setOnPreparedListener { onMediaPlayerPrepared(it) }
-                setOnCompletionListener { onMediaPlayerComplete() }
-                setOnErrorListener { _, _, _ ->
+            // Choose player based on video source type
+            val wrapper: PlayerWrapper = if (currentVideo.isRemote()) {
+                ExoPlayerWrapper(this) { app.msalAuthManager.acquireTokenSilently() }
+            } else {
+                LegacyPlayerWrapper()
+            }
+
+            wrapper.setDisplay(holder)
+
+            wrapper.setOnPreparedListener { durationMs ->
+                runOnUiThread { onPlayerPrepared(durationMs) }
+            }
+            wrapper.setOnCompletionListener {
+                runOnUiThread { onPlayerComplete() }
+            }
+            wrapper.setOnErrorListener { e ->
+                runOnUiThread {
                     binding.loadingIndicator.visibility = View.GONE
-                    true
                 }
-                prepareAsync()
+            }
+            wrapper.setOnVideoSizeChangedListener { width, height ->
+                runOnUiThread {
+                    videoWidth = width
+                    videoHeight = height
+                    adjustVideoSize()
+                }
+            }
+
+            player = wrapper
+
+            if (currentVideo.isRemote()) {
+                // For remote videos, get/refresh the download URL first
+                lifecycleScope.launch {
+                    val url = getStreamingUrl(currentVideo)
+                    if (url != null) {
+                        wrapper.prepare(Uri.parse(url), resumePosition)
+                    } else {
+                        runOnUiThread {
+                            binding.loadingIndicator.visibility = View.GONE
+                        }
+                    }
+                }
+            } else {
+                // Local video - use file path directly
+                wrapper.prepare(Uri.parse(currentVideo.filePath), resumePosition)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -543,27 +583,25 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun onMediaPlayerPrepared(mp: MediaPlayer) {
+    private suspend fun getStreamingUrl(video: Video): String? {
+        // Check if cached URL is still valid (with 5 min buffer)
+        if (video.remoteUrl != null && video.remoteUrlExpiry > System.currentTimeMillis() + 300_000) {
+            return video.remoteUrl
+        }
+        // Refresh the URL
+        val remoteId = video.remoteId ?: return null
+        return app.oneDriveScannerService?.refreshDownloadUrl(remoteId)
+    }
+
+    private fun onPlayerPrepared(durationMs: Int) {
         binding.loadingIndicator.visibility = View.GONE
 
         // Set up duration
-        val duration = mp.duration
-        binding.seekBar.max = duration
-        binding.totalTime.text = formatTime(duration)
-
-        // Store video dimensions and adjust size
-        videoWidth = mp.videoWidth
-        videoHeight = mp.videoHeight
-        adjustVideoSize()
-
-        // Resume from saved position if applicable
-        if (resumePosition > MIN_RESUME_POSITION && 
-            resumePosition < duration * END_THRESHOLD_PERCENT) {
-            mp.seekTo(resumePosition.toInt())
-        }
+        binding.seekBar.max = durationMs
+        binding.totalTime.text = formatTime(durationMs)
 
         // Start playback
-        mp.start()
+        player?.play()
         isPlaying = true
         updatePlayPauseButton()
 
@@ -584,7 +622,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         startViewingSession()
     }
 
-    private fun onMediaPlayerComplete() {
+    private fun onPlayerComplete() {
         isPlaying = false
         updatePlayPauseButton()
         showControls()
@@ -597,9 +635,9 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         notifyTimerVideoEnded()
 
         // Reset playback position when video completes
-        video?.let {
+        video?.let { v ->
             lifecycleScope.launch {
-                app.videoRepository.updatePlaybackPosition(it.id, 0)
+                app.videoRepository.updatePlaybackPosition(v.id, 0)
             }
         }
 
@@ -730,13 +768,13 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun togglePlayPause() {
-        mediaPlayer?.let { mp ->
+        player?.let { p ->
             if (isPlaying) {
-                mp.pause()
+                p.pause()
                 isPlaying = false
                 pauseSessionTracking()
             } else {
-                mp.start()
+                p.play()
                 isPlaying = true
                 resumeSessionTracking()
             }
@@ -751,20 +789,20 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun seekRelative(amountMs: Int) {
-        mediaPlayer?.let { mp ->
-            val newPosition = (mp.currentPosition + amountMs).coerceIn(0, mp.duration)
-            mp.seekTo(newPosition)
+        player?.let { p ->
+            val newPosition = (p.currentPosition + amountMs).coerceIn(0, p.duration)
+            p.seekTo(newPosition)
             updateProgress()
         }
     }
 
     private fun updateProgress() {
-        mediaPlayer?.let { mp ->
+        player?.let { p ->
             try {
-                binding.seekBar.progress = mp.currentPosition
-                binding.currentTime.text = formatTime(mp.currentPosition)
+                binding.seekBar.progress = p.currentPosition.toInt()
+                binding.currentTime.text = formatTime(p.currentPosition.toInt())
             } catch (e: Exception) {
-                // MediaPlayer may be in invalid state
+                // Player may be in invalid state
             }
         }
     }
@@ -798,18 +836,18 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     /**
-     * Save playback position synchronously (captures position from mediaPlayer
-     * and launches a coroutine to persist it). Safe to call even if mediaPlayer
+     * Save playback position synchronously (captures position from player
+     * and launches a coroutine to persist it). Safe to call even if player
      * has been released - it simply does nothing in that case.
      */
     private fun savePlaybackPositionSync() {
-        val mp = mediaPlayer ?: return
+        val p = player ?: return
         try {
-            val position = mp.currentPosition.toLong()
-            val duration = mp.duration.toLong()
+            val position = p.currentPosition
+            val dur = p.duration
 
             val shouldSave = position > MIN_RESUME_POSITION &&
-                    position < duration * END_THRESHOLD_PERCENT
+                    dur > 0 && position < dur * END_THRESHOLD_PERCENT
 
             video?.let { v ->
                 lifecycleScope.launch {
@@ -820,7 +858,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 }
             }
         } catch (e: Exception) {
-            // MediaPlayer may be in invalid state
+            // Player may be in invalid state
         }
     }
 
@@ -855,7 +893,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     videoTitle = v.title,
                     collectionName = collectionName,
                     startTime = sessionStartTime,
-                    videoDuration = mediaPlayer?.duration?.toLong() ?: 0
+                    videoDuration = player?.duration ?: 0
                 )
                 currentSessionId = app.metricsRepository.startSession(session)
             }
@@ -905,11 +943,11 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         lastPlayStartTime = 0
     }
 
-    private fun releaseMediaPlayer() {
+    private fun releasePlayer() {
         handler.removeCallbacks(updateProgressRunnable)
         handler.removeCallbacks(hideControlsRunnable)
-        mediaPlayer?.release()
-        mediaPlayer = null
+        player?.release()
+        player = null
     }
 
     override fun onPause() {
@@ -921,7 +959,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         savePlaybackPosition()
         endViewingSession(completed = false)
-        mediaPlayer?.pause()
+        player?.pause()
         isPlaying = false
         updatePlayPauseButton()
 
@@ -934,6 +972,6 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
         cancelNextEpisodeCountdown()
         try { lockWarningDialog?.dismiss() } catch (e: Exception) { /* ignore */ }
         lockWarningDialog = null
-        releaseMediaPlayer()
+        releasePlayer()
     }
 }

@@ -736,7 +736,9 @@ class ContentSyncManager(
                 duration = video.duration,
                 playbackPosition = video.playbackPosition,
                 lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
-                thumbnailUrl = null // Thumbnails are local, not synced
+                thumbnailUrl = null, // Thumbnails are local, not synced
+                sourceType = video.sourceType,
+                remoteId = video.remoteId
             )
 
             // Use sanitized title as key (Firebase doesn't allow certain characters)

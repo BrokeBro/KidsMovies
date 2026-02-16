@@ -15,10 +15,12 @@ data class SyncedVideo(
     val duration: Long = 0,
     val playbackPosition: Long = 0,
     val lastWatched: Long? = null,
-    val thumbnailUrl: String? = null
+    val thumbnailUrl: String? = null,
+    val sourceType: String = "local", // "local" or "onedrive"
+    val remoteId: String? = null // Graph API item ID for remote videos
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", emptyList(), false, true, false, 0, 0, null, null)
+    constructor() : this("", emptyList(), false, true, false, 0, 0, null, null, "local", null)
 }
 
 /**

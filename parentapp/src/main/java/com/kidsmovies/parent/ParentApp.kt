@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.database.FirebaseDatabase
 import com.kidsmovies.parent.firebase.FamilyManager
 import com.kidsmovies.parent.firebase.PairingManager
+import com.kidsmovies.shared.auth.MsalAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +18,7 @@ class ParentApp : Application() {
 
     val familyManager by lazy { FamilyManager() }
     val pairingManager by lazy { PairingManager() }
+    val msalAuthManager by lazy { MsalAuthManager(this) }
 
     var firebaseInitialized = false
         private set

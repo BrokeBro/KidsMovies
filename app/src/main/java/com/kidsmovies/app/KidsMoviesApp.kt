@@ -1,9 +1,12 @@
 package com.kidsmovies.app
 
 import android.app.Application
+import android.util.Log
 import com.kidsmovies.app.artwork.ArtworkFetcher
 import com.kidsmovies.app.artwork.TmdbArtworkManager
 import com.kidsmovies.app.artwork.TmdbService
+import com.kidsmovies.app.cloud.GraphApiClient
+import com.kidsmovies.app.cloud.OneDriveScannerService
 import com.kidsmovies.app.data.database.AppDatabase
 import com.kidsmovies.app.data.repository.*
 import com.kidsmovies.app.enforcement.ContentFilter
@@ -13,6 +16,7 @@ import com.kidsmovies.app.pairing.PairingRepository
 import com.kidsmovies.app.sync.ContentSyncManager
 import com.kidsmovies.app.sync.SettingsSyncManager
 import com.kidsmovies.app.sync.SyncWorker
+import com.kidsmovies.shared.auth.MsalAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -73,6 +77,12 @@ class KidsMoviesApp : Application() {
     val scheduleEvaluator by lazy { ScheduleEvaluator() }
     val contentFilter by lazy { ContentFilter() }
 
+    // OneDrive/SharePoint streaming components
+    val msalAuthManager by lazy { MsalAuthManager(this) }
+    val graphApiClient by lazy { GraphApiClient(msalAuthManager) }
+    var oneDriveScannerService: OneDriveScannerService? = null
+        private set
+
     val viewingTimerManager by lazy {
         ViewingTimerManager(
             database.cachedSettingsDao(),
@@ -94,6 +104,7 @@ class KidsMoviesApp : Application() {
         // Initialize pairing state and start components if paired
         applicationScope.launch {
             initializeParentControl()
+            initializeOneDrive()
         }
     }
 
@@ -116,6 +127,30 @@ class KidsMoviesApp : Application() {
 
             // Perform immediate sync on app start
             SyncWorker.requestImmediateSync(this)
+        }
+    }
+
+    private suspend fun initializeOneDrive() {
+        try {
+            msalAuthManager.initialize(R.raw.msal_config)
+
+            // Create scanner service
+            val scanner = OneDriveScannerService(
+                this,
+                graphApiClient,
+                videoRepository,
+                collectionRepository,
+                applicationScope
+            )
+            oneDriveScannerService = scanner
+
+            // If configured and signed in, start scanning
+            if (scanner.isConfigured && msalAuthManager.isSignedIn()) {
+                scanner.scan()
+                scanner.startPeriodicScan()
+            }
+        } catch (e: Exception) {
+            Log.w("KidsMoviesApp", "OneDrive initialization skipped: ${e.message}")
         }
     }
 

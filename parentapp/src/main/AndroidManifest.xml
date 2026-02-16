@@ -32,6 +32,26 @@
             android:name=".ui.activities.PairingActivity"
             android:parentActivityName=".ui.activities.MainActivity" />
 
+        <!-- OneDrive Setup Activity -->
+        <activity
+            android:name=".ui.activities.OneDriveSetupActivity"
+            android:parentActivityName=".ui.activities.MainActivity" />
+
+        <!-- MSAL auth redirect activity for OneDrive sign-in -->
+        <activity
+            android:name="com.microsoft.identity.client.BrowserTabActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="com.kidsmovies.parent"
+                    android:path="/YOUR_SIGNATURE_HASH_HERE"
+                    android:scheme="msauth" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>
