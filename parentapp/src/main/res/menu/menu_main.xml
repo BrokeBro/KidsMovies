@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_onedrive"
+        android:icon="@drawable/ic_cloud"
+        android:title="@string/connect_onedrive"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_donate"
         android:icon="@drawable/ic_favorite"
         android:title="@string/support_development"

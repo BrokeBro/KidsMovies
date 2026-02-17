@@ -54,6 +54,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_onedrive -> {
+                family?.let { f ->
+                    val intent = Intent(this, OneDriveSetupActivity::class.java)
+                    intent.putExtra(OneDriveSetupActivity.EXTRA_FAMILY_ID, f.familyId)
+                    startActivity(intent)
+                }
+                true
+            }
             R.id.action_donate -> {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.kofi_url)))
                 startActivity(intent)

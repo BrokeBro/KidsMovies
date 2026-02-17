@@ -89,6 +89,9 @@
     <string name="error_network">No internet connection</string>
     <string name="error_not_signed_in">Please sign in to continue</string>
 
+    <!-- OneDrive -->
+    <string name="connect_onedrive">Connect OneDrive</string>
+
     <!-- Support / Donate -->
     <string name="support_development">Support Development</string>
     <string name="support_desc">Help keep KidsMovies free and ad-free. Your donation goes directly towards server costs and development.</string>
