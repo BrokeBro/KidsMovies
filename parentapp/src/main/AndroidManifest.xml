@@ -47,7 +47,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="com.kidsmovies.parent"
-                    android:path="/YOUR_SIGNATURE_HASH_HERE"
+                    android:path="/${msalSignatureHash}"
                     android:scheme="msauth" />
             </intent-filter>
         </activity>

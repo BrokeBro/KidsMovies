@@ -1,10 +1,13 @@
 package com.kidsmovies.parent.ui.activities
 
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -82,12 +85,78 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private fun checkCurrentState() {
+        val clientId = getStoredClientId()
+        if (clientId == null) {
+            promptForClientId()
+            return
+        }
+        initializeAndCheckState(clientId)
+    }
+
+    private fun getStoredClientId(): String? {
+        return getSharedPreferences("onedrive_config", MODE_PRIVATE)
+            .getString("msal_client_id", null)
+    }
+
+    private fun promptForClientId() {
+        val hash = MsalAuthManager.getSignatureHash(this)
+        val redirectUri = "msauth://$packageName/$hash"
+
+        val pad = (24 * resources.displayMetrics.density).toInt()
+        val smallPad = (8 * resources.displayMetrics.density).toInt()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, smallPad, pad, 0)
+        }
+
+        val infoText = TextView(this).apply {
+            text = "To connect OneDrive, register an app at portal.azure.com:\n\n" +
+                "1. App registrations > New registration\n" +
+                "2. Add Android platform redirect URI:\n\n" +
+                "Package: $packageName\n" +
+                "Hash: $hash\n\n" +
+                "3. API permissions: Files.Read.All, Sites.Read.All\n\n" +
+                "Then paste your Application (Client) ID below:"
+            setTextIsSelectable(true)
+            textSize = 14f
+        }
+        container.addView(infoText)
+
+        val input = EditText(this).apply {
+            hint = "e.g. 12345678-abcd-efgh-ijkl-1234567890ab"
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        container.addView(input)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Azure App Setup")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val clientId = input.text.toString().trim()
+                if (clientId.isNotEmpty()) {
+                    getSharedPreferences("onedrive_config", MODE_PRIVATE).edit()
+                        .putString("msal_client_id", clientId)
+                        .apply()
+                    initializeAndCheckState(clientId)
+                } else {
+                    showDisconnectedState()
+                }
+            }
+            .setNegativeButton("Cancel") { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun initializeAndCheckState(clientId: String) {
         lifecycleScope.launch {
             try {
-                msalAuthManager.initialize(R.raw.msal_config)
+                val configFile = MsalAuthManager.generateConfig(
+                    this@OneDriveSetupActivity, clientId
+                )
+                msalAuthManager.initialize(configFile)
 
                 if (msalAuthManager.isSignedIn()) {
-                    // Check if already configured
                     val prefs = getSharedPreferences("onedrive_config", MODE_PRIVATE)
                     val isConfigured = prefs.getBoolean("is_configured", false)
 
@@ -270,6 +339,7 @@ class OneDriveSetupActivity : AppCompatActivity() {
                     "driveId" to driveId,
                     "folderId" to folderId,
                     "folderPath" to folderPath,
+                    "clientId" to getStoredClientId(),
                     "configuredAt" to System.currentTimeMillis()
                 )
 
@@ -299,8 +369,13 @@ class OneDriveSetupActivity : AppCompatActivity() {
                 // Ignore sign-out errors
             }
 
-            // Clear local config
-            getSharedPreferences("onedrive_config", MODE_PRIVATE).edit().clear().apply()
+            // Clear local config (preserve client_id for reconnect)
+            getSharedPreferences("onedrive_config", MODE_PRIVATE).edit()
+                .remove("drive_id")
+                .remove("folder_id")
+                .remove("folder_path")
+                .remove("is_configured")
+                .apply()
 
             // Clear Firebase config
             try {

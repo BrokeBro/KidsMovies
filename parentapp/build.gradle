@@ -20,6 +20,9 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // MSAL redirect URI signature hash - set in gradle.properties
+        manifestPlaceholders = [msalSignatureHash: project.findProperty('MSAL_SIGNATURE_HASH') ?: 'PLACEHOLDER']
     }
 
     buildTypes {

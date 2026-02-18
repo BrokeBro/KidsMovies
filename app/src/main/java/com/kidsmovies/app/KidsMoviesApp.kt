@@ -132,7 +132,15 @@ class KidsMoviesApp : Application() {
 
     private suspend fun initializeOneDrive() {
         try {
-            msalAuthManager.initialize(R.raw.msal_config)
+            // Use dynamic MSAL config with client ID from SharedPreferences
+            val clientId = getSharedPreferences("onedrive_config", MODE_PRIVATE)
+                .getString("msal_client_id", null)
+            if (clientId == null) {
+                Log.w("KidsMoviesApp", "OneDrive initialization skipped: no client ID configured")
+                return
+            }
+            val configFile = MsalAuthManager.generateConfig(this, clientId)
+            msalAuthManager.initialize(configFile)
 
             // Create scanner service
             val scanner = OneDriveScannerService(
