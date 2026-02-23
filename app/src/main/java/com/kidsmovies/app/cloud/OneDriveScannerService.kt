@@ -32,6 +32,11 @@ class OneDriveScannerService(
         private const val KEY_FOLDER_PATH = "folder_path"
         private const val KEY_LAST_SCAN = "last_scan_time"
         private const val KEY_IS_CONFIGURED = "is_configured"
+        private const val KEY_ACCESS_MODE = "access_mode"
+        private const val KEY_SHARE_ENCODED_ID = "share_encoded_id"
+        private const val MODE_OWN_DRIVE = "own_drive"
+        private const val MODE_SHARED_AUTH = "shared_authenticated"
+        private const val MODE_PUBLIC_LINK = "public_link"
         private const val SCAN_INTERVAL_MS = 30 * 60 * 1000L // 30 minutes
         private const val URL_EXPIRY_MS = 50 * 60 * 1000L // 50 minutes (URLs last ~1 hour)
     }
@@ -53,11 +58,28 @@ class OneDriveScannerService(
     val configuredFolderPath: String?
         get() = prefs.getString(KEY_FOLDER_PATH, null)
 
-    fun configure(driveId: String, folderId: String, folderPath: String) {
+    val configuredAccessMode: String
+        get() = prefs.getString(KEY_ACCESS_MODE, MODE_OWN_DRIVE) ?: MODE_OWN_DRIVE
+
+    val configuredShareEncodedId: String?
+        get() = prefs.getString(KEY_SHARE_ENCODED_ID, null)
+
+    val isPublicLinkMode: Boolean
+        get() = configuredAccessMode == MODE_PUBLIC_LINK
+
+    fun configure(
+        driveId: String,
+        folderId: String,
+        folderPath: String,
+        accessMode: String = MODE_OWN_DRIVE,
+        shareEncodedId: String? = null
+    ) {
         prefs.edit()
             .putString(KEY_DRIVE_ID, driveId)
             .putString(KEY_FOLDER_ID, folderId)
             .putString(KEY_FOLDER_PATH, folderPath)
+            .putString(KEY_ACCESS_MODE, accessMode)
+            .putString(KEY_SHARE_ENCODED_ID, shareEncodedId)
             .putBoolean(KEY_IS_CONFIGURED, true)
             .apply()
     }
@@ -88,10 +110,18 @@ class OneDriveScannerService(
     }
 
     suspend fun scan() {
-        val driveId = configuredDriveId ?: return
         val folderId = configuredFolderId ?: return
 
         if (_scanState.value is ScanState.Scanning) return
+
+        // For public link mode, use the share-based scan
+        if (isPublicLinkMode) {
+            val shareId = configuredShareEncodedId ?: return
+            scanViaShare(shareId, folderId)
+            return
+        }
+
+        val driveId = configuredDriveId ?: return
 
         _scanState.value = ScanState.Scanning(0, "Starting scan...")
 
@@ -199,6 +229,106 @@ class OneDriveScannerService(
         }
     }
 
+    private suspend fun scanViaShare(encodedShareId: String, folderId: String) {
+        _scanState.value = ScanState.Scanning(0, "Starting scan...")
+
+        try {
+            withContext(Dispatchers.IO) {
+                val remoteVideos = graphApiClient.searchVideosRecursiveViaShare(encodedShareId, folderId)
+
+                _scanState.value = ScanState.Scanning(
+                    remoteVideos.size,
+                    "Found ${remoteVideos.size} videos. Processing..."
+                )
+
+                val existingRemoteIds = videoRepository.getAllRemoteIds().toSet()
+                val foundRemoteIds = remoteVideos.map { it.item.id }.toSet()
+
+                // Remove videos that no longer exist
+                val removedIds = existingRemoteIds - foundRemoteIds
+                for (remoteId in removedIds) {
+                    val video = videoRepository.getVideoByRemoteId(remoteId)
+                    if (video != null) {
+                        videoRepository.deleteVideoById(video.id)
+                    }
+                }
+
+                var addedCount = 0
+                var updatedCount = 0
+
+                for (remoteVideo in remoteVideos) {
+                    val item = remoteVideo.item
+                    val existing = videoRepository.getVideoByRemoteId(item.id)
+                    // Public share uses @content.downloadUrl
+                    val itemDownloadUrl = item.contentDownloadUrl ?: item.downloadUrl
+
+                    if (existing != null) {
+                        if (existing.remoteUrl == null ||
+                            existing.remoteUrlExpiry < System.currentTimeMillis()) {
+                            if (itemDownloadUrl != null) {
+                                videoRepository.updateRemoteUrl(
+                                    item.id,
+                                    itemDownloadUrl,
+                                    System.currentTimeMillis() + URL_EXPIRY_MS
+                                )
+                            }
+                        }
+                        updatedCount++
+                    } else {
+                        val title = item.name.substringBeforeLast('.')
+                        val duration = item.video?.duration ?: 0
+                        val mimeType = item.file?.mimeType ?: "video/*"
+
+                        val video = Video(
+                            title = title,
+                            filePath = "onedrive-share://${encodedShareId}/${item.id}",
+                            duration = duration,
+                            size = item.size,
+                            dateAdded = System.currentTimeMillis(),
+                            dateModified = System.currentTimeMillis(),
+                            folderPath = remoteVideo.folderPath,
+                            mimeType = mimeType,
+                            sourceType = "onedrive",
+                            remoteId = item.id,
+                            remoteUrl = itemDownloadUrl,
+                            remoteUrlExpiry = if (itemDownloadUrl != null)
+                                System.currentTimeMillis() + URL_EXPIRY_MS else 0
+                        )
+
+                        val videoId = videoRepository.insertVideo(video)
+
+                        val episodeInfo = EpisodeParser.parseEpisode(title)
+                        if (episodeInfo.hasEpisodeInfo()) {
+                            videoRepository.updateEpisodeInfo(
+                                videoId,
+                                episodeInfo.seasonNumber,
+                                episodeInfo.episodeNumber
+                            )
+                        }
+
+                        addedCount++
+                    }
+                }
+
+                buildCollectionHierarchy(remoteVideos)
+
+                prefs.edit().putLong(KEY_LAST_SCAN, System.currentTimeMillis()).apply()
+
+                _scanState.value = ScanState.Complete(
+                    totalVideos = remoteVideos.size,
+                    added = addedCount,
+                    updated = updatedCount,
+                    removed = removedIds.size
+                )
+
+                Log.d(TAG, "Public share scan complete: ${remoteVideos.size} videos found, $addedCount added, $updatedCount updated, ${removedIds.size} removed")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scanning public share", e)
+            _scanState.value = ScanState.Error(e.message ?: "Unknown error")
+        }
+    }
+
     private suspend fun buildCollectionHierarchy(remoteVideos: List<DriveItemWithPath>) {
         // Group videos by their folder path to detect hierarchy
         val folderGroups = remoteVideos.groupBy { it.folderPath }
@@ -300,9 +430,14 @@ class OneDriveScannerService(
     }
 
     suspend fun refreshDownloadUrl(remoteId: String): String? {
-        val driveId = configuredDriveId ?: return null
         return try {
-            val url = graphApiClient.getDownloadUrl(driveId, remoteId)
+            val url = if (isPublicLinkMode) {
+                val shareId = configuredShareEncodedId ?: return null
+                graphApiClient.getShareDownloadUrl(shareId, remoteId)
+            } else {
+                val driveId = configuredDriveId ?: return null
+                graphApiClient.getDownloadUrl(driveId, remoteId)
+            }
             videoRepository.updateRemoteUrl(remoteId, url, System.currentTimeMillis() + URL_EXPIRY_MS)
             url
         } catch (e: Exception) {

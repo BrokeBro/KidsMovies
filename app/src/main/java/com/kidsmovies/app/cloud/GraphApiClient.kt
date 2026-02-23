@@ -15,6 +15,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
     companion object {
         private const val TAG = "GraphApiClient"
         private const val GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
+        private const val ONEDRIVE_API_BASE = "https://api.onedrive.com/v1.0"
         private val VIDEO_EXTENSIONS = setOf(
             "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp"
         )
@@ -45,6 +46,22 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
                 throw GraphApiException("Graph API error ${response.code}: $body")
+            }
+            response.body?.string() ?: throw GraphApiException("Empty response body")
+        }
+    }
+
+    private suspend fun executeUnauthenticatedRequest(url: String): String {
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Content-Type", "application/json")
+            .build()
+
+        return withContext(Dispatchers.IO) {
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                throw GraphApiException("OneDrive API error ${response.code}: $body")
             }
             response.body?.string() ?: throw GraphApiException("Empty response body")
         }
@@ -121,6 +138,51 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         return result.value
     }
 
+    // --- Public share methods (no auth, uses api.onedrive.com) ---
+
+    suspend fun listShareChildren(encodedShareId: String, itemId: String): List<DriveItem> {
+        val url = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+        val responseBody = executeUnauthenticatedRequest(url)
+        val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+        return result.value
+    }
+
+    suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
+        val url = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+        val responseBody = executeUnauthenticatedRequest(url)
+        return gson.fromJson(responseBody, DriveItem::class.java)
+    }
+
+    suspend fun getShareDownloadUrl(encodedShareId: String, itemId: String): String {
+        val item = getShareItem(encodedShareId, itemId)
+        return item.contentDownloadUrl ?: item.downloadUrl
+            ?: throw GraphApiException("No download URL available for shared item $itemId")
+    }
+
+    suspend fun searchVideosRecursiveViaShare(
+        encodedShareId: String,
+        folderId: String,
+        results: MutableList<DriveItemWithPath> = mutableListOf(),
+        currentPath: String = ""
+    ): List<DriveItemWithPath> {
+        try {
+            val children = listShareChildren(encodedShareId, folderId)
+
+            for (child in children) {
+                if (child.folder != null) {
+                    val subPath = if (currentPath.isEmpty()) child.name else "$currentPath/${child.name}"
+                    searchVideosRecursiveViaShare(encodedShareId, child.id, results, subPath)
+                } else if (child.file != null && isVideoFile(child.name)) {
+                    results.add(DriveItemWithPath(child, currentPath))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scanning shared folder $folderId at path '$currentPath'", e)
+        }
+
+        return results
+    }
+
     private fun isVideoFile(name: String): Boolean {
         val extension = name.substringAfterLast('.', "").lowercase()
         return extension in VIDEO_EXTENSIONS
@@ -161,7 +223,8 @@ data class DriveItem(
     val folder: FolderInfo? = null,
     val video: VideoInfo? = null,
     val parentReference: ParentReference? = null,
-    @SerializedName("@microsoft.graph.downloadUrl") val downloadUrl: String? = null
+    @SerializedName("@microsoft.graph.downloadUrl") val downloadUrl: String? = null,
+    @SerializedName("@content.downloadUrl") val contentDownloadUrl: String? = null
 )
 
 data class FileInfo(

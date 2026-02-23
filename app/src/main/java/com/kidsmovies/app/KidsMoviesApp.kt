@@ -17,10 +17,12 @@ import com.kidsmovies.app.sync.ContentSyncManager
 import com.kidsmovies.app.sync.SettingsSyncManager
 import com.kidsmovies.app.sync.SyncWorker
 import com.kidsmovies.shared.auth.MsalAuthManager
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class KidsMoviesApp : Application() {
 
@@ -130,11 +132,65 @@ class KidsMoviesApp : Application() {
         }
     }
 
+    private suspend fun syncOneDriveConfigFromFirebase() {
+        try {
+            val pairingState = pairingRepository.getPairingState()
+            if (pairingState == null || !pairingState.isPaired) return
+            val familyId = pairingState.familyId ?: return
+
+            val snapshot = FirebaseDatabase.getInstance()
+                .getReference("families/$familyId/oneDriveConfig")
+                .get().await()
+
+            if (!snapshot.exists()) return
+
+            val prefs = getSharedPreferences("onedrive_config", MODE_PRIVATE)
+            val editor = prefs.edit()
+
+            snapshot.child("driveId").getValue(String::class.java)?.let { editor.putString("drive_id", it) }
+            snapshot.child("folderId").getValue(String::class.java)?.let { editor.putString("folder_id", it) }
+            snapshot.child("folderPath").getValue(String::class.java)?.let { editor.putString("folder_path", it) }
+            snapshot.child("accessMode").getValue(String::class.java)?.let { editor.putString("access_mode", it) }
+            snapshot.child("shareEncodedId").getValue(String::class.java)?.let { editor.putString("share_encoded_id", it) }
+            snapshot.child("shareUrl").getValue(String::class.java)?.let { editor.putString("share_url", it) }
+            snapshot.child("clientId").getValue(String::class.java)?.let { editor.putString("msal_client_id", it) }
+            editor.putBoolean("is_configured", true)
+            editor.apply()
+
+            Log.d("KidsMoviesApp", "Synced OneDrive config from Firebase")
+        } catch (e: Exception) {
+            Log.w("KidsMoviesApp", "Could not sync OneDrive config from Firebase: ${e.message}")
+        }
+    }
+
     private suspend fun initializeOneDrive() {
         try {
-            // Use dynamic MSAL config with client ID from SharedPreferences
-            val clientId = getSharedPreferences("onedrive_config", MODE_PRIVATE)
-                .getString("msal_client_id", null)
+            // Sync config from Firebase first (parent app may have updated it)
+            syncOneDriveConfigFromFirebase()
+
+            val prefs = getSharedPreferences("onedrive_config", MODE_PRIVATE)
+            val accessMode = prefs.getString("access_mode", null)
+
+            if (accessMode == "public_link") {
+                // Public link mode: no MSAL needed, just create scanner
+                val scanner = OneDriveScannerService(
+                    this,
+                    graphApiClient,
+                    videoRepository,
+                    collectionRepository,
+                    applicationScope
+                )
+                oneDriveScannerService = scanner
+
+                if (scanner.isConfigured) {
+                    scanner.scan()
+                    scanner.startPeriodicScan()
+                }
+                return
+            }
+
+            // Authenticated modes: need MSAL
+            val clientId = prefs.getString("msal_client_id", null)
             if (clientId == null) {
                 Log.w("KidsMoviesApp", "OneDrive initialization skipped: no client ID configured")
                 return

@@ -75,14 +75,35 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Sign in button -->
+        <!-- Sign in button (for Browse My OneDrive) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/signInButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:text="Sign in with Microsoft"
+            android:layout_marginBottom="8dp"
+            android:text="Sign in &amp; Browse My OneDrive"
             app:icon="@drawable/ic_cloud"
+            app:iconGravity="start" />
+
+        <!-- Shared link button (authenticated) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sharedLinkButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Use Shared Link (sign-in required)"
+            app:icon="@drawable/ic_cloud"
+            app:iconGravity="start" />
+
+        <!-- Public link button (no auth) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/publicLinkButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Paste Public Link (no sign-in)"
             app:iconGravity="start" />
 
         <!-- Folder selection section -->
