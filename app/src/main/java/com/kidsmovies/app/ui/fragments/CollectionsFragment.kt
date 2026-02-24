@@ -231,6 +231,15 @@ class CollectionsFragment : Fragment() {
                         null
                     }
                 }
+                CollectionType.FRANCHISE -> {
+                    // Franchise collection - show videos (same display as regular)
+                    val videos = app.collectionRepository.getVideosInCollection(collection.id)
+                    if (videos.isNotEmpty()) {
+                        CollectionRowItem.VideosRow(collection, videos)
+                    } else {
+                        null
+                    }
+                }
             }
         }
     }
