@@ -455,7 +455,7 @@ class ContentSyncManager(
                 val appliesAt = lockedAt + (warningMinutes * 60 * 1000)
 
                 if (appliesAt <= now) {
-                    // Warning time has passed
+                    // Warning time has passed (or was immediate)
                     if (allowFinishCurrentVideo && isWatchingVideo) {
                         // Child is watching a video and allowed to finish - add to waiting list
                         val waitingLock = PendingLock(
@@ -471,7 +471,7 @@ class ContentSyncManager(
                             _locksWaitingForVideoEnd.value = currentWaiting
                         }
 
-                        // Show "last one" warning
+                        // Show "last one" warning - child can finish this video
                         val title = videoTitle ?: collectionName ?: "Content"
                         _lockWarning.value = LockWarning(
                             title = title,
@@ -482,7 +482,7 @@ class ContentSyncManager(
                             isLastOne = true
                         )
                     } else {
-                        // Apply the lock immediately
+                        // Apply the lock immediately (no finish allowed, or not watching)
                         applyLock(videoTitle, collectionName, true)
                         // Remove the processed lock command
                         removeLockCommand(lockId)
@@ -605,11 +605,11 @@ class ContentSyncManager(
         for (lock in locks) {
             if (lock.appliesAt <= now) {
                 if (lock.allowFinishCurrentVideo && isWatchingVideo) {
-                    // Child is watching - add to waiting list instead of applying
+                    // Child is watching and allowed to finish - add to waiting list
                     toWaitForVideoEnd.add(lock)
                     toRemove.add(lock)
 
-                    // Show "last one" warning
+                    // Show "last one" warning - child can finish this video
                     val title = lock.videoTitle ?: lock.collectionName ?: "Content"
                     _lockWarning.value = LockWarning(
                         title = title,
@@ -620,8 +620,21 @@ class ContentSyncManager(
                         isLastOne = true
                     )
                 } else {
+                    // Timer expired - apply lock immediately
+                    // This includes: not watching, or watching but not allowed to finish
                     applyLock(lock.videoTitle, lock.collectionName, true)
                     toRemove.add(lock)
+
+                    // Signal that lock should be enforced now (minutesRemaining=0, not deferrable)
+                    val title = lock.videoTitle ?: lock.collectionName ?: "Content"
+                    _lockWarning.value = LockWarning(
+                        title = title,
+                        isVideo = lock.videoTitle != null,
+                        minutesRemaining = 0,
+                        appliesAt = lock.appliesAt,
+                        allowFinishCurrentVideo = false,
+                        isLastOne = false
+                    )
                 }
             } else {
                 // Update warning time
@@ -723,7 +736,9 @@ class ContentSyncManager(
                 duration = video.duration,
                 playbackPosition = video.playbackPosition,
                 lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
-                thumbnailUrl = null // Thumbnails are local, not synced
+                thumbnailUrl = null, // Thumbnails are local, not synced
+                sourceType = video.sourceType,
+                remoteId = video.remoteId
             )
 
             // Use sanitized title as key (Firebase doesn't allow certain characters)

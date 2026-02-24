@@ -1,21 +1,30 @@
 package com.kidsmovies.app.ui.fragments
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
+import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.cloud.OneDriveScannerService
+import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.databinding.FragmentVideoGridBinding
+import com.kidsmovies.app.ui.activities.VideoPlayerActivity
+import com.kidsmovies.app.ui.adapters.VideoAdapter
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
-/**
- * Placeholder fragment for OneDrive online videos.
- * This will be implemented when OneDrive integration is added.
- */
 class OnlineVideosFragment : Fragment() {
 
     private var _binding: FragmentVideoGridBinding? = null
     private val binding get() = _binding!!
+
+    private lateinit var app: KidsMoviesApp
+    private lateinit var videoAdapter: VideoAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -29,14 +38,118 @@ class OnlineVideosFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Show placeholder state
+        app = requireActivity().application as KidsMoviesApp
+
+        setupRecyclerView()
+        setupSwipeRefresh()
+        observeOnlineVideos()
+        observeScanState()
+    }
+
+    private fun setupRecyclerView() {
+        videoAdapter = VideoAdapter(
+            onVideoClick = { video -> playVideo(video) },
+            onFavouriteClick = { video -> toggleFavourite(video) }
+        )
+
+        binding.videoRecyclerView.apply {
+            layoutManager = GridLayoutManager(context, 4)
+            adapter = videoAdapter
+        }
+    }
+
+    private fun setupSwipeRefresh() {
+        binding.swipeRefresh.setOnRefreshListener {
+            lifecycleScope.launch {
+                val scanner = app.oneDriveScannerService
+                if (scanner != null && scanner.isConfigured) {
+                    scanner.scan()
+                }
+                binding.swipeRefresh.isRefreshing = false
+            }
+        }
+    }
+
+    private fun observeOnlineVideos() {
+        val scanner = app.oneDriveScannerService
+
+        if (scanner == null || !scanner.isConfigured) {
+            showNotConfiguredState()
+            return
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoRepository.getVideosBySourceFlow("onedrive").collectLatest { videos ->
+                if (videos.isEmpty()) {
+                    showEmptyState()
+                } else {
+                    showVideoList(videos)
+                }
+            }
+        }
+    }
+
+    private fun observeScanState() {
+        val scanner = app.oneDriveScannerService ?: return
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            scanner.scanState.collectLatest { state ->
+                when (state) {
+                    is OneDriveScannerService.ScanState.Scanning -> {
+                        binding.swipeRefresh.isRefreshing = true
+                    }
+                    is OneDriveScannerService.ScanState.Complete -> {
+                        binding.swipeRefresh.isRefreshing = false
+                    }
+                    is OneDriveScannerService.ScanState.Error -> {
+                        binding.swipeRefresh.isRefreshing = false
+                    }
+                    is OneDriveScannerService.ScanState.Idle -> {
+                        // No-op
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showNotConfiguredState() {
         binding.emptyState.visibility = View.VISIBLE
         binding.videoRecyclerView.visibility = View.GONE
         binding.emptyIcon.setImageResource(R.drawable.ic_cloud)
         binding.emptyTitle.text = getString(R.string.online_videos)
-        binding.emptyMessage.text = "Coming soon! Connect to OneDrive in Settings"
-
+        binding.emptyMessage.text = "Ask a parent to connect OneDrive in the parent app"
         binding.swipeRefresh.isEnabled = false
+    }
+
+    private fun showEmptyState() {
+        binding.emptyState.visibility = View.VISIBLE
+        binding.videoRecyclerView.visibility = View.GONE
+        binding.emptyIcon.setImageResource(R.drawable.ic_cloud)
+        binding.emptyTitle.text = getString(R.string.online_videos)
+        binding.emptyMessage.text = "No videos found in the connected OneDrive folder. Pull down to refresh."
+        binding.swipeRefresh.isEnabled = true
+    }
+
+    private fun showVideoList(videos: List<Video>) {
+        binding.emptyState.visibility = View.GONE
+        binding.videoRecyclerView.visibility = View.VISIBLE
+        binding.swipeRefresh.isEnabled = true
+        videoAdapter.submitList(videos)
+    }
+
+    private fun playVideo(video: Video) {
+        if (!video.isEnabled) return
+
+        val intent = Intent(requireContext(), VideoPlayerActivity::class.java).apply {
+            putExtra(VideoPlayerActivity.EXTRA_VIDEO, video)
+        }
+        startActivity(intent)
+    }
+
+    private fun toggleFavourite(video: Video) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoRepository.updateFavourite(video.id, !video.isFavourite)
+        }
     }
 
     override fun onDestroyView() {

@@ -6,6 +6,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.kidsmovies.app.KidsMoviesApp
+import com.kidsmovies.app.R
 import com.kidsmovies.app.databinding.ActivityLockScreenBinding
 import com.kidsmovies.app.sync.ContentSyncManager
 import kotlinx.coroutines.flow.collectLatest
@@ -89,13 +90,14 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun updateMessage(message: String, unlockAt: Long?) {
-        binding.lockMessage.text = message
+        // Use kid-friendly lock message instead of raw block reason
+        binding.lockMessage.text = getString(R.string.lock_screen_message)
 
-        // Show unlock time if available
+        // Show unlock time if available in kid-friendly format
         if (unlockAt != null && unlockAt > System.currentTimeMillis()) {
             val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
             val unlockTimeStr = timeFormat.format(Date(unlockAt))
-            binding.unlockTimeText.text = "Unlocks at $unlockTimeStr"
+            binding.unlockTimeText.text = getString(R.string.lock_screen_unlock_at, unlockTimeStr)
             binding.unlockTimeText.visibility = View.VISIBLE
         } else {
             binding.unlockTimeText.visibility = View.GONE

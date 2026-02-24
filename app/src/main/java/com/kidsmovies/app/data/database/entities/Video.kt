@@ -1,6 +1,7 @@
 package com.kidsmovies.app.data.database.entities
 
 import android.os.Parcelable
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.parcelize.Parcelize
@@ -30,8 +31,14 @@ data class Video(
     val collectionId: Long? = null, // For grouping into collections
     val seasonNumber: Int? = null, // Detected season number for TV episodes
     val episodeNumber: Int? = null, // Detected episode number for sorting
-    val tmdbEpisodeId: Int? = null // TMDB episode ID for fetching correct artwork
+    val tmdbEpisodeId: Int? = null, // TMDB episode ID for fetching correct artwork
+    @ColumnInfo(name = "source_type") val sourceType: String = "local", // "local" or "onedrive"
+    @ColumnInfo(name = "remote_id") val remoteId: String? = null, // Graph API item ID
+    @ColumnInfo(name = "remote_url") val remoteUrl: String? = null, // Pre-authenticated download URL
+    @ColumnInfo(name = "remote_url_expiry") val remoteUrlExpiry: Long = 0 // URL expiry timestamp
 ) : Parcelable {
+
+    fun isRemote(): Boolean = sourceType == "onedrive"
 
     fun getDisplayThumbnail(): String? {
         // Priority: user custom > TMDB artwork > auto-generated

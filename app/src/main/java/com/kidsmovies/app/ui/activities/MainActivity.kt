@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -170,37 +171,46 @@ class MainActivity : AppCompatActivity() {
         // Dismiss any existing dialog
         lockWarningDialog?.dismiss()
 
-        val title: Int
+        val emoji: String
+        val title: String
         val message: String
+        val layoutRes: Int
 
         if (warning.isLastOne) {
-            // "Last one" warning - they can finish current video
-            title = R.string.last_one_title
-            message = if (warning.isVideo) {
-                getString(R.string.last_one_message, warning.title)
-            } else {
-                getString(R.string.last_one_collection_message, warning.title)
-            }
+            emoji = getString(R.string.emoji_star)
+            title = getString(R.string.last_one_title)
+            message = getString(R.string.last_one_message)
+            layoutRes = R.layout.dialog_kid_warning
         } else {
-            // Standard countdown warning
-            title = R.string.lock_warning_title
-            val contentType = if (warning.isVideo) getString(R.string.video) else getString(R.string.collection)
+            emoji = getString(R.string.emoji_wave)
+            title = getString(R.string.lock_warning_title)
             message = if (warning.allowFinishCurrentVideo) {
-                getString(R.string.lock_warning_finish_video, contentType, warning.title, warning.minutesRemaining)
+                getString(R.string.lock_warning_finish_video)
             } else {
-                getString(R.string.lock_warning_message, contentType, warning.title, warning.minutesRemaining)
+                getString(R.string.lock_warning_message, warning.minutesRemaining)
             }
+            layoutRes = R.layout.dialog_kid_warning
         }
 
-        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton(R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-                app.contentSyncManager.dismissLockWarning()
-            }
+        val dialogView = layoutInflater.inflate(layoutRes, null)
+        dialogView.findViewById<TextView>(R.id.dialogEmoji).text = emoji
+        dialogView.findViewById<TextView>(R.id.dialogTitle).text = title
+        dialogView.findViewById<TextView>(R.id.dialogMessage).text = message
+
+        lockWarningDialog = AlertDialog.Builder(this, R.style.Theme_KidsMovies_KidDialog)
+            .setView(dialogView)
             .setCancelable(false)
             .create()
+
+        lockWarningDialog?.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.dialogButton).apply {
+            text = getString(R.string.kid_button_got_it)
+            setOnClickListener {
+                lockWarningDialog?.dismiss()
+                app.contentSyncManager.dismissLockWarning()
+            }
+        }
 
         lockWarningDialog?.show()
     }

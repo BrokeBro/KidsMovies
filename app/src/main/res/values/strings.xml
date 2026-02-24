@@ -120,8 +120,8 @@
 
     <!-- Parental Control -->
     <string name="app_blocked">App Blocked</string>
-    <string name="app_blocked_message">Ask your parent to enable video time!</string>
-    <string name="outside_schedule">Outside viewing time</string>
+    <string name="app_blocked_message">Ask mum or dad to turn on movie time!</string>
+    <string name="outside_schedule">It\'s not movie time yet!</string>
 
     <!-- Permissions -->
     <string name="permission_required">Permission Required</string>
@@ -188,18 +188,28 @@
     <string name="cd_reorder_handle">Reorder handle</string>
 
     <!-- Parental Lock Messages -->
-    <string name="content_locked_title">Content Locked</string>
-    <string name="content_locked_message">This video is locked. Ask a parent to unlock it for you!</string>
-    <string name="collection_locked_message">This collection is locked. Ask a parent to unlock it for you!</string>
+    <string name="content_locked_title">Oops!</string>
+    <string name="content_locked_message">This video is sleeping right now. Ask mum or dad to wake it up!</string>
+    <string name="collection_locked_message">These videos are sleeping right now. Ask mum or dad to wake them up!</string>
     <string name="ask_parent">Ask Parent</string>
-    <string name="lock_warning_title">Heads Up!</string>
-    <string name="lock_warning_message">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes.</string>
-    <string name="lock_warning_finish_video">Your parent is about to lock the %1$s \"%2$s\" in %3$d minutes. You can finish this video first!</string>
-    <string name="last_one_title">Last One!</string>
-    <string name="last_one_message">This is your last video! After this one, \"%1$s\" will be locked.</string>
-    <string name="last_one_collection_message">This is your last video! After this one, you won\'t be able to access more videos from \"%1$s\".</string>
+    <string name="lock_warning_title">Almost Time!</string>
+    <string name="lock_warning_message">In %1$d minutes, this video is going to sleep!</string>
+    <string name="lock_warning_finish_video">You can finish watching this one, then the videos need a rest!</string>
+    <string name="last_one_title">One More!</string>
+    <string name="last_one_message">This is the last one! Enjoy it!</string>
+    <string name="last_one_collection_message">This is the last one! Enjoy it!</string>
     <string name="video">video</string>
     <string name="collection">collection</string>
+    <string name="kid_button_got_it">Got It!</string>
+    <string name="kid_button_okay">Okay!</string>
+
+    <!-- Kid-friendly emoji strings (used in custom dialogs) -->
+    <string name="emoji_wave">\uD83D\uDC4B</string>
+    <string name="emoji_clock">\u23F0</string>
+    <string name="emoji_star">⭐</string>
+    <string name="emoji_moon">\uD83C\uDF19</string>
+    <string name="emoji_sleeping">\uD83D\uDE34</string>
+    <string name="emoji_popcorn">\uD83C\uDF7F</string>
 
     <!-- Usage Metrics -->
     <string name="usage_metrics">Usage Metrics</string>
@@ -243,13 +253,14 @@
     <string name="disconnect_from_parent">Disconnect</string>
 
     <!-- Lock Screen -->
-    <string name="lock_screen_message">See you next time!</string>
-    <string name="lock_screen_sub_message">Movie time is all done for now</string>
-    <string name="time_up_message">Time\'s up!</string>
-    <string name="finish_video_message">You can finish watching this video</string>
-    <string name="soft_off_title">Time\'s Up!</string>
-    <string name="soft_off_message">You can finish this episode, then it\'s time for a break!</string>
-    <string name="soft_off_dismiss">OK</string>
+    <string name="lock_screen_message">Goodnight Movies!</string>
+    <string name="lock_screen_sub_message">The movies are going to sleep.\nSee you next time!</string>
+    <string name="time_up_message">Break time!</string>
+    <string name="finish_video_message">You can finish watching this one</string>
+    <string name="soft_off_title">Break Time!</string>
+    <string name="soft_off_message">Finish this one, then it\'s time to play!</string>
+    <string name="soft_off_dismiss">Okay!</string>
+    <string name="lock_screen_unlock_at">Movies wake up at %s</string>
 
     <!-- Time remaining -->
     <string name="time_remaining">%d min left</string>
@@ -274,4 +285,11 @@
         <item quantity="one">%d Season</item>
         <item quantity="other">%d Seasons</item>
     </plurals>
+
+    <!-- Support / Donate -->
+    <string name="support_section">Support</string>
+    <string name="support_development">Support Development</string>
+    <string name="support_desc">Help keep KidsMovies free and ad-free</string>
+    <string name="donate_button">Donate via Ko-fi</string>
+    <string name="kofi_url">https://ko-fi.com/kidsmovies</string>
 </resources>

@@ -156,6 +156,14 @@
         <item name="dialogCornerRadius">16dp</item>
     </style>
 
+    <!-- Kid-friendly dialog (transparent bg so custom card shows through) -->
+    <style name="Theme.KidsMovies.KidDialog" parent="Theme.MaterialComponents.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.7</item>
+        <item name="android:windowIsFloating">true</item>
+    </style>
+
     <!-- BottomSheet style -->
     <style name="Theme.KidsMovies.BottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/Widget.KidsMovies.BottomSheet</item>

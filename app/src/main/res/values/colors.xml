@@ -102,4 +102,22 @@
 
     <!-- Ripple -->
     <color name="ripple_color">#40FFFFFF</color>
+
+    <!-- Kid-friendly dialog colors -->
+    <color name="kid_dialog_bg">#1E2A4A</color>
+    <color name="kid_dialog_bg_warm">#2A1E3A</color>
+    <color name="kid_dialog_title">#64B5F6</color>
+    <color name="kid_dialog_title_warm">#FFB74D</color>
+    <color name="kid_dialog_text">#E0E0E0</color>
+    <color name="kid_button_primary">#42A5F5</color>
+    <color name="kid_button_warm">#FFA726</color>
+    <color name="kid_button_goodbye">#AB47BC</color>
+    <color name="kid_lock_bg_top">#1A1040</color>
+    <color name="kid_lock_bg_bottom">#0D0820</color>
+    <color name="kid_lock_accent">#CE93D8</color>
+    <color name="kid_lock_subtitle">#B0BEC5</color>
+    <color name="kid_unlock_time">#81D4FA</color>
+
+    <!-- Ko-fi -->
+    <color name="kofi_brand">#FF5E5B</color>
 </resources>

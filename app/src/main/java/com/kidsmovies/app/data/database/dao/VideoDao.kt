@@ -184,4 +184,23 @@ interface VideoDao {
     // Get all file paths (for scanning comparison)
     @Query("SELECT filePath FROM videos")
     suspend fun getAllFilePaths(): List<String>
+
+    // OneDrive/SharePoint remote video queries
+    @Query("SELECT * FROM videos WHERE source_type = :sourceType AND isHidden = 0 ORDER BY title ASC")
+    fun getVideosBySourceFlow(sourceType: String): Flow<List<Video>>
+
+    @Query("SELECT * FROM videos WHERE source_type = :sourceType ORDER BY title ASC")
+    suspend fun getVideosBySource(sourceType: String): List<Video>
+
+    @Query("SELECT * FROM videos WHERE remote_id = :remoteId LIMIT 1")
+    suspend fun getVideoByRemoteId(remoteId: String): Video?
+
+    @Query("UPDATE videos SET remote_url = :url, remote_url_expiry = :expiry WHERE remote_id = :remoteId")
+    suspend fun updateRemoteUrl(remoteId: String, url: String, expiry: Long)
+
+    @Query("DELETE FROM videos WHERE source_type = :sourceType")
+    suspend fun deleteBySourceType(sourceType: String)
+
+    @Query("SELECT remote_id FROM videos WHERE source_type = 'onedrive'")
+    suspend fun getAllRemoteIds(): List<String>
 }

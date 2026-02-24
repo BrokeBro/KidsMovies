@@ -1,9 +1,12 @@
 package com.kidsmovies.app
 
 import android.app.Application
+import android.util.Log
 import com.kidsmovies.app.artwork.ArtworkFetcher
 import com.kidsmovies.app.artwork.TmdbArtworkManager
 import com.kidsmovies.app.artwork.TmdbService
+import com.kidsmovies.app.cloud.GraphApiClient
+import com.kidsmovies.app.cloud.OneDriveScannerService
 import com.kidsmovies.app.data.database.AppDatabase
 import com.kidsmovies.app.data.repository.*
 import com.kidsmovies.app.enforcement.ContentFilter
@@ -13,10 +16,13 @@ import com.kidsmovies.app.pairing.PairingRepository
 import com.kidsmovies.app.sync.ContentSyncManager
 import com.kidsmovies.app.sync.SettingsSyncManager
 import com.kidsmovies.app.sync.SyncWorker
+import com.kidsmovies.shared.auth.MsalAuthManager
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class KidsMoviesApp : Application() {
 
@@ -73,6 +79,12 @@ class KidsMoviesApp : Application() {
     val scheduleEvaluator by lazy { ScheduleEvaluator() }
     val contentFilter by lazy { ContentFilter() }
 
+    // OneDrive/SharePoint streaming components
+    val msalAuthManager by lazy { MsalAuthManager(this) }
+    val graphApiClient by lazy { GraphApiClient(msalAuthManager) }
+    var oneDriveScannerService: OneDriveScannerService? = null
+        private set
+
     val viewingTimerManager by lazy {
         ViewingTimerManager(
             database.cachedSettingsDao(),
@@ -94,6 +106,7 @@ class KidsMoviesApp : Application() {
         // Initialize pairing state and start components if paired
         applicationScope.launch {
             initializeParentControl()
+            initializeOneDrive()
         }
     }
 
@@ -116,6 +129,92 @@ class KidsMoviesApp : Application() {
 
             // Perform immediate sync on app start
             SyncWorker.requestImmediateSync(this)
+        }
+    }
+
+    private suspend fun syncOneDriveConfigFromFirebase() {
+        try {
+            val pairingState = pairingRepository.getPairingState()
+            if (pairingState == null || !pairingState.isPaired) return
+            val familyId = pairingState.familyId ?: return
+
+            val snapshot = FirebaseDatabase.getInstance()
+                .getReference("families/$familyId/oneDriveConfig")
+                .get().await()
+
+            if (!snapshot.exists()) return
+
+            val prefs = getSharedPreferences("onedrive_config", MODE_PRIVATE)
+            val editor = prefs.edit()
+
+            snapshot.child("driveId").getValue(String::class.java)?.let { editor.putString("drive_id", it) }
+            snapshot.child("folderId").getValue(String::class.java)?.let { editor.putString("folder_id", it) }
+            snapshot.child("folderPath").getValue(String::class.java)?.let { editor.putString("folder_path", it) }
+            snapshot.child("accessMode").getValue(String::class.java)?.let { editor.putString("access_mode", it) }
+            snapshot.child("shareEncodedId").getValue(String::class.java)?.let { editor.putString("share_encoded_id", it) }
+            snapshot.child("shareUrl").getValue(String::class.java)?.let { editor.putString("share_url", it) }
+            snapshot.child("clientId").getValue(String::class.java)?.let { editor.putString("msal_client_id", it) }
+            editor.putBoolean("is_configured", true)
+            editor.apply()
+
+            Log.d("KidsMoviesApp", "Synced OneDrive config from Firebase")
+        } catch (e: Exception) {
+            Log.w("KidsMoviesApp", "Could not sync OneDrive config from Firebase: ${e.message}")
+        }
+    }
+
+    private suspend fun initializeOneDrive() {
+        try {
+            // Sync config from Firebase first (parent app may have updated it)
+            syncOneDriveConfigFromFirebase()
+
+            val prefs = getSharedPreferences("onedrive_config", MODE_PRIVATE)
+            val accessMode = prefs.getString("access_mode", null)
+
+            if (accessMode == "public_link") {
+                // Public link mode: no MSAL needed, just create scanner
+                val scanner = OneDriveScannerService(
+                    this,
+                    graphApiClient,
+                    videoRepository,
+                    collectionRepository,
+                    applicationScope
+                )
+                oneDriveScannerService = scanner
+
+                if (scanner.isConfigured) {
+                    scanner.scan()
+                    scanner.startPeriodicScan()
+                }
+                return
+            }
+
+            // Authenticated modes: need MSAL
+            val clientId = prefs.getString("msal_client_id", null)
+            if (clientId == null) {
+                Log.w("KidsMoviesApp", "OneDrive initialization skipped: no client ID configured")
+                return
+            }
+            val configFile = MsalAuthManager.generateConfig(this, clientId)
+            msalAuthManager.initialize(configFile)
+
+            // Create scanner service
+            val scanner = OneDriveScannerService(
+                this,
+                graphApiClient,
+                videoRepository,
+                collectionRepository,
+                applicationScope
+            )
+            oneDriveScannerService = scanner
+
+            // If configured and signed in, start scanning
+            if (scanner.isConfigured && msalAuthManager.isSignedIn()) {
+                scanner.scan()
+                scanner.startPeriodicScan()
+            }
+        } catch (e: Exception) {
+            Log.w("KidsMoviesApp", "OneDrive initialization skipped: ${e.message}")
         }
     }
 
