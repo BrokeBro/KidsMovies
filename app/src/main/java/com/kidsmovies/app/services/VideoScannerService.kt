@@ -153,6 +153,13 @@ class VideoScannerService : Service() {
             detectAndCreateHierarchy(foldersWithNewVideos, videoRepository, collectionRepository)
         }
 
+        // Detect and create franchise collections from TMDB data
+        val settings = settingsRepository.getSettings()
+        if (settings?.autoCreateFranchiseCollections == true) {
+            updateNotification("Detecting movie franchises...")
+            app.franchiseCollectionManager.detectAndCreateFranchises()
+        }
+
         // Update last scan time
         settingsRepository.updateLastScanTime(System.currentTimeMillis())
 

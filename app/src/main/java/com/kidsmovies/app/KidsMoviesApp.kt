@@ -3,6 +3,7 @@ package com.kidsmovies.app
 import android.app.Application
 import android.util.Log
 import com.kidsmovies.app.artwork.ArtworkFetcher
+import com.kidsmovies.app.artwork.FranchiseCollectionManager
 import com.kidsmovies.app.artwork.TmdbArtworkManager
 import com.kidsmovies.app.artwork.TmdbService
 import com.kidsmovies.app.cloud.GraphApiClient
@@ -49,6 +50,17 @@ class KidsMoviesApp : Application() {
     val tmdbArtworkManager by lazy { TmdbArtworkManager(this, tmdbService) }
     val artworkFetcher by lazy {
         ArtworkFetcher(
+            tmdbArtworkManager,
+            videoRepository,
+            collectionRepository,
+            applicationScope
+        )
+    }
+
+    // Franchise collection manager
+    val franchiseCollectionManager by lazy {
+        FranchiseCollectionManager(
+            tmdbService,
             tmdbArtworkManager,
             videoRepository,
             collectionRepository,

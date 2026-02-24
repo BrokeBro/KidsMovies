@@ -123,6 +123,42 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
         @SerializedName("backdrop_path") val backdropPath: String?
     )
 
+    // Movie details response (includes belongs_to_collection for franchise detection)
+    data class MovieDetailsResponse(
+        val id: Int,
+        val title: String,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("backdrop_path") val backdropPath: String?,
+        @SerializedName("belongs_to_collection") val belongsToCollection: BelongsToCollection?,
+        @SerializedName("release_date") val releaseDate: String?,
+        val overview: String?
+    )
+
+    data class BelongsToCollection(
+        val id: Int,
+        val name: String,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("backdrop_path") val backdropPath: String?
+    )
+
+    // Collection details response (list of movies in a franchise)
+    data class CollectionDetailsResponse(
+        val id: Int,
+        val name: String,
+        val overview: String?,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("backdrop_path") val backdropPath: String?,
+        val parts: List<CollectionPart>?
+    )
+
+    data class CollectionPart(
+        val id: Int,
+        val title: String,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("release_date") val releaseDate: String?,
+        val overview: String?
+    )
+
     /**
      * Search for movies by title
      */
@@ -283,6 +319,55 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
             emptyList()
         }
     }
+
+    /**
+     * Get movie details including franchise/collection info
+     */
+    suspend fun getMovieDetails(movieId: Int): MovieDetailsResponse? = withContext(Dispatchers.IO) {
+        if (apiKey.isEmpty()) return@withContext null
+
+        try {
+            val url = "$BASE_URL/movie/$movieId?api_key=$apiKey"
+            val request = Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: return@withContext null
+                gson.fromJson(body, MovieDetailsResponse::class.java)
+            } else {
+                Log.e(TAG, "Movie details failed: ${response.code}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Movie details error", e)
+            null
+        }
+    }
+
+    /**
+     * Get collection details (all movies in a franchise)
+     */
+    suspend fun getCollectionDetails(collectionId: Int): CollectionDetailsResponse? =
+        withContext(Dispatchers.IO) {
+            if (apiKey.isEmpty()) return@withContext null
+
+            try {
+                val url = "$BASE_URL/collection/$collectionId?api_key=$apiKey"
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: return@withContext null
+                    gson.fromJson(body, CollectionDetailsResponse::class.java)
+                } else {
+                    Log.e(TAG, "Collection details failed: ${response.code}")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Collection details error", e)
+                null
+            }
+        }
 
     /**
      * Build full image URL from TMDB path

@@ -66,4 +66,7 @@ interface AppSettingsDao {
 
     @Query("SELECT tabOrder FROM app_settings WHERE id = 1")
     suspend fun getTabOrder(): String?
+
+    @Query("UPDATE app_settings SET autoCreateFranchiseCollections = :enabled WHERE id = 1")
+    suspend fun updateAutoCreateFranchiseCollections(enabled: Boolean)
 }

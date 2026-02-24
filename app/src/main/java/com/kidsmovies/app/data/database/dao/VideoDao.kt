@@ -203,4 +203,14 @@ interface VideoDao {
 
     @Query("SELECT remote_id FROM videos WHERE source_type = 'onedrive'")
     suspend fun getAllRemoteIds(): List<String>
+
+    // Franchise collection queries
+    @Query("UPDATE videos SET tmdbMovieId = :tmdbMovieId WHERE id = :videoId")
+    suspend fun updateTmdbMovieId(videoId: Long, tmdbMovieId: Int?)
+
+    @Query("SELECT * FROM videos WHERE tmdbMovieId IS NOT NULL ORDER BY title ASC")
+    suspend fun getVideosWithTmdbMovieId(): List<Video>
+
+    @Query("SELECT * FROM videos WHERE tmdbMovieId IS NULL AND isHidden = 0 ORDER BY title ASC")
+    suspend fun getVideosWithoutTmdbMovieId(): List<Video>
 }

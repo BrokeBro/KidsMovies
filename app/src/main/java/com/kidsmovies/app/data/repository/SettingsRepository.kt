@@ -78,4 +78,8 @@ class SettingsRepository(
         scanFolderDao.updateEnabled(folderId, enabled)
 
     suspend fun getFolderCount(): Int = scanFolderDao.getFolderCount()
+
+    // Franchise collection settings
+    suspend fun setAutoCreateFranchiseCollections(enabled: Boolean) =
+        appSettingsDao.updateAutoCreateFranchiseCollections(enabled)
 }
