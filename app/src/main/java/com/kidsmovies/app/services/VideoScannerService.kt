@@ -238,39 +238,83 @@ class VideoScannerService : Service() {
 
                 Log.d(TAG, "Created TV hierarchy: $showName > Season ${seasonInfo.seasonNumber} with ${videos.size} episodes")
             } else {
-                // Not a season folder - check if videos have episode patterns
+                // Not a season folder by name - check if videos have episode patterns
                 val hasEpisodes = videos.any { EpisodeParser.parseEpisode(it.title).hasEpisodeInfo() }
 
-                if (hasEpisodes) {
-                    // Folder contains episode files but no season structure
-                    // Could be a single-season show or standalone episodes
-                    val showName = folderName
-
-                    // Create as TV show with Season 1
-                    val tvShowCollection = getOrCreateTvShowCollection(showName, collectionRepository)
-                    val seasonCollection = getOrCreateSeasonCollection(
-                        tvShowId = tvShowCollection.id,
-                        seasonNumber = 1,
-                        seasonName = "Season 1",
-                        collectionRepository = collectionRepository
-                    )
-
-                    for (video in videos) {
-                        val episodeInfo = EpisodeParser.parseEpisode(video.title)
-                        if (episodeInfo.hasEpisodeInfo()) {
-                            videoRepository.updateEpisodeInfo(
-                                video.id,
-                                episodeInfo.seasonNumber ?: 1,
-                                episodeInfo.episodeNumber
-                            )
-                        }
-
-                        if (!collectionRepository.isVideoInCollection(video.id, seasonCollection.id)) {
-                            collectionRepository.addVideoToCollection(seasonCollection.id, video.id)
-                        }
+                if (hasEpisodes && parentFolder != null) {
+                    // Check if sibling folders look like seasons (this folder might be a non-standard season name)
+                    val siblingFolders = parentFolder.listFiles { file -> file.isDirectory }?.map { it.name } ?: emptyList()
+                    val hasSiblingSeasons = siblingFolders.any { sibling ->
+                        sibling != folderName && EpisodeParser.parseSeason(sibling) != null
                     }
 
-                    Log.d(TAG, "Created single-season show: $showName with ${videos.size} episodes")
+                    if (hasSiblingSeasons) {
+                        // This folder is a sibling of season folders - likely a season with a custom name
+                        // Try to determine season number from filenames
+                        val seasonNumbers = videos.mapNotNull { EpisodeParser.parseEpisode(it.title).seasonNumber }
+                        val inferredSeason = seasonNumbers.groupBy { it }.maxByOrNull { it.value.size }?.key
+
+                        if (inferredSeason != null) {
+                            val showName = parentFolder.name
+                            val tvShowCollection = getOrCreateTvShowCollection(showName, collectionRepository)
+                            val seasonCollection = getOrCreateSeasonCollection(
+                                tvShowId = tvShowCollection.id,
+                                seasonNumber = inferredSeason,
+                                seasonName = folderName,
+                                collectionRepository = collectionRepository
+                            )
+
+                            for (video in videos) {
+                                val episodeInfo = EpisodeParser.parseEpisode(video.title)
+                                if (episodeInfo.hasEpisodeInfo()) {
+                                    videoRepository.updateEpisodeInfo(
+                                        video.id,
+                                        episodeInfo.seasonNumber ?: inferredSeason,
+                                        episodeInfo.episodeNumber
+                                    )
+                                }
+                                if (!collectionRepository.isVideoInCollection(video.id, seasonCollection.id)) {
+                                    collectionRepository.addVideoToCollection(seasonCollection.id, video.id)
+                                }
+                            }
+
+                            Log.d(TAG, "Created TV hierarchy (inferred): ${showName} > $folderName (Season $inferredSeason) with ${videos.size} episodes")
+                        }
+                    } else {
+                        // No sibling seasons - standalone folder with episodes
+                        // Group by season number from filenames to create proper seasons
+                        val showName = folderName
+                        val tvShowCollection = getOrCreateTvShowCollection(showName, collectionRepository)
+
+                        val videosWithEpisodes = videos.mapNotNull { video ->
+                            val episodeInfo = EpisodeParser.parseEpisode(video.title)
+                            if (episodeInfo.hasEpisodeInfo()) Triple(video, episodeInfo, episodeInfo.seasonNumber ?: 1) else null
+                        }
+
+                        val seasonGroups = videosWithEpisodes.groupBy { it.third }
+
+                        for ((seasonNum, seasonVideos) in seasonGroups) {
+                            val seasonCollection = getOrCreateSeasonCollection(
+                                tvShowId = tvShowCollection.id,
+                                seasonNumber = seasonNum,
+                                seasonName = "Season $seasonNum",
+                                collectionRepository = collectionRepository
+                            )
+
+                            for ((video, episodeInfo, _) in seasonVideos) {
+                                videoRepository.updateEpisodeInfo(
+                                    video.id,
+                                    episodeInfo.seasonNumber ?: seasonNum,
+                                    episodeInfo.episodeNumber
+                                )
+                                if (!collectionRepository.isVideoInCollection(video.id, seasonCollection.id)) {
+                                    collectionRepository.addVideoToCollection(seasonCollection.id, video.id)
+                                }
+                            }
+                        }
+
+                        Log.d(TAG, "Created show: $showName with ${seasonGroups.size} season(s), ${videos.size} episodes")
+                    }
                 }
             }
         }

@@ -55,6 +55,8 @@ object EpisodeParser {
         Regex("""(?i)\bS(\d{1,2})\b"""),
         // Series 1 (UK naming)
         Regex("""(?i)\bSeries\s*(\d{1,2})\b"""),
+        // Just a number: 1, 01, 02 (bare season number as folder name)
+        Regex("""^(\d{1,2})$"""),
     )
 
     // Quality/codec tags to remove for cleaner show name extraction
