@@ -26,22 +26,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import android.util.Log
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class OneDriveSetupActivity : AppCompatActivity() {
 
     companion object {
+        private const val TAG = "OneDriveSetup"
         const val EXTRA_FAMILY_ID = "extra_family_id"
         const val MODE_OWN_DRIVE = "own_drive"
         const val MODE_SHARED_AUTH = "shared_authenticated"
         const val MODE_PUBLIC_LINK = "public_link"
         private const val ONEDRIVE_API_BASE = "https://api.onedrive.com/v1.0"
         private const val GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android) KidsMovies/1.0"
     }
 
     private lateinit var binding: ActivityOneDriveSetupBinding
@@ -53,6 +60,29 @@ class OneDriveSetupActivity : AppCompatActivity() {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    // Cookie-based client for SharePoint Business "Anyone" links
+    private val cookieStore = ConcurrentHashMap<String, MutableList<Cookie>>()
+    private val cookieJar = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            cookieStore.getOrPut(url.host) { mutableListOf() }.apply {
+                val newNames = cookies.map { it.name }.toSet()
+                removeAll { it.name in newNames }
+                addAll(cookies)
+            }
+        }
+        override fun loadForRequest(url: HttpUrl): List<Cookie> {
+            return cookieStore[url.host] ?: emptyList()
+        }
+    }
+    private val sharePointClient = OkHttpClient.Builder()
+        .cookieJar(cookieJar)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
     private val gson = Gson()
 
     // Access mode tracking
@@ -392,7 +422,10 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private fun encodeSharingUrl(url: String): String {
-        val base64 = Base64.encodeToString(url.toByteArray(), Base64.NO_WRAP)
+        // Strip query parameters (e.g., ?e=CYRvHR) - they are sharing tokens,
+        // not part of the canonical URL that Microsoft's shares API expects
+        val cleanUrl = url.split('?').first()
+        val base64 = Base64.encodeToString(cleanUrl.toByteArray(), Base64.NO_WRAP)
         return "u!" + base64.trimEnd('=').replace('/', '_').replace('+', '-')
     }
 
@@ -407,6 +440,28 @@ class OneDriveSetupActivity : AppCompatActivity() {
 
     private fun getSharePointApiBase(url: String): String? {
         return extractSharePointHost(url)?.let { "https://$it/_api/v2.0" }
+    }
+
+    /**
+     * Establish a SharePoint session by visiting the original sharing URL.
+     * Sets FedAuth/rtFa cookies that authorize subsequent API calls.
+     */
+    private suspend fun establishSharePointSession(originalUrl: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            cookieStore.clear()
+            val request = Request.Builder()
+                .url(originalUrl)
+                .addHeader("User-Agent", USER_AGENT)
+                .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .build()
+            val response = sharePointClient.newCall(request).execute()
+            response.body?.close()
+            Log.d(TAG, "SharePoint session establishment: HTTP ${response.code}")
+            response.isSuccessful || response.code in 300..399
+        } catch (e: Exception) {
+            Log.w(TAG, "Error establishing SharePoint session: ${e.message}")
+            false
+        }
     }
 
     private fun resolveSharedLink(url: String, useAuth: Boolean) {
@@ -695,27 +750,60 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchSharedDriveItem(encoded: String, useAuth: Boolean): SharedDriveItem? = withContext(Dispatchers.IO) {
-        // Try SharePoint-native API first for business OneDrive shares
         val originalUrl = shareUrl
+
+        // Try SharePoint-native API with session cookies (business "Anyone" shares)
         if (!useAuth && originalUrl != null) {
             val spBase = getSharePointApiBase(originalUrl)
             if (spBase != null) {
+                val sessionOk = establishSharePointSession(originalUrl)
+                if (sessionOk) {
+                    try {
+                        val spUrl = "$spBase/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
+                        val spRequest = Request.Builder()
+                            .url(spUrl)
+                            .addHeader("Accept", "application/json")
+                            .addHeader("User-Agent", USER_AGENT)
+                            .build()
+                        val spResponse = sharePointClient.newCall(spRequest).execute()
+                        if (spResponse.isSuccessful) {
+                            val body = spResponse.body?.string() ?: return@withContext null
+                            return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+                        } else {
+                            Log.w(TAG, "SharePoint session API returned ${spResponse.code}: ${spResponse.body?.string()}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "SharePoint session API error: ${e.message}")
+                    }
+                }
+
+                // Try SharePoint without session
                 try {
                     val spUrl = "$spBase/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
-                    val spRequest = Request.Builder().url(spUrl).build()
+                    val spRequest = Request.Builder()
+                        .url(spUrl)
+                        .addHeader("Accept", "application/json")
+                        .addHeader("User-Agent", USER_AGENT)
+                        .build()
                     val spResponse = httpClient.newCall(spRequest).execute()
                     if (spResponse.isSuccessful) {
                         val body = spResponse.body?.string() ?: return@withContext null
                         return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+                    } else {
+                        Log.w(TAG, "SharePoint API returned ${spResponse.code}: ${spResponse.body?.string()}")
                     }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SharePoint API error: ${e.message}")
+                }
             }
         }
 
         // Try Graph API (supports both, but requires auth for business shares)
         val graphUrl = "$GRAPH_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
-
-        val graphRequestBuilder = Request.Builder().url(graphUrl)
+        val graphRequestBuilder = Request.Builder()
+            .url(graphUrl)
+            .addHeader("Accept", "application/json")
+            .addHeader("User-Agent", USER_AGENT)
         if (useAuth) {
             val token = msalAuthManager.acquireTokenSilently() ?: return@withContext null
             graphRequestBuilder.addHeader("Authorization", "Bearer $token")
@@ -726,18 +814,31 @@ class OneDriveSetupActivity : AppCompatActivity() {
             if (graphResponse.isSuccessful) {
                 val body = graphResponse.body?.string() ?: return@withContext null
                 return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+            } else {
+                Log.w(TAG, "Graph API returned ${graphResponse.code}: ${graphResponse.body?.string()}")
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.w(TAG, "Graph API error: ${e.message}")
+        }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
         if (!useAuth) {
-            val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
-            val fallbackRequest = Request.Builder().url(fallbackUrl).build()
-
-            val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
-            if (fallbackResponse.isSuccessful) {
-                val body = fallbackResponse.body?.string() ?: return@withContext null
-                return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+            try {
+                val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
+                val fallbackRequest = Request.Builder()
+                    .url(fallbackUrl)
+                    .addHeader("Accept", "application/json")
+                    .addHeader("User-Agent", USER_AGENT)
+                    .build()
+                val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
+                if (fallbackResponse.isSuccessful) {
+                    val body = fallbackResponse.body?.string() ?: return@withContext null
+                    return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+                } else {
+                    Log.w(TAG, "OneDrive consumer API returned ${fallbackResponse.code}: ${fallbackResponse.body?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "OneDrive consumer API error: ${e.message}")
             }
         }
 
@@ -745,28 +846,60 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchSharedFolderContents(encoded: String, folderId: String, useAuth: Boolean): List<FolderItem> = withContext(Dispatchers.IO) {
-        // Try SharePoint-native API first for business OneDrive shares
         val originalUrl = shareUrl
+
+        // Try SharePoint-native API with session cookies (business "Anyone" shares)
         if (!useAuth && originalUrl != null) {
             val spBase = getSharePointApiBase(originalUrl)
             if (spBase != null) {
+                // Session should already be established from fetchSharedDriveItem, reuse cookies
                 try {
                     val spUrl = "$spBase/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
-                    val spRequest = Request.Builder().url(spUrl).build()
+                    val spRequest = Request.Builder()
+                        .url(spUrl)
+                        .addHeader("Accept", "application/json")
+                        .addHeader("User-Agent", USER_AGENT)
+                        .build()
+                    val spResponse = sharePointClient.newCall(spRequest).execute()
+                    if (spResponse.isSuccessful) {
+                        val body = spResponse.body?.string() ?: return@withContext emptyList()
+                        val result = gson.fromJson(body, FolderListResult::class.java)
+                        return@withContext result.value
+                    } else {
+                        Log.w(TAG, "SharePoint session API folder listing returned ${spResponse.code}")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SharePoint session API folder listing error: ${e.message}")
+                }
+
+                // Try without session
+                try {
+                    val spUrl = "$spBase/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
+                    val spRequest = Request.Builder()
+                        .url(spUrl)
+                        .addHeader("Accept", "application/json")
+                        .addHeader("User-Agent", USER_AGENT)
+                        .build()
                     val spResponse = httpClient.newCall(spRequest).execute()
                     if (spResponse.isSuccessful) {
                         val body = spResponse.body?.string() ?: return@withContext emptyList()
                         val result = gson.fromJson(body, FolderListResult::class.java)
                         return@withContext result.value
+                    } else {
+                        Log.w(TAG, "SharePoint API folder listing returned ${spResponse.code}")
                     }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SharePoint API folder listing error: ${e.message}")
+                }
             }
         }
 
         // Try Graph API (supports both, but requires auth for business shares)
         val graphUrl = "$GRAPH_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
-
-        val graphRequestBuilder = Request.Builder().url(graphUrl)
+        val graphRequestBuilder = Request.Builder()
+            .url(graphUrl)
+            .addHeader("Accept", "application/json")
+            .addHeader("User-Agent", USER_AGENT)
         if (useAuth) {
             val token = msalAuthManager.acquireTokenSilently() ?: return@withContext emptyList()
             graphRequestBuilder.addHeader("Authorization", "Bearer $token")
@@ -778,18 +911,33 @@ class OneDriveSetupActivity : AppCompatActivity() {
                 val body = graphResponse.body?.string() ?: return@withContext emptyList()
                 val result = gson.fromJson(body, FolderListResult::class.java)
                 return@withContext result.value
+            } else {
+                Log.w(TAG, "Graph API folder listing returned ${graphResponse.code}")
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.w(TAG, "Graph API folder listing error: ${e.message}")
+        }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
         if (!useAuth) {
-            val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
-            val fallbackRequest = Request.Builder().url(fallbackUrl).build()
-
-            val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
-            val body = fallbackResponse.body?.string() ?: return@withContext emptyList()
-            val result = gson.fromJson(body, FolderListResult::class.java)
-            return@withContext result.value
+            try {
+                val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
+                val fallbackRequest = Request.Builder()
+                    .url(fallbackUrl)
+                    .addHeader("Accept", "application/json")
+                    .addHeader("User-Agent", USER_AGENT)
+                    .build()
+                val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
+                if (fallbackResponse.isSuccessful) {
+                    val body = fallbackResponse.body?.string() ?: return@withContext emptyList()
+                    val result = gson.fromJson(body, FolderListResult::class.java)
+                    return@withContext result.value
+                } else {
+                    Log.w(TAG, "OneDrive consumer API folder listing returned ${fallbackResponse.code}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "OneDrive consumer API folder listing error: ${e.message}")
+            }
         }
 
         emptyList()

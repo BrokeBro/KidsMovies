@@ -2,6 +2,7 @@ package com.kidsmovies.app.cloud
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import android.util.Log
 import com.kidsmovies.app.data.database.entities.CollectionType
 import com.kidsmovies.app.data.database.entities.Video
@@ -84,6 +85,19 @@ class OneDriveScannerService(
         }
     }
 
+    /**
+     * Re-encode the share ID from the original URL, stripping query parameters.
+     * Handles backward compatibility with old stored encodings that included ?e=.
+     */
+    private val effectiveShareEncodedId: String?
+        get() {
+            val url = prefs.getString(KEY_SHARE_URL, null)
+            if (url != null) {
+                return GraphApiClient.encodeSharingUrl(url)
+            }
+            return configuredShareEncodedId
+        }
+
     fun configure(
         driveId: String,
         folderId: String,
@@ -133,9 +147,19 @@ class OneDriveScannerService(
 
         // For public link mode, use the share-based scan
         if (isPublicLinkMode) {
-            val shareId = configuredShareEncodedId ?: return
-            // Set SharePoint host for direct tenant API access (business OneDrive)
+            val shareId = effectiveShareEncodedId ?: return
+            val rawUrl = prefs.getString(KEY_SHARE_URL, null)
+
+            // Configure GraphApiClient for this scan
             graphApiClient.sharePointHost = sharePointHost
+            graphApiClient.shareUrl = rawUrl
+            graphApiClient.invalidateSession()
+
+            // Establish SharePoint session if this is a business OneDrive share
+            if (rawUrl != null && sharePointHost != null) {
+                graphApiClient.establishSharePointSession(rawUrl)
+            }
+
             scanViaShare(shareId, folderId)
             return
         }
@@ -451,8 +475,13 @@ class OneDriveScannerService(
     suspend fun refreshDownloadUrl(remoteId: String): String? {
         return try {
             val url = if (isPublicLinkMode) {
-                val shareId = configuredShareEncodedId ?: return null
+                val shareId = effectiveShareEncodedId ?: return null
+                val rawUrl = prefs.getString(KEY_SHARE_URL, null)
                 graphApiClient.sharePointHost = sharePointHost
+                graphApiClient.shareUrl = rawUrl
+                if (rawUrl != null && sharePointHost != null) {
+                    graphApiClient.establishSharePointSession(rawUrl)
+                }
                 graphApiClient.getShareDownloadUrl(shareId, remoteId)
             } else {
                 val driveId = configuredDriveId ?: return null

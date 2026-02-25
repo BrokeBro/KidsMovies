@@ -1,13 +1,18 @@
 package com.kidsmovies.app.cloud
 
+import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.kidsmovies.shared.auth.MsalAuthManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class GraphApiClient(private val authManager: MsalAuthManager) {
@@ -16,21 +21,135 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         private const val TAG = "GraphApiClient"
         private const val GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
         private const val ONEDRIVE_API_BASE = "https://api.onedrive.com/v1.0"
+        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android) KidsMovies/1.0"
+        private const val SESSION_VALIDITY_MS = 25 * 60 * 1000L // 25 minutes
         private val VIDEO_EXTENSIONS = setOf(
             "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg", "3gp"
         )
+
+        fun encodeSharingUrl(url: String): String {
+            val cleanUrl = url.split('?').first()
+            val base64 = Base64.encodeToString(cleanUrl.toByteArray(), Base64.NO_WRAP)
+            return "u!" + base64.trimEnd('=').replace('/', '_').replace('+', '-')
+        }
     }
 
     /**
      * SharePoint host for direct tenant API access (e.g., "contoso-my.sharepoint.com").
-     * When set, share methods will try the SharePoint-native API first, which supports
-     * anonymous access for "Anyone with the link" shares from Business OneDrive.
+     * When set, share methods will try the SharePoint-native API first.
      */
     var sharePointHost: String? = null
+
+    /** Original sharing URL (with ?e= token) used to establish cookie-based sessions. */
+    var shareUrl: String? = null
 
     private fun getSharePointApiBase(): String? {
         return sharePointHost?.let { "https://$it/_api/v2.0" }
     }
+
+    /**
+     * Re-encode from the original share URL, stripping query parameters.
+     * Handles backward compatibility with old stored encodings that included ?e=.
+     */
+    fun getEffectiveEncodedShareId(storedEncodedId: String): String {
+        val url = shareUrl ?: return storedEncodedId
+        return encodeSharingUrl(url)
+    }
+
+    // --- Cookie-based session for SharePoint Business "Anyone" links ---
+
+    private val cookieStore = ConcurrentHashMap<String, MutableList<Cookie>>()
+
+    private val cookieJar = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            cookieStore.getOrPut(url.host) { mutableListOf() }.apply {
+                val newNames = cookies.map { it.name }.toSet()
+                removeAll { it.name in newNames }
+                addAll(cookies)
+            }
+        }
+
+        override fun loadForRequest(url: HttpUrl): List<Cookie> {
+            return cookieStore[url.host] ?: emptyList()
+        }
+    }
+
+    private val sharePointClient = OkHttpClient.Builder()
+        .cookieJar(cookieJar)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    private var sessionEstablishedAt: Long = 0
+    private var lastSessionUrl: String? = null
+
+    /**
+     * Establish a SharePoint session by visiting the original sharing URL.
+     * SharePoint validates the sharing token and sets FedAuth/rtFa cookies.
+     */
+    suspend fun establishSharePointSession(originalShareUrl: String): Boolean {
+        // Reuse existing session if still valid
+        if (lastSessionUrl == originalShareUrl &&
+            System.currentTimeMillis() - sessionEstablishedAt < SESSION_VALIDITY_MS) {
+            return true
+        }
+
+        return withContext(Dispatchers.IO) {
+            try {
+                cookieStore.clear()
+                val request = Request.Builder()
+                    .url(originalShareUrl)
+                    .addHeader("User-Agent", USER_AGENT)
+                    .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .build()
+
+                val response = sharePointClient.newCall(request).execute()
+                response.body?.close()
+
+                Log.d(TAG, "SharePoint session establishment: HTTP ${response.code}")
+
+                if (response.isSuccessful || response.code in 300..399) {
+                    sessionEstablishedAt = System.currentTimeMillis()
+                    lastSessionUrl = originalShareUrl
+                    true
+                } else {
+                    Log.w(TAG, "Failed to establish SharePoint session: HTTP ${response.code}")
+                    false
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error establishing SharePoint session: ${e.message}")
+                false
+            }
+        }
+    }
+
+    fun invalidateSession() {
+        cookieStore.clear()
+        sessionEstablishedAt = 0
+        lastSessionUrl = null
+    }
+
+    private suspend fun executeSharePointSessionRequest(url: String): String {
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Accept", "application/json")
+            .addHeader("Content-Type", "application/json")
+            .addHeader("User-Agent", USER_AGENT)
+            .build()
+
+        return withContext(Dispatchers.IO) {
+            val response = sharePointClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                throw GraphApiException("SharePoint session API error ${response.code}: $body")
+            }
+            response.body?.string() ?: throw GraphApiException("Empty response body")
+        }
+    }
+
+    // --- Standard HTTP clients ---
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -66,13 +185,15 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         val request = Request.Builder()
             .url(url)
             .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .addHeader("User-Agent", USER_AGENT)
             .build()
 
         return withContext(Dispatchers.IO) {
             val response = httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                throw GraphApiException("OneDrive API error ${response.code}: $body")
+                throw GraphApiException("API error ${response.code}: $body")
             }
             response.body?.string() ?: throw GraphApiException("Empty response body")
         }
@@ -152,60 +273,87 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
     // --- Public share methods (supports both OneDrive Personal and SharePoint/OneDrive for Business) ---
 
     suspend fun listShareChildren(encodedShareId: String, itemId: String): List<DriveItem> {
-        // Try SharePoint-native API first for business OneDrive shares
+        val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+
+        // Try SharePoint-native API with session cookies first (business "Anyone" shares)
         val spBase = getSharePointApiBase()
+        if (spBase != null && shareUrl != null) {
+            try {
+                val spUrl = "$spBase/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val responseBody = executeSharePointSessionRequest(spUrl)
+                val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+                return result.value
+            } catch (e: Exception) {
+                Log.w(TAG, "SharePoint session API share listing failed: ${e.message}")
+            }
+        }
+
+        // Try SharePoint-native API without session
         if (spBase != null) {
             try {
-                val spUrl = "$spBase/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val spUrl = "$spBase/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
                 val responseBody = executeUnauthenticatedRequest(spUrl)
                 val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
                 return result.value
             } catch (e: Exception) {
-                Log.d(TAG, "SharePoint API share listing failed: ${e.message}")
+                Log.w(TAG, "SharePoint API share listing failed: ${e.message}")
             }
         }
 
-        // Try Graph API (supports both OneDrive Personal and SharePoint, but requires auth for business)
+        // Try Graph API (supports OneDrive Personal, requires auth for business)
         try {
-            val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
+            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
             val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
             return result.value
         } catch (e: Exception) {
-            Log.d(TAG, "Graph API share listing failed, trying OneDrive API fallback: ${e.message}")
+            Log.w(TAG, "Graph API share listing failed: ${e.message}")
         }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
-        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
         val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
         return result.value
     }
 
     suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
-        // Try SharePoint-native API first for business OneDrive shares
+        val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+
+        // Try SharePoint-native API with session cookies first (business "Anyone" shares)
         val spBase = getSharePointApiBase()
-        if (spBase != null) {
+        if (spBase != null && shareUrl != null) {
             try {
-                val spUrl = "$spBase/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
-                val responseBody = executeUnauthenticatedRequest(spUrl)
+                val spUrl = "$spBase/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val responseBody = executeSharePointSessionRequest(spUrl)
                 return gson.fromJson(responseBody, DriveItem::class.java)
             } catch (e: Exception) {
-                Log.d(TAG, "SharePoint API share item failed: ${e.message}")
+                Log.w(TAG, "SharePoint session API share item failed: ${e.message}")
             }
         }
 
-        // Try Graph API (supports both OneDrive Personal and SharePoint, but requires auth for business)
+        // Try SharePoint-native API without session
+        if (spBase != null) {
+            try {
+                val spUrl = "$spBase/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val responseBody = executeUnauthenticatedRequest(spUrl)
+                return gson.fromJson(responseBody, DriveItem::class.java)
+            } catch (e: Exception) {
+                Log.w(TAG, "SharePoint API share item failed: ${e.message}")
+            }
+        }
+
+        // Try Graph API (supports OneDrive Personal, requires auth for business)
         try {
-            val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
+            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
             return gson.fromJson(responseBody, DriveItem::class.java)
         } catch (e: Exception) {
-            Log.d(TAG, "Graph API share item failed, trying OneDrive API fallback: ${e.message}")
+            Log.w(TAG, "Graph API share item failed: ${e.message}")
         }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
-        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
         val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         return gson.fromJson(responseBody, DriveItem::class.java)
     }
