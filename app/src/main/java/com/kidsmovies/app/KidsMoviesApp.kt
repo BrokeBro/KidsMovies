@@ -251,6 +251,8 @@ class KidsMoviesApp : Application() {
 
             if (scanner.isConfigured) {
                 scanner.scan()
+                // Trigger sync so parent app sees the new OneDrive videos
+                SyncWorker.requestImmediateSync(this)
                 scanner.startPeriodicScan()
             }
             return
@@ -279,6 +281,8 @@ class KidsMoviesApp : Application() {
         // If configured and signed in, start scanning
         if (scanner.isConfigured && msalAuthManager.isSignedIn()) {
             scanner.scan()
+            // Trigger sync so parent app sees the new OneDrive videos
+            SyncWorker.requestImmediateSync(this)
             scanner.startPeriodicScan()
         }
     }

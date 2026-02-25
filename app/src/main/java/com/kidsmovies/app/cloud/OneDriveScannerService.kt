@@ -141,11 +141,9 @@ class OneDriveScannerService(
     }
 
     suspend fun scan() {
-        val folderId = configuredFolderId ?: return
-
         if (_scanState.value is ScanState.Scanning) return
 
-        // For public link mode, use the share-based scan
+        // For public link mode, use the share-based scan (uses /driveItem/children, no folderId needed)
         if (isPublicLinkMode) {
             val shareId = effectiveShareEncodedId ?: return
             val rawUrl = prefs.getString(KEY_SHARE_URL, null)
@@ -157,13 +155,15 @@ class OneDriveScannerService(
 
             // Establish SharePoint session if this is a business OneDrive share
             if (rawUrl != null && sharePointHost != null) {
-                graphApiClient.establishSharePointSession(rawUrl)
+                val sessionOk = graphApiClient.establishSharePointSession(rawUrl)
+                Log.d(TAG, "SharePoint session established: $sessionOk")
             }
 
-            scanViaShare(shareId, folderId)
+            scanViaShare(shareId)
             return
         }
 
+        val folderId = configuredFolderId ?: return
         val driveId = configuredDriveId ?: return
 
         _scanState.value = ScanState.Scanning(0, "Starting scan...")
@@ -272,12 +272,13 @@ class OneDriveScannerService(
         }
     }
 
-    private suspend fun scanViaShare(encodedShareId: String, folderId: String) {
+    private suspend fun scanViaShare(encodedShareId: String) {
         _scanState.value = ScanState.Scanning(0, "Starting scan...")
 
         try {
             withContext(Dispatchers.IO) {
-                val remoteVideos = graphApiClient.searchVideosRecursiveViaShare(encodedShareId, folderId)
+                // Pass null to use /shares/{id}/driveItem/children for the root shared folder
+                val remoteVideos = graphApiClient.searchVideosRecursiveViaShare(encodedShareId, null)
 
                 _scanState.value = ScanState.Scanning(
                     remoteVideos.size,

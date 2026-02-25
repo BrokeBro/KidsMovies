@@ -272,16 +272,25 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
     // --- Public share methods (supports both OneDrive Personal and SharePoint/OneDrive for Business) ---
 
-    suspend fun listShareChildren(encodedShareId: String, itemId: String): List<DriveItem> {
+    /**
+     * List children of a shared item.
+     * @param itemId If null, lists children of the share's root driveItem (the shared folder itself).
+     *              If non-null, lists children of a specific item within the share's drive.
+     */
+    suspend fun listShareChildren(encodedShareId: String, itemId: String? = null): List<DriveItem> {
         val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+        // For the root of the share, use /driveItem/children; for sub-items use /items/{id}/children
+        val itemPath = if (itemId == null) "driveItem" else "items/$itemId"
 
         // Try SharePoint-native API with session cookies first (business "Anyone" shares)
         val spBase = getSharePointApiBase()
         if (spBase != null && shareUrl != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                Log.d(TAG, "Trying SharePoint session API: $spUrl")
                 val responseBody = executeSharePointSessionRequest(spUrl)
                 val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+                Log.d(TAG, "SharePoint session API returned ${result.value.size} items")
                 return result.value
             } catch (e: Exception) {
                 Log.w(TAG, "SharePoint session API share listing failed: ${e.message}")
@@ -291,7 +300,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         // Try SharePoint-native API without session
         if (spBase != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
                 val responseBody = executeUnauthenticatedRequest(spUrl)
                 val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
                 return result.value
@@ -302,7 +311,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
         // Try Graph API (supports OneDrive Personal, requires auth for business)
         try {
-            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
+            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
             val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
             return result.value
@@ -311,7 +320,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
-        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
         val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
         return result.value
@@ -319,12 +328,13 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
     suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
         val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+        val itemPath = "items/$itemId"
 
         // Try SharePoint-native API with session cookies first (business "Anyone" shares)
         val spBase = getSharePointApiBase()
         if (spBase != null && shareUrl != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
                 val responseBody = executeSharePointSessionRequest(spUrl)
                 return gson.fromJson(responseBody, DriveItem::class.java)
             } catch (e: Exception) {
@@ -335,7 +345,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         // Try SharePoint-native API without session
         if (spBase != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
                 val responseBody = executeUnauthenticatedRequest(spUrl)
                 return gson.fromJson(responseBody, DriveItem::class.java)
             } catch (e: Exception) {
@@ -345,7 +355,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
         // Try Graph API (supports OneDrive Personal, requires auth for business)
         try {
-            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
+            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/$itemPath?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
             return gson.fromJson(responseBody, DriveItem::class.java)
         } catch (e: Exception) {
@@ -353,7 +363,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
-        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/$itemPath?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
         val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         return gson.fromJson(responseBody, DriveItem::class.java)
     }
@@ -364,14 +374,19 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
             ?: throw GraphApiException("No download URL available for shared item $itemId")
     }
 
+    /**
+     * Recursively search for video files via a share.
+     * @param folderId Pass null to start from the share's root driveItem. Sub-folders use their item IDs.
+     */
     suspend fun searchVideosRecursiveViaShare(
         encodedShareId: String,
-        folderId: String,
+        folderId: String? = null,
         results: MutableList<DriveItemWithPath> = mutableListOf(),
         currentPath: String = ""
     ): List<DriveItemWithPath> {
         try {
             val children = listShareChildren(encodedShareId, folderId)
+            Log.d(TAG, "Share scan at path='$currentPath' (itemId=${folderId ?: "root"}): found ${children.size} children")
 
             for (child in children) {
                 if (child.folder != null) {
@@ -382,7 +397,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error scanning shared folder $folderId at path '$currentPath'", e)
+            Log.e(TAG, "Error scanning shared folder ${folderId ?: "root"} at path '$currentPath'", e)
         }
 
         return results
