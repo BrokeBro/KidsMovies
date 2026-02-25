@@ -21,6 +21,17 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         )
     }
 
+    /**
+     * SharePoint host for direct tenant API access (e.g., "contoso-my.sharepoint.com").
+     * When set, share methods will try the SharePoint-native API first, which supports
+     * anonymous access for "Anyone with the link" shares from Business OneDrive.
+     */
+    var sharePointHost: String? = null
+
+    private fun getSharePointApiBase(): String? {
+        return sharePointHost?.let { "https://$it/_api/v2.0" }
+    }
+
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -141,7 +152,20 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
     // --- Public share methods (supports both OneDrive Personal and SharePoint/OneDrive for Business) ---
 
     suspend fun listShareChildren(encodedShareId: String, itemId: String): List<DriveItem> {
-        // Try Graph API first (supports both OneDrive Personal and SharePoint)
+        // Try SharePoint-native API first for business OneDrive shares
+        val spBase = getSharePointApiBase()
+        if (spBase != null) {
+            try {
+                val spUrl = "$spBase/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val responseBody = executeUnauthenticatedRequest(spUrl)
+                val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+                return result.value
+            } catch (e: Exception) {
+                Log.d(TAG, "SharePoint API share listing failed: ${e.message}")
+            }
+        }
+
+        // Try Graph API (supports both OneDrive Personal and SharePoint, but requires auth for business)
         try {
             val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
@@ -159,7 +183,19 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
     }
 
     suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
-        // Try Graph API first (supports both OneDrive Personal and SharePoint)
+        // Try SharePoint-native API first for business OneDrive shares
+        val spBase = getSharePointApiBase()
+        if (spBase != null) {
+            try {
+                val spUrl = "$spBase/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val responseBody = executeUnauthenticatedRequest(spUrl)
+                return gson.fromJson(responseBody, DriveItem::class.java)
+            } catch (e: Exception) {
+                Log.d(TAG, "SharePoint API share item failed: ${e.message}")
+            }
+        }
+
+        // Try Graph API (supports both OneDrive Personal and SharePoint, but requires auth for business)
         try {
             val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
             val responseBody = executeUnauthenticatedRequest(graphUrl)

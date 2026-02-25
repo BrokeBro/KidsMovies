@@ -30,6 +30,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 class OneDriveSetupActivity : AppCompatActivity() {
@@ -395,6 +396,19 @@ class OneDriveSetupActivity : AppCompatActivity() {
         return "u!" + base64.trimEnd('=').replace('/', '_').replace('+', '-')
     }
 
+    private fun extractSharePointHost(url: String): String? {
+        return try {
+            val host = URI(url).host
+            if (host != null && host.contains(".sharepoint.com")) host else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun getSharePointApiBase(url: String): String? {
+        return extractSharePointHost(url)?.let { "https://$it/_api/v2.0" }
+    }
+
     private fun resolveSharedLink(url: String, useAuth: Boolean) {
         binding.loadingIndicator.visibility = View.VISIBLE
         shareUrl = url
@@ -681,7 +695,24 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchSharedDriveItem(encoded: String, useAuth: Boolean): SharedDriveItem? = withContext(Dispatchers.IO) {
-        // Always try Graph API first - it supports both OneDrive Personal and SharePoint/OneDrive for Business
+        // Try SharePoint-native API first for business OneDrive shares
+        val originalUrl = shareUrl
+        if (!useAuth && originalUrl != null) {
+            val spBase = getSharePointApiBase(originalUrl)
+            if (spBase != null) {
+                try {
+                    val spUrl = "$spBase/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
+                    val spRequest = Request.Builder().url(spUrl).build()
+                    val spResponse = httpClient.newCall(spRequest).execute()
+                    if (spResponse.isSuccessful) {
+                        val body = spResponse.body?.string() ?: return@withContext null
+                        return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+
+        // Try Graph API (supports both, but requires auth for business shares)
         val graphUrl = "$GRAPH_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
 
         val graphRequestBuilder = Request.Builder().url(graphUrl)
@@ -714,7 +745,25 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchSharedFolderContents(encoded: String, folderId: String, useAuth: Boolean): List<FolderItem> = withContext(Dispatchers.IO) {
-        // Always try Graph API first - it supports both OneDrive Personal and SharePoint/OneDrive for Business
+        // Try SharePoint-native API first for business OneDrive shares
+        val originalUrl = shareUrl
+        if (!useAuth && originalUrl != null) {
+            val spBase = getSharePointApiBase(originalUrl)
+            if (spBase != null) {
+                try {
+                    val spUrl = "$spBase/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
+                    val spRequest = Request.Builder().url(spUrl).build()
+                    val spResponse = httpClient.newCall(spRequest).execute()
+                    if (spResponse.isSuccessful) {
+                        val body = spResponse.body?.string() ?: return@withContext emptyList()
+                        val result = gson.fromJson(body, FolderListResult::class.java)
+                        return@withContext result.value
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+
+        // Try Graph API (supports both, but requires auth for business shares)
         val graphUrl = "$GRAPH_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
 
         val graphRequestBuilder = Request.Builder().url(graphUrl)

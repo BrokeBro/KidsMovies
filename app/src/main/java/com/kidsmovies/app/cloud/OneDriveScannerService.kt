@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
 
 class OneDriveScannerService(
     private val context: Context,
@@ -34,6 +35,7 @@ class OneDriveScannerService(
         private const val KEY_IS_CONFIGURED = "is_configured"
         private const val KEY_ACCESS_MODE = "access_mode"
         private const val KEY_SHARE_ENCODED_ID = "share_encoded_id"
+        private const val KEY_SHARE_URL = "share_url"
         private const val MODE_OWN_DRIVE = "own_drive"
         private const val MODE_SHARED_AUTH = "shared_authenticated"
         private const val MODE_PUBLIC_LINK = "public_link"
@@ -66,6 +68,21 @@ class OneDriveScannerService(
 
     val isPublicLinkMode: Boolean
         get() = configuredAccessMode == MODE_PUBLIC_LINK
+
+    private val sharePointHost: String?
+        get() {
+            val url = prefs.getString(KEY_SHARE_URL, null) ?: return null
+            return extractSharePointHost(url)
+        }
+
+    private fun extractSharePointHost(url: String): String? {
+        return try {
+            val host = URI(url).host
+            if (host != null && host.contains(".sharepoint.com")) host else null
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     fun configure(
         driveId: String,
@@ -117,6 +134,8 @@ class OneDriveScannerService(
         // For public link mode, use the share-based scan
         if (isPublicLinkMode) {
             val shareId = configuredShareEncodedId ?: return
+            // Set SharePoint host for direct tenant API access (business OneDrive)
+            graphApiClient.sharePointHost = sharePointHost
             scanViaShare(shareId, folderId)
             return
         }
@@ -433,6 +452,7 @@ class OneDriveScannerService(
         return try {
             val url = if (isPublicLinkMode) {
                 val shareId = configuredShareEncodedId ?: return null
+                graphApiClient.sharePointHost = sharePointHost
                 graphApiClient.getShareDownloadUrl(shareId, remoteId)
             } else {
                 val driveId = configuredDriveId ?: return null
