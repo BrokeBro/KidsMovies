@@ -138,24 +138,45 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         return result.value
     }
 
-    // --- Public share methods (no auth, uses api.onedrive.com) ---
+    // --- Public share methods (supports both OneDrive Personal and SharePoint/OneDrive for Business) ---
 
     suspend fun listShareChildren(encodedShareId: String, itemId: String): List<DriveItem> {
-        val url = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
-        val responseBody = executeUnauthenticatedRequest(url)
+        // Try Graph API first (supports both OneDrive Personal and SharePoint)
+        try {
+            val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
+            val responseBody = executeUnauthenticatedRequest(graphUrl)
+            val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+            return result.value
+        } catch (e: Exception) {
+            Log.d(TAG, "Graph API share listing failed, trying OneDrive API fallback: ${e.message}")
+        }
+
+        // Fallback to OneDrive consumer API for personal OneDrive public links
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+        val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
         return result.value
     }
 
     suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
-        val url = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
-        val responseBody = executeUnauthenticatedRequest(url)
+        // Try Graph API first (supports both OneDrive Personal and SharePoint)
+        try {
+            val graphUrl = "$GRAPH_BASE_URL/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl"
+            val responseBody = executeUnauthenticatedRequest(graphUrl)
+            return gson.fromJson(responseBody, DriveItem::class.java)
+        } catch (e: Exception) {
+            Log.d(TAG, "Graph API share item failed, trying OneDrive API fallback: ${e.message}")
+        }
+
+        // Fallback to OneDrive consumer API for personal OneDrive public links
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encodedShareId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+        val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         return gson.fromJson(responseBody, DriveItem::class.java)
     }
 
     suspend fun getShareDownloadUrl(encodedShareId: String, itemId: String): String {
         val item = getShareItem(encodedShareId, itemId)
-        return item.contentDownloadUrl ?: item.downloadUrl
+        return item.downloadUrl ?: item.contentDownloadUrl
             ?: throw GraphApiException("No download URL available for shared item $itemId")
     }
 

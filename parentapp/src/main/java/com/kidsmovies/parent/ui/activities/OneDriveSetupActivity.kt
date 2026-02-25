@@ -681,35 +681,69 @@ class OneDriveSetupActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchSharedDriveItem(encoded: String, useAuth: Boolean): SharedDriveItem? = withContext(Dispatchers.IO) {
-        val baseUrl = if (useAuth) GRAPH_API_BASE else ONEDRIVE_API_BASE
-        val url = "$baseUrl/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
+        // Always try Graph API first - it supports both OneDrive Personal and SharePoint/OneDrive for Business
+        val graphUrl = "$GRAPH_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
 
-        val requestBuilder = Request.Builder().url(url)
+        val graphRequestBuilder = Request.Builder().url(graphUrl)
         if (useAuth) {
             val token = msalAuthManager.acquireTokenSilently() ?: return@withContext null
-            requestBuilder.addHeader("Authorization", "Bearer $token")
+            graphRequestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        val response = httpClient.newCall(requestBuilder.build()).execute()
-        if (!response.isSuccessful) return@withContext null
-        val body = response.body?.string() ?: return@withContext null
-        gson.fromJson(body, SharedDriveItem::class.java)
+        try {
+            val graphResponse = httpClient.newCall(graphRequestBuilder.build()).execute()
+            if (graphResponse.isSuccessful) {
+                val body = graphResponse.body?.string() ?: return@withContext null
+                return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+            }
+        } catch (_: Exception) { }
+
+        // Fallback to OneDrive consumer API for personal OneDrive public links
+        if (!useAuth) {
+            val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/driveItem?\$select=id,name,folder,parentReference"
+            val fallbackRequest = Request.Builder().url(fallbackUrl).build()
+
+            val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
+            if (fallbackResponse.isSuccessful) {
+                val body = fallbackResponse.body?.string() ?: return@withContext null
+                return@withContext gson.fromJson(body, SharedDriveItem::class.java)
+            }
+        }
+
+        null
     }
 
     private suspend fun fetchSharedFolderContents(encoded: String, folderId: String, useAuth: Boolean): List<FolderItem> = withContext(Dispatchers.IO) {
-        val baseUrl = if (useAuth) GRAPH_API_BASE else ONEDRIVE_API_BASE
-        val url = "$baseUrl/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
+        // Always try Graph API first - it supports both OneDrive Personal and SharePoint/OneDrive for Business
+        val graphUrl = "$GRAPH_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
 
-        val requestBuilder = Request.Builder().url(url)
+        val graphRequestBuilder = Request.Builder().url(graphUrl)
         if (useAuth) {
             val token = msalAuthManager.acquireTokenSilently() ?: return@withContext emptyList()
-            requestBuilder.addHeader("Authorization", "Bearer $token")
+            graphRequestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
-        val response = httpClient.newCall(requestBuilder.build()).execute()
-        val body = response.body?.string() ?: return@withContext emptyList()
-        val result = gson.fromJson(body, FolderListResult::class.java)
-        result.value
+        try {
+            val graphResponse = httpClient.newCall(graphRequestBuilder.build()).execute()
+            if (graphResponse.isSuccessful) {
+                val body = graphResponse.body?.string() ?: return@withContext emptyList()
+                val result = gson.fromJson(body, FolderListResult::class.java)
+                return@withContext result.value
+            }
+        } catch (_: Exception) { }
+
+        // Fallback to OneDrive consumer API for personal OneDrive public links
+        if (!useAuth) {
+            val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$encoded/items/$folderId/children?\$select=id,name,folder&\$top=200"
+            val fallbackRequest = Request.Builder().url(fallbackUrl).build()
+
+            val fallbackResponse = httpClient.newCall(fallbackRequest).execute()
+            val body = fallbackResponse.body?.string() ?: return@withContext emptyList()
+            val result = gson.fromJson(body, FolderListResult::class.java)
+            return@withContext result.value
+        }
+
+        emptyList()
     }
 
     // --- Data classes ---
