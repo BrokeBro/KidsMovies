@@ -101,11 +101,22 @@ class HierarchicalContentAdapter(
         private fun bindVideo(item: HierarchicalItem.Video) {
             val video = item.video.video
             binding.titleText.text = video.title
-            binding.iconImage.setImageResource(R.drawable.ic_movie)
+
+            // Show cloud icon for OneDrive videos
+            if (video.sourceType == "onedrive") {
+                binding.iconImage.setImageResource(R.drawable.ic_cloud)
+            } else {
+                binding.iconImage.setImageResource(R.drawable.ic_movie)
+            }
             binding.expandIndicator.visibility = View.GONE
 
-            // Show episode info if available
-            binding.subtitleText.visibility = View.GONE
+            // Show source info
+            if (video.sourceType == "onedrive") {
+                binding.subtitleText.visibility = View.VISIBLE
+                binding.subtitleText.text = "OneDrive"
+            } else {
+                binding.subtitleText.visibility = View.GONE
+            }
             binding.typeBadge.visibility = View.VISIBLE
             binding.typeBadge.text = "VIDEO"
 

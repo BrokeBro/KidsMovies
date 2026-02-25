@@ -11,7 +11,8 @@ import kotlinx.parcelize.Parcelize
 enum class CollectionType {
     REGULAR,    // Normal collection (movies, mixed content)
     TV_SHOW,    // Parent container for seasons
-    SEASON      // Contains episodes, linked to a TV_SHOW parent
+    SEASON,     // Contains episodes, linked to a TV_SHOW parent
+    FRANCHISE   // Auto-created from TMDB movie franchise (e.g., "Toy Story Collection")
 }
 
 @Parcelize
@@ -27,6 +28,7 @@ data class VideoCollection(
     val collectionType: String = CollectionType.REGULAR.name, // REGULAR, TV_SHOW, or SEASON
     val seasonNumber: Int? = null, // Season number for SEASON type collections
     val tmdbShowId: Int? = null, // TMDB TV show ID for fetching correct artwork
+    val tmdbCollectionId: Int? = null, // TMDB collection ID for franchise collections
     val sortOrder: Int = 0, // For ordering collections on the home screen
     val isEnabled: Boolean = true, // For parental control (locked = visible but can't access)
     val isHidden: Boolean = false, // For parental control (hidden = completely invisible to child)
@@ -67,4 +69,9 @@ data class VideoCollection(
      * Check if this is a season (part of a TV show)
      */
     fun isSeason(): Boolean = getType() == CollectionType.SEASON
+
+    /**
+     * Check if this is a franchise collection (auto-created from TMDB)
+     */
+    fun isFranchise(): Boolean = getType() == CollectionType.FRANCHISE
 }

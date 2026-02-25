@@ -45,12 +45,25 @@ class ContentAdapter(
                 is ContentItem.Video -> {
                     val video = item.video.video
                     binding.titleText.text = video.title
-                    binding.iconImage.setImageResource(R.drawable.ic_movie)
 
-                    // Show collections if any
+                    // Show cloud icon for OneDrive videos, movie icon for local
+                    if (video.sourceType == "onedrive") {
+                        binding.iconImage.setImageResource(R.drawable.ic_cloud)
+                    } else {
+                        binding.iconImage.setImageResource(R.drawable.ic_movie)
+                    }
+
+                    // Show source and collections info
+                    val parts = mutableListOf<String>()
+                    if (video.sourceType == "onedrive") {
+                        parts.add("OneDrive")
+                    }
                     if (video.collectionNames.isNotEmpty()) {
+                        parts.add(video.collectionNames.joinToString(", "))
+                    }
+                    if (parts.isNotEmpty()) {
                         binding.subtitleText.visibility = View.VISIBLE
-                        binding.subtitleText.text = "In: ${video.collectionNames.joinToString(", ")}"
+                        binding.subtitleText.text = parts.joinToString(" • ")
                     } else {
                         binding.subtitleText.visibility = View.GONE
                     }

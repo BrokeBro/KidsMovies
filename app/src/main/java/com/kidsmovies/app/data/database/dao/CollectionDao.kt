@@ -140,4 +140,17 @@ interface CollectionDao {
 
     @Query("UPDATE collections SET isHidden = :isHidden WHERE id = :collectionId")
     suspend fun updateHidden(collectionId: Long, isHidden: Boolean)
+
+    // Franchise collection queries
+    @Query("SELECT * FROM collections WHERE collectionType = 'FRANCHISE' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
+    suspend fun getFranchiseCollections(): List<VideoCollection>
+
+    @Query("SELECT * FROM collections WHERE collectionType = 'FRANCHISE' AND parentCollectionId IS NULL AND isHidden = 0 ORDER BY sortOrder ASC, name ASC")
+    fun getFranchiseCollectionsFlow(): Flow<List<VideoCollection>>
+
+    @Query("SELECT * FROM collections WHERE tmdbCollectionId = :tmdbCollectionId LIMIT 1")
+    suspend fun getCollectionByTmdbCollectionId(tmdbCollectionId: Int): VideoCollection?
+
+    @Query("UPDATE collections SET tmdbCollectionId = :tmdbCollectionId WHERE id = :collectionId")
+    suspend fun updateTmdbCollectionId(collectionId: Long, tmdbCollectionId: Int?)
 }

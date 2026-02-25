@@ -127,4 +127,11 @@ class VideoRepository(private val videoDao: VideoDao) {
     suspend fun deleteBySourceType(sourceType: String) = videoDao.deleteBySourceType(sourceType)
 
     suspend fun getAllRemoteIds(): List<String> = videoDao.getAllRemoteIds()
+
+    // Franchise collection operations
+    suspend fun updateTmdbMovieId(videoId: Long, tmdbMovieId: Int?) = videoDao.updateTmdbMovieId(videoId, tmdbMovieId)
+
+    suspend fun getVideosWithTmdbMovieId(): List<Video> = videoDao.getVideosWithTmdbMovieId()
+
+    suspend fun getVideosWithoutTmdbMovieId(): List<Video> = videoDao.getVideosWithoutTmdbMovieId()
 }

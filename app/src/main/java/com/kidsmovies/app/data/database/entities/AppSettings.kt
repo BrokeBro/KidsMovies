@@ -28,5 +28,7 @@ data class AppSettings(
     // TMDB API key for auto-fetching artwork (get free key from themoviedb.org)
     val tmdbApiKey: String = "",
     // Whether to automatically fetch artwork from TMDB
-    val autoFetchArtwork: Boolean = true
+    val autoFetchArtwork: Boolean = true,
+    // Whether to automatically create franchise collections from TMDB movie groupings
+    val autoCreateFranchiseCollections: Boolean = true
 )

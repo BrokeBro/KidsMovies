@@ -70,42 +70,55 @@ class OnlineVideosFragment : Fragment() {
         }
     }
 
+    private var videosJob: kotlinx.coroutines.Job? = null
+
     private fun observeOnlineVideos() {
-        val scanner = app.oneDriveScannerService
-
-        if (scanner == null || !scanner.isConfigured) {
-            showNotConfiguredState()
-            return
-        }
-
         viewLifecycleOwner.lifecycleScope.launch {
-            app.videoRepository.getVideosBySourceFlow("onedrive").collectLatest { videos ->
-                if (videos.isEmpty()) {
-                    showEmptyState()
-                } else {
-                    showVideoList(videos)
+            app.oneDriveScannerReady.collectLatest { ready ->
+                // Cancel any previous video observer when state changes
+                videosJob?.cancel()
+
+                val scanner = app.oneDriveScannerService
+                if (!ready || scanner == null || !scanner.isConfigured) {
+                    showNotConfiguredState()
+                    return@collectLatest
+                }
+
+                // Scanner is ready — start observing videos
+                binding.swipeRefresh.isEnabled = true
+                videosJob = viewLifecycleOwner.lifecycleScope.launch {
+                    app.videoRepository.getVideosBySourceFlow("onedrive").collectLatest { videos ->
+                        if (videos.isEmpty()) {
+                            showEmptyState()
+                        } else {
+                            showVideoList(videos)
+                        }
+                    }
                 }
             }
         }
     }
 
     private fun observeScanState() {
-        val scanner = app.oneDriveScannerService ?: return
-
         viewLifecycleOwner.lifecycleScope.launch {
-            scanner.scanState.collectLatest { state ->
-                when (state) {
-                    is OneDriveScannerService.ScanState.Scanning -> {
-                        binding.swipeRefresh.isRefreshing = true
-                    }
-                    is OneDriveScannerService.ScanState.Complete -> {
-                        binding.swipeRefresh.isRefreshing = false
-                    }
-                    is OneDriveScannerService.ScanState.Error -> {
-                        binding.swipeRefresh.isRefreshing = false
-                    }
-                    is OneDriveScannerService.ScanState.Idle -> {
-                        // No-op
+            app.oneDriveScannerReady.collectLatest { ready ->
+                val scanner = app.oneDriveScannerService
+                if (!ready || scanner == null) return@collectLatest
+
+                scanner.scanState.collectLatest { state ->
+                    when (state) {
+                        is OneDriveScannerService.ScanState.Scanning -> {
+                            binding.swipeRefresh.isRefreshing = true
+                        }
+                        is OneDriveScannerService.ScanState.Complete -> {
+                            binding.swipeRefresh.isRefreshing = false
+                        }
+                        is OneDriveScannerService.ScanState.Error -> {
+                            binding.swipeRefresh.isRefreshing = false
+                        }
+                        is OneDriveScannerService.ScanState.Idle -> {
+                            // No-op
+                        }
                     }
                 }
             }

@@ -2,6 +2,7 @@ package com.kidsmovies.app.cloud
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import android.util.Log
 import com.kidsmovies.app.data.database.entities.CollectionType
 import com.kidsmovies.app.data.database.entities.Video
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
 
 class OneDriveScannerService(
     private val context: Context,
@@ -34,6 +36,7 @@ class OneDriveScannerService(
         private const val KEY_IS_CONFIGURED = "is_configured"
         private const val KEY_ACCESS_MODE = "access_mode"
         private const val KEY_SHARE_ENCODED_ID = "share_encoded_id"
+        private const val KEY_SHARE_URL = "share_url"
         private const val MODE_OWN_DRIVE = "own_drive"
         private const val MODE_SHARED_AUTH = "shared_authenticated"
         private const val MODE_PUBLIC_LINK = "public_link"
@@ -66,6 +69,34 @@ class OneDriveScannerService(
 
     val isPublicLinkMode: Boolean
         get() = configuredAccessMode == MODE_PUBLIC_LINK
+
+    private val sharePointHost: String?
+        get() {
+            val url = prefs.getString(KEY_SHARE_URL, null) ?: return null
+            return extractSharePointHost(url)
+        }
+
+    private fun extractSharePointHost(url: String): String? {
+        return try {
+            val host = URI(url).host
+            if (host != null && host.contains(".sharepoint.com")) host else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Re-encode the share ID from the original URL, stripping query parameters.
+     * Handles backward compatibility with old stored encodings that included ?e=.
+     */
+    private val effectiveShareEncodedId: String?
+        get() {
+            val url = prefs.getString(KEY_SHARE_URL, null)
+            if (url != null) {
+                return GraphApiClient.encodeSharingUrl(url)
+            }
+            return configuredShareEncodedId
+        }
 
     fun configure(
         driveId: String,
@@ -110,17 +141,29 @@ class OneDriveScannerService(
     }
 
     suspend fun scan() {
-        val folderId = configuredFolderId ?: return
-
         if (_scanState.value is ScanState.Scanning) return
 
-        // For public link mode, use the share-based scan
+        // For public link mode, use the share-based scan (uses /driveItem/children, no folderId needed)
         if (isPublicLinkMode) {
-            val shareId = configuredShareEncodedId ?: return
-            scanViaShare(shareId, folderId)
+            val shareId = effectiveShareEncodedId ?: return
+            val rawUrl = prefs.getString(KEY_SHARE_URL, null)
+
+            // Configure GraphApiClient for this scan
+            graphApiClient.sharePointHost = sharePointHost
+            graphApiClient.shareUrl = rawUrl
+            graphApiClient.invalidateSession()
+
+            // Establish SharePoint session if this is a business OneDrive share
+            if (rawUrl != null && sharePointHost != null) {
+                val sessionOk = graphApiClient.establishSharePointSession(rawUrl)
+                Log.d(TAG, "SharePoint session established: $sessionOk")
+            }
+
+            scanViaShare(shareId)
             return
         }
 
+        val folderId = configuredFolderId ?: return
         val driveId = configuredDriveId ?: return
 
         _scanState.value = ScanState.Scanning(0, "Starting scan...")
@@ -229,12 +272,13 @@ class OneDriveScannerService(
         }
     }
 
-    private suspend fun scanViaShare(encodedShareId: String, folderId: String) {
+    private suspend fun scanViaShare(encodedShareId: String) {
         _scanState.value = ScanState.Scanning(0, "Starting scan...")
 
         try {
             withContext(Dispatchers.IO) {
-                val remoteVideos = graphApiClient.searchVideosRecursiveViaShare(encodedShareId, folderId)
+                // Pass null to use /shares/{id}/driveItem/children for the root shared folder
+                val remoteVideos = graphApiClient.searchVideosRecursiveViaShare(encodedShareId, null)
 
                 _scanState.value = ScanState.Scanning(
                     remoteVideos.size,
@@ -432,7 +476,13 @@ class OneDriveScannerService(
     suspend fun refreshDownloadUrl(remoteId: String): String? {
         return try {
             val url = if (isPublicLinkMode) {
-                val shareId = configuredShareEncodedId ?: return null
+                val shareId = effectiveShareEncodedId ?: return null
+                val rawUrl = prefs.getString(KEY_SHARE_URL, null)
+                graphApiClient.sharePointHost = sharePointHost
+                graphApiClient.shareUrl = rawUrl
+                if (rawUrl != null && sharePointHost != null) {
+                    graphApiClient.establishSharePointSession(rawUrl)
+                }
                 graphApiClient.getShareDownloadUrl(shareId, remoteId)
             } else {
                 val driveId = configuredDriveId ?: return null

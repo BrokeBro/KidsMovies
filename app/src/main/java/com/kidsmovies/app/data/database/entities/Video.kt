@@ -32,6 +32,7 @@ data class Video(
     val seasonNumber: Int? = null, // Detected season number for TV episodes
     val episodeNumber: Int? = null, // Detected episode number for sorting
     val tmdbEpisodeId: Int? = null, // TMDB episode ID for fetching correct artwork
+    val tmdbMovieId: Int? = null, // TMDB movie ID for franchise detection
     @ColumnInfo(name = "source_type") val sourceType: String = "local", // "local" or "onedrive"
     @ColumnInfo(name = "remote_id") val remoteId: String? = null, // Graph API item ID
     @ColumnInfo(name = "remote_url") val remoteUrl: String? = null, // Pre-authenticated download URL

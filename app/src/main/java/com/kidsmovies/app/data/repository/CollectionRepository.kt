@@ -109,4 +109,15 @@ class CollectionRepository(private val collectionDao: CollectionDao) {
             season.id to getVideoCountInCollection(season.id)
         }
     }
+
+    // Franchise collection methods
+    suspend fun getFranchiseCollections(): List<VideoCollection> = collectionDao.getFranchiseCollections()
+
+    fun getFranchiseCollectionsFlow(): Flow<List<VideoCollection>> = collectionDao.getFranchiseCollectionsFlow()
+
+    suspend fun getCollectionByTmdbCollectionId(tmdbCollectionId: Int): VideoCollection? =
+        collectionDao.getCollectionByTmdbCollectionId(tmdbCollectionId)
+
+    suspend fun updateTmdbCollectionId(collectionId: Long, tmdbCollectionId: Int?) =
+        collectionDao.updateTmdbCollectionId(collectionId, tmdbCollectionId)
 }
