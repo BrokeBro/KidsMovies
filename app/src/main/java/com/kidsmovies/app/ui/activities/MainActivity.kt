@@ -312,6 +312,8 @@ class MainActivity : AppCompatActivity() {
         tabLayoutMediator?.detach()
 
         binding.viewPager.adapter = MainPagerAdapter(this)
+        // Disable swipe between tabs so horizontal carousels in Collections work properly
+        binding.viewPager.isUserInputEnabled = false
 
         tabLayoutMediator = TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
             if (position < visibleTabs.size) {
