@@ -43,7 +43,8 @@ data class CollectionWithVideos(
 class CollectionRowAdapter(
     private val onVideoClick: (Video, VideoCollection) -> Unit,
     private val onCollectionClick: (VideoCollection) -> Unit,
-    private val onSeasonClick: ((VideoCollection) -> Unit)? = null
+    private val onSeasonClick: ((VideoCollection) -> Unit)? = null,
+    private val onVideoLongClick: ((Video) -> Unit)? = null
 ) : ListAdapter<CollectionRowItem, CollectionRowAdapter.CollectionViewHolder>(CollectionDiffCallback()) {
 
     // Cache for RecyclerView pools to improve performance
@@ -69,11 +70,14 @@ class CollectionRowAdapter(
 
         private var currentCollection: VideoCollection? = null
 
-        private val videoAdapter = VideoCarouselAdapter { video ->
-            currentCollection?.let { collection ->
-                onVideoClick(video, collection)
-            }
-        }
+        private val videoAdapter = VideoCarouselAdapter(
+            onVideoClick = { video ->
+                currentCollection?.let { collection ->
+                    onVideoClick(video, collection)
+                }
+            },
+            onVideoLongClick = onVideoLongClick
+        )
 
         private val seasonAdapter = SeasonCardAdapter(
             onSeasonClick = { season ->

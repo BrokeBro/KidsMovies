@@ -20,7 +20,8 @@ class VideoAdapter(
     private val onFavouriteClick: (Video) -> Unit,
     private val onVideoLongClick: ((Video) -> Boolean)? = null,
     private val onSelectionChanged: ((Set<Long>) -> Unit)? = null,
-    private val onOptionsClick: ((Video) -> Unit)? = null
+    private val onOptionsClick: ((Video) -> Unit)? = null,
+    private val onDownloadClick: ((Video) -> Unit)? = null
 ) : ListAdapter<Video, VideoAdapter.VideoViewHolder>(VideoDiffCallback()) {
 
     private var isSelectionMode = false
@@ -160,7 +161,11 @@ class VideoAdapter(
             }
 
             binding.videoCard.setOnLongClickListener {
-                if (!isSelectionMode) {
+                if (video.isRemote() && onDownloadClick != null) {
+                    // For remote videos, show download option
+                    onDownloadClick.invoke(video)
+                    true
+                } else if (!isSelectionMode) {
                     // Enter selection mode and select this item
                     isSelectionMode = true
                     selectedVideoIds.add(video.id)

@@ -532,10 +532,12 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         try {
             // Choose player based on video source type
-            val wrapper: PlayerWrapper = if (currentVideo.isRemote()) {
-                ExoPlayerWrapper(this) { app.msalAuthManager.acquireTokenSilently() }
-            } else {
+            // Use local player for downloaded remote videos or local videos
+            val useLocalPlayback = !currentVideo.isRemote() || currentVideo.isDownloaded()
+            val wrapper: PlayerWrapper = if (useLocalPlayback) {
                 LegacyPlayerWrapper()
+            } else {
+                ExoPlayerWrapper(this) { app.msalAuthManager.acquireTokenSilently() }
             }
 
             wrapper.setDisplay(holder)
@@ -561,7 +563,7 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
             player = wrapper
 
-            if (currentVideo.isRemote()) {
+            if (currentVideo.isRemote() && !currentVideo.isDownloaded()) {
                 // For remote videos, get/refresh the download URL first
                 lifecycleScope.launch {
                     val url = getStreamingUrl(currentVideo)
@@ -574,8 +576,13 @@ class VideoPlayerActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     }
                 }
             } else {
-                // Local video - use file path directly
-                wrapper.prepare(Uri.parse(currentVideo.filePath), resumePosition)
+                // Local video or downloaded remote video - use file path directly
+                val filePath = if (currentVideo.isDownloaded()) {
+                    currentVideo.localDownloadPath!!
+                } else {
+                    currentVideo.filePath
+                }
+                wrapper.prepare(Uri.parse(filePath), resumePosition)
             }
         } catch (e: Exception) {
             e.printStackTrace()

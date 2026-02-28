@@ -73,6 +73,30 @@
             app:layout_constraintTop_toTopOf="@id/videoThumbnail"
             app:tint="@color/white" />
 
+        <!-- Cloud/Online badge -->
+        <LinearLayout
+            android:id="@+id/cloudBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_cloud_badge"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="2dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/videoThumbnail"
+            app:layout_constraintStart_toStartOf="@id/videoThumbnail">
+
+            <ImageView
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_cloud"
+                app:tint="@color/white" />
+
+        </LinearLayout>
+
         <!-- Watch progress bar -->
         <View
             android:id="@+id/progressBar"

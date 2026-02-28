@@ -15,7 +15,8 @@ import com.kidsmovies.app.databinding.ItemVideoCarouselBinding
 import java.io.File
 
 class VideoCarouselAdapter(
-    private val onVideoClick: (Video) -> Unit
+    private val onVideoClick: (Video) -> Unit,
+    private val onVideoLongClick: ((Video) -> Unit)? = null
 ) : ListAdapter<Video, VideoCarouselAdapter.VideoViewHolder>(VideoDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VideoViewHolder {
@@ -50,6 +51,9 @@ class VideoCarouselAdapter(
                 binding.videoThumbnail.setImageResource(R.drawable.bg_thumbnail_placeholder)
             }
 
+            // Show cloud badge for online/OneDrive videos
+            binding.cloudBadge.visibility = if (video.isRemote()) View.VISIBLE else View.GONE
+
             // Show favourite indicator
             binding.favouriteIndicator.visibility = if (video.isFavourite) View.VISIBLE else View.GONE
 
@@ -83,6 +87,16 @@ class VideoCarouselAdapter(
                     onVideoClick(video)
                 }
                 // If locked, clicking does nothing (video stays visible but unplayable)
+            }
+
+            // Long-click listener for download option on remote videos
+            binding.videoCard.setOnLongClickListener {
+                if (video.isRemote()) {
+                    onVideoLongClick?.invoke(video)
+                    true
+                } else {
+                    false
+                }
             }
         }
     }

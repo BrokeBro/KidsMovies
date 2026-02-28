@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -50,7 +52,8 @@ class FavouritesFragment : Fragment() {
     private fun setupRecyclerView() {
         videoAdapter = VideoAdapter(
             onVideoClick = { video -> playVideo(video) },
-            onFavouriteClick = { video -> toggleFavourite(video) }
+            onFavouriteClick = { video -> toggleFavourite(video) },
+            onDownloadClick = { video -> showDownloadOption(video) }
         )
 
         gridLayoutManager = GridLayoutManager(context, currentGridColumns)
@@ -96,6 +99,35 @@ class FavouritesFragment : Fragment() {
                     binding.videoRecyclerView.visibility = View.VISIBLE
                 }
             }
+        }
+    }
+
+    private fun showDownloadOption(video: Video) {
+        if (!video.isRemote()) return
+
+        if (video.isDownloaded()) {
+            AlertDialog.Builder(requireContext())
+                .setTitle(video.title)
+                .setItems(arrayOf(getString(R.string.remove_download))) { _, _ ->
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        app.videoDownloadManager?.removeDownload(video)
+                        Toast.makeText(requireContext(), R.string.download_removed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .show()
+        } else {
+            AlertDialog.Builder(requireContext())
+                .setTitle(video.title)
+                .setItems(arrayOf(getString(R.string.download_for_offline))) { _, _ ->
+                    val downloadManager = app.videoDownloadManager
+                    if (downloadManager == null) {
+                        Toast.makeText(requireContext(), R.string.download_not_available, Toast.LENGTH_SHORT).show()
+                        return@setItems
+                    }
+                    downloadManager.downloadVideo(video)
+                    Toast.makeText(requireContext(), getString(R.string.download_started, video.title), Toast.LENGTH_SHORT).show()
+                }
+                .show()
         }
     }
 
