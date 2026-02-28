@@ -48,4 +48,13 @@ interface ScanFolderDao {
 
     @Query("SELECT COUNT(*) FROM scan_folders")
     suspend fun getFolderCount(): Int
+
+    @Query("UPDATE scan_folders SET isDownloadFolder = 0")
+    suspend fun clearAllDownloadFolders()
+
+    @Query("UPDATE scan_folders SET isDownloadFolder = :isDownloadFolder WHERE id = :folderId")
+    suspend fun updateDownloadFolder(folderId: Long, isDownloadFolder: Boolean)
+
+    @Query("SELECT * FROM scan_folders WHERE isDownloadFolder = 1 LIMIT 1")
+    suspend fun getDownloadFolder(): ScanFolder?
 }

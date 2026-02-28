@@ -63,6 +63,15 @@
 
         </LinearLayout>
 
+        <ImageButton
+            android:id="@+id/downloadStarButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/cd_download_folder"
+            android:src="@drawable/ic_star_outline"
+            app:tint="@color/text_secondary" />
+
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/enabledSwitch"
             android:layout_width="wrap_content"

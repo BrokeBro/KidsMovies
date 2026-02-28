@@ -8,6 +8,7 @@ import com.kidsmovies.app.artwork.TmdbArtworkManager
 import com.kidsmovies.app.artwork.TmdbService
 import com.kidsmovies.app.cloud.GraphApiClient
 import com.kidsmovies.app.cloud.OneDriveScannerService
+import com.kidsmovies.app.cloud.VideoDownloadManager
 import com.kidsmovies.app.data.database.AppDatabase
 import com.kidsmovies.app.data.repository.*
 import com.kidsmovies.app.enforcement.ContentFilter
@@ -100,6 +101,10 @@ class KidsMoviesApp : Application() {
     val msalAuthManager by lazy { MsalAuthManager(this) }
     val graphApiClient by lazy { GraphApiClient(msalAuthManager) }
     var oneDriveScannerService: OneDriveScannerService? = null
+        private set
+
+    // Video download manager (initialized after OneDrive scanner)
+    var videoDownloadManager: VideoDownloadManager? = null
         private set
 
     // StateFlow so OnlineVideosFragment can observe when the scanner becomes available
@@ -247,6 +252,9 @@ class KidsMoviesApp : Application() {
                 applicationScope
             )
             oneDriveScannerService = scanner
+            videoDownloadManager = VideoDownloadManager(
+                this, videoRepository, settingsRepository, scanner, applicationScope
+            )
             _oneDriveScannerReady.value = true
 
             if (scanner.isConfigured) {
@@ -276,6 +284,9 @@ class KidsMoviesApp : Application() {
             applicationScope
         )
         oneDriveScannerService = scanner
+        videoDownloadManager = VideoDownloadManager(
+            this, videoRepository, settingsRepository, scanner, applicationScope
+        )
         _oneDriveScannerReady.value = true
 
         // If configured and signed in, start scanning

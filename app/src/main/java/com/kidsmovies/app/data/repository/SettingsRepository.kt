@@ -79,6 +79,18 @@ class SettingsRepository(
 
     suspend fun getFolderCount(): Int = scanFolderDao.getFolderCount()
 
+    // Download folder
+    suspend fun setDownloadFolder(folderId: Long) {
+        scanFolderDao.clearAllDownloadFolders()
+        scanFolderDao.updateDownloadFolder(folderId, true)
+    }
+
+    suspend fun clearDownloadFolder(folderId: Long) {
+        scanFolderDao.updateDownloadFolder(folderId, false)
+    }
+
+    suspend fun getDownloadFolder(): ScanFolder? = scanFolderDao.getDownloadFolder()
+
     // Franchise collection settings
     suspend fun setAutoCreateFranchiseCollections(enabled: Boolean) =
         appSettingsDao.updateAutoCreateFranchiseCollections(enabled)

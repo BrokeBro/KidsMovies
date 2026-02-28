@@ -130,6 +130,9 @@ class VideoAdapter(
                 binding.progressBar.visibility = View.GONE
             }
 
+            // Show cloud badge for online/OneDrive videos
+            binding.cloudBadge.visibility = if (video.isRemote()) View.VISIBLE else View.GONE
+
             // Show lock overlay if video is disabled (parental lock)
             val isLocked = !video.isEnabled
             binding.lockOverlay.visibility = if (isLocked) View.VISIBLE else View.GONE

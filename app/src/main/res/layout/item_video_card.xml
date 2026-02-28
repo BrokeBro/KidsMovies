@@ -86,6 +86,29 @@
                 android:visibility="gone"
                 app:tint="@color/white" />
 
+            <!-- Cloud/Online badge -->
+            <LinearLayout
+                android:id="@+id/cloudBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_cloud_badge"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="3dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cloud"
+                    app:tint="@color/white" />
+
+            </LinearLayout>
+
             <!-- Watch progress bar at bottom -->
             <View
                 android:id="@+id/progressBar"

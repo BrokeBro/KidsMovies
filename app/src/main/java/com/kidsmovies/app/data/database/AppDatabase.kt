@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
         CachedDeviceOverrides::class,
         CachedSchedule::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(ScheduleConverters::class)
@@ -264,6 +264,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 13 to 14: Add download support (download folder star + local download path)
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add download folder flag to scan_folders
+                db.execSQL("ALTER TABLE scan_folders ADD COLUMN isDownloadFolder INTEGER NOT NULL DEFAULT 0")
+                // Add local download path to videos for offline copies of OneDrive videos
+                db.execSQL("ALTER TABLE videos ADD COLUMN local_download_path TEXT DEFAULT NULL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -274,7 +284,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance
