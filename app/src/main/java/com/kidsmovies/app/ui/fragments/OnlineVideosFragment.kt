@@ -46,6 +46,7 @@ class OnlineVideosFragment : Fragment() {
         setupSwipeRefresh()
         observeOnlineVideos()
         observeScanState()
+        observeDownloadStates()
     }
 
     private fun setupRecyclerView() {
@@ -151,6 +152,14 @@ class OnlineVideosFragment : Fragment() {
         binding.videoRecyclerView.visibility = View.VISIBLE
         binding.swipeRefresh.isEnabled = true
         videoAdapter.submitList(videos)
+    }
+
+    private fun observeDownloadStates() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoDownloadManager?.downloadStates?.collectLatest {
+                videoAdapter.notifyDataSetChanged()
+            }
+        }
     }
 
     private fun showDownloadOption(video: Video) {

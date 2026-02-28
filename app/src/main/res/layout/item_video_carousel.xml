@@ -89,6 +89,7 @@
             app:layout_constraintStart_toStartOf="@id/videoThumbnail">
 
             <ImageView
+                android:id="@+id/cloudIcon"
                 android:layout_width="12dp"
                 android:layout_height="12dp"
                 android:contentDescription="@null"
@@ -96,6 +97,18 @@
                 app:tint="@color/white" />
 
         </LinearLayout>
+
+        <!-- Download progress spinner -->
+        <ProgressBar
+            android:id="@+id/downloadSpinner"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/videoThumbnail"
+            app:layout_constraintEnd_toEndOf="@id/videoThumbnail"
+            app:layout_constraintStart_toStartOf="@id/videoThumbnail"
+            app:layout_constraintTop_toTopOf="@id/videoThumbnail" />
 
         <!-- Watch progress bar -->
         <View

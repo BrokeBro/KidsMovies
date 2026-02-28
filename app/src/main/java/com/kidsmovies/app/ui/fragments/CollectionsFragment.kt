@@ -70,6 +70,7 @@ class CollectionsFragment : Fragment() {
         setupSwipeRefresh()
         setupReorderButton()
         observeCollections()
+        observeDownloadStates()
     }
 
     override fun onResume() {
@@ -113,12 +114,22 @@ class CollectionsFragment : Fragment() {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = collectionIconAdapter
 
-            // Prevent parent views from intercepting horizontal touch events
+            // Only intercept parent scrolling for horizontal swipes, allow vertical pass-through
             addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+                private var startX = 0f
+                private var startY = 0f
+
                 override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
                     when (e.actionMasked) {
-                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                        MotionEvent.ACTION_DOWN -> {
+                            startX = e.x
+                            startY = e.y
                             rv.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = Math.abs(e.x - startX)
+                            val dy = Math.abs(e.y - startY)
+                            rv.parent?.requestDisallowInterceptTouchEvent(dx > dy)
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             rv.parent?.requestDisallowInterceptTouchEvent(false)
@@ -370,6 +381,15 @@ class CollectionsFragment : Fragment() {
             app.collectionRepository.updateCollection(updatedCollection)
 
             Toast.makeText(requireContext(), R.string.thumbnail_reset, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun observeDownloadStates() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoDownloadManager?.downloadStates?.collectLatest {
+                // Force re-bind of visible carousel items to update download spinners
+                refreshCollectionVideos()
+            }
         }
     }
 

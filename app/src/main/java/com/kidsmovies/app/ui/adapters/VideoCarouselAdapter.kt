@@ -9,7 +9,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.cloud.VideoDownloadManager
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.databinding.ItemVideoCarouselBinding
 import java.io.File
@@ -52,7 +54,24 @@ class VideoCarouselAdapter(
             }
 
             // Show cloud badge for online/OneDrive videos
-            binding.cloudBadge.visibility = if (video.isRemote()) View.VISIBLE else View.GONE
+            if (video.isRemote()) {
+                binding.cloudBadge.visibility = View.VISIBLE
+                if (video.isDownloaded()) {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge_downloaded)
+                } else {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge)
+                }
+            } else {
+                binding.cloudBadge.visibility = View.GONE
+            }
+
+            // Show download spinner if currently downloading
+            val app = binding.root.context.applicationContext as? KidsMoviesApp
+            val downloadState = app?.videoDownloadManager?.downloadStates?.value?.get(video.id)
+            binding.downloadSpinner.visibility = when (downloadState) {
+                is VideoDownloadManager.DownloadState.Downloading -> View.VISIBLE
+                else -> View.GONE
+            }
 
             // Show favourite indicator
             binding.favouriteIndicator.visibility = if (video.isFavourite) View.VISIBLE else View.GONE

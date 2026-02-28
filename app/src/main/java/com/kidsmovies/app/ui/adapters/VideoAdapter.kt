@@ -10,7 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.cloud.VideoDownloadManager
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.databinding.ItemVideoCardBinding
 import java.io.File
@@ -131,8 +133,25 @@ class VideoAdapter(
                 binding.progressBar.visibility = View.GONE
             }
 
-            // Show cloud badge for online/OneDrive videos
-            binding.cloudBadge.visibility = if (video.isRemote()) View.VISIBLE else View.GONE
+            // Show cloud badge for online/OneDrive videos (green if downloaded)
+            if (video.isRemote()) {
+                binding.cloudBadge.visibility = View.VISIBLE
+                if (video.isDownloaded()) {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge_downloaded)
+                } else {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge)
+                }
+            } else {
+                binding.cloudBadge.visibility = View.GONE
+            }
+
+            // Show download spinner if currently downloading
+            val app = binding.root.context.applicationContext as? KidsMoviesApp
+            val downloadState = app?.videoDownloadManager?.downloadStates?.value?.get(video.id)
+            binding.downloadSpinner.visibility = when (downloadState) {
+                is VideoDownloadManager.DownloadState.Downloading -> View.VISIBLE
+                else -> View.GONE
+            }
 
             // Show lock overlay if video is disabled (parental lock)
             val isLocked = !video.isEnabled

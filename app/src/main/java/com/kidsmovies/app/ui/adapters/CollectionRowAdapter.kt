@@ -94,13 +94,25 @@ class CollectionRowAdapter(
                 // Set default adapter - will be swapped if needed in bind
                 adapter = videoAdapter
 
-                // Prevent parent views (ViewPager2, SwipeRefreshLayout, vertical RecyclerView)
-                // from intercepting horizontal touch events meant for this carousel
+                // Only intercept parent scrolling when the user is swiping horizontally.
+                // Vertical swipes should pass through to the parent for scrolling up/down.
                 addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+                    private var startX = 0f
+                    private var startY = 0f
+
                     override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
                         when (e.actionMasked) {
-                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                            MotionEvent.ACTION_DOWN -> {
+                                startX = e.x
+                                startY = e.y
+                                // Tentatively claim the touch
                                 rv.parent?.requestDisallowInterceptTouchEvent(true)
+                            }
+                            MotionEvent.ACTION_MOVE -> {
+                                val dx = Math.abs(e.x - startX)
+                                val dy = Math.abs(e.y - startY)
+                                // Only keep horizontal lock if movement is primarily horizontal
+                                rv.parent?.requestDisallowInterceptTouchEvent(dx > dy)
                             }
                             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                                 rv.parent?.requestDisallowInterceptTouchEvent(false)

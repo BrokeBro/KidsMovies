@@ -26,7 +26,9 @@ class VideoDownloadManager(
 
     companion object {
         private const val TAG = "VideoDownloadManager"
-        private const val BUFFER_SIZE = 8192
+        private const val BUFFER_SIZE = 65536
+        private const val READ_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes for large files
+        private const val CONNECT_TIMEOUT_MS = 30000
     }
 
     private val _downloadStates = MutableStateFlow<Map<Long, DownloadState>>(emptyMap())
@@ -52,31 +54,36 @@ class VideoDownloadManager(
                 // Build local path maintaining OneDrive folder structure
                 val localPath = buildLocalPath(downloadFolder.path, video)
                 val localFile = File(localPath)
+                val tempFile = File(localPath + ".tmp")
 
                 // Create parent directories
                 localFile.parentFile?.mkdirs()
 
-                // Get a fresh download URL if expired
-                var downloadUrl = video.remoteUrl
-                if (downloadUrl == null || video.remoteUrlExpiry < System.currentTimeMillis()) {
-                    val remoteId = video.remoteId ?: throw IllegalStateException("No remote ID")
-                    downloadUrl = oneDriveScannerService.refreshDownloadUrl(remoteId)
-                        ?: throw IllegalStateException("Could not get download URL")
-                }
+                // Get a fresh download URL
+                val remoteId = video.remoteId ?: throw IllegalStateException("No remote ID")
+                val downloadUrl = oneDriveScannerService.refreshDownloadUrl(remoteId)
+                    ?: throw IllegalStateException("Could not get download URL")
 
-                // Download the file
+                // Download to a temp file first, rename on success
                 withContext(Dispatchers.IO) {
                     val url = URL(downloadUrl)
                     val connection = url.openConnection() as HttpURLConnection
-                    connection.connectTimeout = 30000
-                    connection.readTimeout = 30000
+                    connection.connectTimeout = CONNECT_TIMEOUT_MS
+                    connection.readTimeout = READ_TIMEOUT_MS
+                    connection.instanceFollowRedirects = true
 
                     try {
-                        val totalSize = connection.contentLength.toLong()
+                        val responseCode = connection.responseCode
+                        if (responseCode != HttpURLConnection.HTTP_OK) {
+                            throw IllegalStateException("Server returned HTTP $responseCode")
+                        }
+
+                        // Use Content-Length header for proper long support
+                        val totalSize = connection.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
                         var downloadedSize = 0L
 
                         connection.inputStream.use { input ->
-                            FileOutputStream(localFile).use { output ->
+                            FileOutputStream(tempFile).use { output ->
                                 val buffer = ByteArray(BUFFER_SIZE)
                                 var bytesRead: Int
 
@@ -86,10 +93,38 @@ class VideoDownloadManager(
 
                                     if (totalSize > 0) {
                                         val progress = ((downloadedSize * 100) / totalSize).toInt()
+                                            .coerceIn(0, 100)
                                         updateState(video.id, DownloadState.Downloading(progress))
                                     }
                                 }
+
+                                output.flush()
+                                output.fd.sync()
                             }
+                        }
+
+                        // Verify downloaded size matches expected
+                        val actualSize = tempFile.length()
+                        if (totalSize > 0 && actualSize < totalSize) {
+                            tempFile.delete()
+                            throw IllegalStateException(
+                                "Download incomplete: got $actualSize bytes of $totalSize expected"
+                            )
+                        }
+
+                        if (actualSize == 0L) {
+                            tempFile.delete()
+                            throw IllegalStateException("Downloaded file is empty")
+                        }
+
+                        // Rename temp file to final path
+                        if (localFile.exists()) {
+                            localFile.delete()
+                        }
+                        if (!tempFile.renameTo(localFile)) {
+                            // Fallback: copy and delete
+                            tempFile.copyTo(localFile, overwrite = true)
+                            tempFile.delete()
                         }
                     } finally {
                         connection.disconnect()
@@ -99,11 +134,19 @@ class VideoDownloadManager(
                 // Update the video with the local download path
                 videoRepository.updateLocalDownloadPath(video.id, localPath)
                 updateState(video.id, DownloadState.Complete(localPath))
-                Log.d(TAG, "Downloaded ${video.title} to $localPath")
+                Log.d(TAG, "Downloaded ${video.title} to $localPath (${localFile.length()} bytes)")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error downloading ${video.title}", e)
                 updateState(video.id, DownloadState.Error(e.message ?: "Download failed"))
+
+                // Clean up any temp files on error
+                try {
+                    val localPath = buildLocalPath(
+                        settingsRepository.getDownloadFolder()?.path ?: "", video
+                    )
+                    File(localPath + ".tmp").delete()
+                } catch (_: Exception) {}
             }
         }
     }
