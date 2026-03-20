@@ -128,6 +128,11 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun getAllRemoteIds(): List<String> = videoDao.getAllRemoteIds()
 
+    // Download management
+    suspend fun updateLocalDownloadPath(videoId: Long, path: String?) = videoDao.updateLocalDownloadPath(videoId, path)
+
+    suspend fun getDownloadedVideos(): List<Video> = videoDao.getDownloadedVideos()
+
     // Franchise collection operations
     suspend fun updateTmdbMovieId(videoId: Long, tmdbMovieId: Int?) = videoDao.updateTmdbMovieId(videoId, tmdbMovieId)
 

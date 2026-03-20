@@ -36,10 +36,13 @@ data class Video(
     @ColumnInfo(name = "source_type") val sourceType: String = "local", // "local" or "onedrive"
     @ColumnInfo(name = "remote_id") val remoteId: String? = null, // Graph API item ID
     @ColumnInfo(name = "remote_url") val remoteUrl: String? = null, // Pre-authenticated download URL
-    @ColumnInfo(name = "remote_url_expiry") val remoteUrlExpiry: Long = 0 // URL expiry timestamp
+    @ColumnInfo(name = "remote_url_expiry") val remoteUrlExpiry: Long = 0, // URL expiry timestamp
+    @ColumnInfo(name = "local_download_path") val localDownloadPath: String? = null // Temporarily downloaded local copy
 ) : Parcelable {
 
     fun isRemote(): Boolean = sourceType == "onedrive"
+
+    fun isDownloaded(): Boolean = localDownloadPath != null
 
     fun getDisplayThumbnail(): String? {
         // Priority: user custom > TMDB artwork > auto-generated

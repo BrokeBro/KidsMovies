@@ -78,3 +78,25 @@ lint/tmp/
 
 # Kotlin
 *.kotlin_module
+
+# Flutter
+flutter_parent/.dart_tool/
+flutter_parent/.packages
+flutter_parent/.pub-cache/
+flutter_parent/.pub/
+flutter_parent/build/
+flutter_parent/.flutter-plugins
+flutter_parent/.flutter-plugins-dependencies
+flutter_parent/ios/Pods/
+flutter_parent/ios/.symlinks/
+flutter_parent/ios/Flutter/Flutter.framework
+flutter_parent/ios/Flutter/Flutter.podspec
+flutter_parent/ios/Flutter/Generated.xcconfig
+flutter_parent/ios/Flutter/app.flx
+flutter_parent/ios/Flutter/flutter_assets/
+flutter_parent/ios/Flutter/flutter_export_environment.sh
+flutter_parent/ios/ServiceDefinitions.json
+flutter_parent/ios/Runner/GeneratedPluginRegistrant.*
+
+# Firebase config (iOS)
+GoogleService-Info.plist

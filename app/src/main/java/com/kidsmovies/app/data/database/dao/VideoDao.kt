@@ -204,6 +204,13 @@ interface VideoDao {
     @Query("SELECT remote_id FROM videos WHERE source_type = 'onedrive'")
     suspend fun getAllRemoteIds(): List<String>
 
+    // Download management
+    @Query("UPDATE videos SET local_download_path = :path WHERE id = :videoId")
+    suspend fun updateLocalDownloadPath(videoId: Long, path: String?)
+
+    @Query("SELECT * FROM videos WHERE local_download_path IS NOT NULL ORDER BY title ASC")
+    suspend fun getDownloadedVideos(): List<Video>
+
     // Franchise collection queries
     @Query("UPDATE videos SET tmdbMovieId = :tmdbMovieId WHERE id = :videoId")
     suspend fun updateTmdbMovieId(videoId: Long, tmdbMovieId: Int?)

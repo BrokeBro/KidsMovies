@@ -214,7 +214,10 @@ class FamilyManager {
     }
 
     /**
-     * Lock or unlock a collection, cascading to child seasons and videos
+     * Lock or unlock a collection, cascading to child seasons and videos.
+     * Uses atomic updateChildren() so all lock changes (collection + seasons + videos)
+     * are applied simultaneously, preventing UI timing issues where the collection
+     * shows locked but child toggles still appear unlocked.
      */
     suspend fun setCollectionLock(
         familyId: String,
@@ -225,51 +228,27 @@ class FamilyManager {
         allowFinishCurrentVideo: Boolean = false
     ) {
         val userId = auth.currentUser?.uid ?: return
+        val now = System.currentTimeMillis()
+        val childRef = database.getReference(FirebasePaths.childPath(familyId, childUid))
 
-        val lockCommand = LockCommand(
-            videoTitle = null,
+        // Build all updates into a single atomic map
+        val updates = mutableMapOf<String, Any?>()
+
+        // 1. Lock the collection itself
+        val collectionKey = sanitizeFirebaseKey(collectionName)
+        val collectionLockId = "collection_$collectionKey"
+        updates["${FirebasePaths.COLLECTIONS}/$collectionKey/enabled"] = !isLocked
+        updates["${FirebasePaths.LOCKS}/$collectionLockId"] = LockCommand(
             collectionName = collectionName,
             isLocked = isLocked,
             lockedBy = userId,
-            lockedAt = System.currentTimeMillis(),
+            lockedAt = now,
             warningMinutes = warningMinutes,
             allowFinishCurrentVideo = allowFinishCurrentVideo
         )
 
-        val lockId = "collection_${sanitizeFirebaseKey(collectionName)}"
-        val collectionKey = sanitizeFirebaseKey(collectionName)
-
-        // Write lock command to locks path
-        database.getReference("${FirebasePaths.childLocksPath(familyId, childUid)}/$lockId")
-            .setValue(lockCommand)
-            .await()
-
-        // Also update the collection's enabled field directly for immediate effect
-        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
-        database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$collectionKey/enabled")
-            .setValue(!isLocked)
-            .await()
-
-        // Cascade lock to child seasons and videos within this collection
-        cascadeLockToChildren(familyId, childUid, collectionName, isLocked, userId, warningMinutes, allowFinishCurrentVideo)
-    }
-
-    /**
-     * Cascade a lock to all child seasons and videos under a collection.
-     * When locking, all children are locked. When unlocking, all children are unlocked.
-     * Parents can then granularly re-unlock individual items.
-     */
-    private suspend fun cascadeLockToChildren(
-        familyId: String,
-        childUid: String,
-        parentCollectionName: String,
-        isLocked: Boolean,
-        userId: String,
-        warningMinutes: Int,
-        allowFinishCurrentVideo: Boolean
-    ) {
         try {
-            // Cascade to child seasons (collections whose parentName matches)
+            // 2. Find child seasons and add them to the atomic update
             val collectionsSnapshot = database.getReference(
                 FirebasePaths.childCollectionsPath(familyId, childUid)
             ).get().await()
@@ -277,34 +256,25 @@ class FamilyManager {
             val childSeasonNames = mutableListOf<String>()
             for (collectionSnapshot in collectionsSnapshot.children) {
                 val collection = collectionSnapshot.getValue(SyncedCollection::class.java) ?: continue
-                if (collection.parentName == parentCollectionName) {
-                    // This is a child season - cascade the lock
+                if (collection.parentName == collectionName) {
                     val seasonKey = collectionSnapshot.key ?: continue
                     childSeasonNames.add(collection.name)
 
-                    database.getReference(
-                        "${FirebasePaths.childCollectionsPath(familyId, childUid)}/$seasonKey/enabled"
-                    ).setValue(!isLocked).await()
-
-                    // Write a lock command for the season too
                     val seasonLockId = "collection_${sanitizeFirebaseKey(collection.name)}"
-                    database.getReference(
-                        "${FirebasePaths.childLocksPath(familyId, childUid)}/$seasonLockId"
-                    ).setValue(
-                        LockCommand(
-                            collectionName = collection.name,
-                            isLocked = isLocked,
-                            lockedBy = userId,
-                            lockedAt = System.currentTimeMillis(),
-                            warningMinutes = warningMinutes,
-                            allowFinishCurrentVideo = allowFinishCurrentVideo
-                        )
-                    ).await()
+                    updates["${FirebasePaths.COLLECTIONS}/$seasonKey/enabled"] = !isLocked
+                    updates["${FirebasePaths.LOCKS}/$seasonLockId"] = LockCommand(
+                        collectionName = collection.name,
+                        isLocked = isLocked,
+                        lockedBy = userId,
+                        lockedAt = now,
+                        warningMinutes = warningMinutes,
+                        allowFinishCurrentVideo = allowFinishCurrentVideo
+                    )
                 }
             }
 
-            // Cascade to videos in this collection and any child seasons
-            val allCollectionNames = mutableListOf(parentCollectionName).apply { addAll(childSeasonNames) }
+            // 3. Find videos in this collection or child seasons and add to atomic update
+            val allCollectionNames = mutableListOf(collectionName).apply { addAll(childSeasonNames) }
 
             val videosSnapshot = database.getReference(
                 FirebasePaths.childVideosPath(familyId, childUid)
@@ -314,31 +284,26 @@ class FamilyManager {
                 val video = videoSnapshot.getValue(SyncedVideo::class.java) ?: continue
                 val videoKey = videoSnapshot.key ?: continue
 
-                // Check if video belongs to the parent collection or any child season
                 val belongsToLockedCollection = video.collectionNames.any { it in allCollectionNames }
                 if (belongsToLockedCollection) {
-                    database.getReference(
-                        "${FirebasePaths.childVideosPath(familyId, childUid)}/$videoKey/enabled"
-                    ).setValue(!isLocked).await()
-
-                    // Write a lock command for the video
                     val videoLockId = sanitizeFirebaseKey(video.title)
-                    database.getReference(
-                        "${FirebasePaths.childLocksPath(familyId, childUid)}/$videoLockId"
-                    ).setValue(
-                        LockCommand(
-                            videoTitle = video.title,
-                            isLocked = isLocked,
-                            lockedBy = userId,
-                            lockedAt = System.currentTimeMillis(),
-                            warningMinutes = warningMinutes,
-                            allowFinishCurrentVideo = allowFinishCurrentVideo
-                        )
-                    ).await()
+                    updates["${FirebasePaths.VIDEOS}/$videoKey/enabled"] = !isLocked
+                    updates["${FirebasePaths.LOCKS}/$videoLockId"] = LockCommand(
+                        videoTitle = video.title,
+                        isLocked = isLocked,
+                        lockedBy = userId,
+                        lockedAt = now,
+                        warningMinutes = warningMinutes,
+                        allowFinishCurrentVideo = allowFinishCurrentVideo
+                    )
                 }
             }
+
+            // 4. Apply ALL updates atomically - listeners fire once with all changes
+            childRef.updateChildren(updates).await()
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error cascading lock to children", e)
+            Log.e(TAG, "Error setting collection lock with cascade", e)
         }
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -12,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.Video
@@ -68,6 +70,7 @@ class CollectionsFragment : Fragment() {
         setupSwipeRefresh()
         setupReorderButton()
         observeCollections()
+        observeDownloadStates()
     }
 
     override fun onResume() {
@@ -110,6 +113,33 @@ class CollectionsFragment : Fragment() {
         binding.collectionIconsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = collectionIconAdapter
+
+            // Only intercept parent scrolling for horizontal swipes, allow vertical pass-through
+            addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+                private var startX = 0f
+                private var startY = 0f
+
+                override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                    when (e.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            startX = e.x
+                            startY = e.y
+                            rv.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = Math.abs(e.x - startX)
+                            val dy = Math.abs(e.y - startY)
+                            rv.parent?.requestDisallowInterceptTouchEvent(dx > dy)
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            rv.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                    }
+                    return false
+                }
+                override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+                override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+            })
         }
 
         collectionIconAdapter.attachToRecyclerView(binding.collectionIconsRecyclerView)
@@ -147,7 +177,8 @@ class CollectionsFragment : Fragment() {
         collectionRowAdapter = CollectionRowAdapter(
             onVideoClick = { video, collection -> playVideo(video, collection) },
             onCollectionClick = { collection -> viewCollection(collection) },
-            onSeasonClick = { season -> viewCollection(season) }
+            onSeasonClick = { season -> viewCollection(season) },
+            onVideoLongClick = { video -> showDownloadOption(video) }
         )
 
         binding.collectionsRecyclerView.apply {
@@ -350,6 +381,46 @@ class CollectionsFragment : Fragment() {
             app.collectionRepository.updateCollection(updatedCollection)
 
             Toast.makeText(requireContext(), R.string.thumbnail_reset, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun observeDownloadStates() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.videoDownloadManager?.downloadStates?.collectLatest {
+                // Force re-bind of visible carousel items to update download spinners
+                refreshCollectionVideos()
+            }
+        }
+    }
+
+    private fun showDownloadOption(video: Video) {
+        if (!video.isRemote()) return
+
+        if (video.isDownloaded()) {
+            // Already downloaded - offer to remove
+            AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
+                .setTitle(video.title)
+                .setItems(arrayOf(getString(R.string.remove_download))) { _, _ ->
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        app.videoDownloadManager?.removeDownload(video)
+                        Toast.makeText(requireContext(), R.string.download_removed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .show()
+        } else {
+            // Not downloaded - offer to download
+            AlertDialog.Builder(requireContext(), R.style.Theme_KidsMovies_Dialog)
+                .setTitle(video.title)
+                .setItems(arrayOf(getString(R.string.download_for_offline))) { _, _ ->
+                    val downloadManager = app.videoDownloadManager
+                    if (downloadManager == null) {
+                        Toast.makeText(requireContext(), R.string.download_not_available, Toast.LENGTH_SHORT).show()
+                        return@setItems
+                    }
+                    downloadManager.downloadVideo(video)
+                    Toast.makeText(requireContext(), getString(R.string.download_started, video.title), Toast.LENGTH_SHORT).show()
+                }
+                .show()
         }
     }
 

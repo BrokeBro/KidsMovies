@@ -1,6 +1,5 @@
 package com.kidsmovies.app.ui.activities
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -8,8 +7,10 @@ import android.provider.DocumentsContract
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -84,6 +85,19 @@ class FolderPickerActivity : AppCompatActivity() {
                     // Then delete the folder entry
                     app.settingsRepository.deleteFolder(folder)
                 }
+            },
+            onDownloadStarClick = { folder ->
+                lifecycleScope.launch {
+                    if (folder.isDownloadFolder) {
+                        // Un-star this folder
+                        app.settingsRepository.clearDownloadFolder(folder.id)
+                        Toast.makeText(this@FolderPickerActivity, R.string.download_folder_cleared, Toast.LENGTH_SHORT).show()
+                    } else {
+                        // Star this folder (clears any previous star)
+                        app.settingsRepository.setDownloadFolder(folder.id)
+                        Toast.makeText(this@FolderPickerActivity, getString(R.string.download_folder_set, folder.name), Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         )
 
@@ -151,7 +165,8 @@ class FolderPickerActivity : AppCompatActivity() {
     private inner class FolderAdapter(
         private val onEnableChanged: (ScanFolder, Boolean) -> Unit,
         private val onSubfoldersChanged: (ScanFolder, Boolean) -> Unit,
-        private val onDeleteClick: (ScanFolder) -> Unit
+        private val onDeleteClick: (ScanFolder) -> Unit,
+        private val onDownloadStarClick: (ScanFolder) -> Unit
     ) : RecyclerView.Adapter<FolderAdapter.ViewHolder>() {
 
         private var folders = listOf<ScanFolder>()
@@ -182,6 +197,23 @@ class FolderPickerActivity : AppCompatActivity() {
                 binding.folderPath.text = folder.path
                 binding.enabledSwitch.isChecked = folder.isEnabled
                 binding.includeSubfoldersChip.isChecked = folder.includeSubfolders
+
+                // Download folder star
+                if (folder.isDownloadFolder) {
+                    binding.downloadStarButton.setImageResource(R.drawable.ic_star)
+                    binding.downloadStarButton.setColorFilter(
+                        ContextCompat.getColor(binding.root.context, R.color.warning)
+                    )
+                } else {
+                    binding.downloadStarButton.setImageResource(R.drawable.ic_star_outline)
+                    binding.downloadStarButton.setColorFilter(
+                        ContextCompat.getColor(binding.root.context, R.color.text_secondary)
+                    )
+                }
+
+                binding.downloadStarButton.setOnClickListener {
+                    onDownloadStarClick(folder)
+                }
 
                 binding.enabledSwitch.setOnCheckedChangeListener { _, isChecked ->
                     onEnableChanged(folder, isChecked)

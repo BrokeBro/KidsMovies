@@ -82,12 +82,22 @@ class HierarchicalContentAdapter(
                 is HierarchicalItem.Collection -> bindCollection(item)
             }
 
-            // Lock status UI
-            updateLockUI(item.isLocked, item is HierarchicalItem.Video && (item as? HierarchicalItem.Video)?.parentLocked == true)
+            // Lock status UI - use combined isLocked (includes parent lock) for visual indicators
+            val parentLocked = when (item) {
+                is HierarchicalItem.Video -> item.parentLocked
+                is HierarchicalItem.Collection -> item.parentLocked
+            }
+            updateLockUI(item.isLocked, parentLocked)
 
-            // Lock switch
+            // Lock switch - use the item's OWN enabled state, not the combined isLocked
+            // (which includes parentLocked). This allows toggling individual items
+            // within locked collections for exception unlocks.
+            val isOwnLocked = when (item) {
+                is HierarchicalItem.Video -> !item.video.video.isEnabled
+                is HierarchicalItem.Collection -> !item.collection.collection.isEnabled
+            }
             binding.lockSwitch.setOnCheckedChangeListener(null)
-            binding.lockSwitch.isChecked = item.isLocked
+            binding.lockSwitch.isChecked = isOwnLocked
             binding.lockSwitch.setOnCheckedChangeListener { _, checked ->
                 onLockToggle(item, checked)
             }
@@ -165,13 +175,19 @@ class HierarchicalContentAdapter(
             }
         }
 
-        private fun updateLockUI(isLocked: Boolean, isExceptionToParent: Boolean) {
+        private fun updateLockUI(isLocked: Boolean, parentLocked: Boolean) {
             if (isLocked) {
                 binding.statusBadge.visibility = View.VISIBLE
                 binding.statusBadge.text = binding.root.context.getString(R.string.locked).uppercase()
                 binding.statusBadge.setBackgroundResource(R.drawable.badge_background)
                 binding.iconImage.alpha = 0.5f
                 binding.titleText.alpha = 0.7f
+            } else if (parentLocked) {
+                // Item is individually unlocked but parent collection is locked
+                // Show dimmed to indicate parent context is locked
+                binding.statusBadge.visibility = View.GONE
+                binding.iconImage.alpha = 0.8f
+                binding.titleText.alpha = 0.9f
             } else {
                 binding.statusBadge.visibility = View.GONE
                 binding.iconImage.alpha = 1f

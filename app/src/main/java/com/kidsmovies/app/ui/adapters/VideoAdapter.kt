@@ -10,7 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.cloud.VideoDownloadManager
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.databinding.ItemVideoCardBinding
 import java.io.File
@@ -20,7 +22,8 @@ class VideoAdapter(
     private val onFavouriteClick: (Video) -> Unit,
     private val onVideoLongClick: ((Video) -> Boolean)? = null,
     private val onSelectionChanged: ((Set<Long>) -> Unit)? = null,
-    private val onOptionsClick: ((Video) -> Unit)? = null
+    private val onOptionsClick: ((Video) -> Unit)? = null,
+    private val onDownloadClick: ((Video) -> Unit)? = null
 ) : ListAdapter<Video, VideoAdapter.VideoViewHolder>(VideoDiffCallback()) {
 
     private var isSelectionMode = false
@@ -130,6 +133,26 @@ class VideoAdapter(
                 binding.progressBar.visibility = View.GONE
             }
 
+            // Show cloud badge for online/OneDrive videos (green if downloaded)
+            if (video.isRemote()) {
+                binding.cloudBadge.visibility = View.VISIBLE
+                if (video.isDownloaded()) {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge_downloaded)
+                } else {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge)
+                }
+            } else {
+                binding.cloudBadge.visibility = View.GONE
+            }
+
+            // Show download spinner if currently downloading
+            val app = binding.root.context.applicationContext as? KidsMoviesApp
+            val downloadState = app?.videoDownloadManager?.downloadStates?.value?.get(video.id)
+            binding.downloadSpinner.visibility = when (downloadState) {
+                is VideoDownloadManager.DownloadState.Downloading -> View.VISIBLE
+                else -> View.GONE
+            }
+
             // Show lock overlay if video is disabled (parental lock)
             val isLocked = !video.isEnabled
             binding.lockOverlay.visibility = if (isLocked) View.VISIBLE else View.GONE
@@ -157,7 +180,11 @@ class VideoAdapter(
             }
 
             binding.videoCard.setOnLongClickListener {
-                if (!isSelectionMode) {
+                if (video.isRemote() && onDownloadClick != null) {
+                    // For remote videos, show download option
+                    onDownloadClick.invoke(video)
+                    true
+                } else if (!isSelectionMode) {
                     // Enter selection mode and select this item
                     isSelectionMode = true
                     selectedVideoIds.add(video.id)

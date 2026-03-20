@@ -29,6 +29,7 @@ class ExoPlayerWrapper(
 
     private var exoPlayer: ExoPlayer? = null
     private var playerView: PlayerView? = null
+    private var storedSurfaceHolder: SurfaceHolder? = null
     private var _isPlaying = false
 
     private var onPreparedListener: ((Int) -> Unit)? = null
@@ -51,6 +52,7 @@ class ExoPlayerWrapper(
         get() = _isPlaying
 
     override fun setDisplay(holder: SurfaceHolder) {
+        storedSurfaceHolder = holder
         exoPlayer?.setVideoSurfaceHolder(holder)
     }
 
@@ -69,6 +71,9 @@ class ExoPlayerWrapper(
         exoPlayer = ExoPlayer.Builder(context).build().apply {
             // Set up player view if available
             playerView?.player = this
+
+            // Apply stored surface holder (setDisplay is called before prepare)
+            storedSurfaceHolder?.let { setVideoSurfaceHolder(it) }
 
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {

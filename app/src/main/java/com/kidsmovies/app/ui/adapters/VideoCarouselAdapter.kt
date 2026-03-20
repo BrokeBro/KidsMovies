@@ -9,13 +9,16 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.kidsmovies.app.KidsMoviesApp
 import com.kidsmovies.app.R
+import com.kidsmovies.app.cloud.VideoDownloadManager
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.databinding.ItemVideoCarouselBinding
 import java.io.File
 
 class VideoCarouselAdapter(
-    private val onVideoClick: (Video) -> Unit
+    private val onVideoClick: (Video) -> Unit,
+    private val onVideoLongClick: ((Video) -> Unit)? = null
 ) : ListAdapter<Video, VideoCarouselAdapter.VideoViewHolder>(VideoDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VideoViewHolder {
@@ -48,6 +51,26 @@ class VideoCarouselAdapter(
                     .into(binding.videoThumbnail)
             } else {
                 binding.videoThumbnail.setImageResource(R.drawable.bg_thumbnail_placeholder)
+            }
+
+            // Show cloud badge for online/OneDrive videos
+            if (video.isRemote()) {
+                binding.cloudBadge.visibility = View.VISIBLE
+                if (video.isDownloaded()) {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge_downloaded)
+                } else {
+                    binding.cloudBadge.setBackgroundResource(R.drawable.bg_cloud_badge)
+                }
+            } else {
+                binding.cloudBadge.visibility = View.GONE
+            }
+
+            // Show download spinner if currently downloading
+            val app = binding.root.context.applicationContext as? KidsMoviesApp
+            val downloadState = app?.videoDownloadManager?.downloadStates?.value?.get(video.id)
+            binding.downloadSpinner.visibility = when (downloadState) {
+                is VideoDownloadManager.DownloadState.Downloading -> View.VISIBLE
+                else -> View.GONE
             }
 
             // Show favourite indicator
@@ -83,6 +106,16 @@ class VideoCarouselAdapter(
                     onVideoClick(video)
                 }
                 // If locked, clicking does nothing (video stays visible but unplayable)
+            }
+
+            // Long-click listener for download option on remote videos
+            binding.videoCard.setOnLongClickListener {
+                if (video.isRemote()) {
+                    onVideoLongClick?.invoke(video)
+                    true
+                } else {
+                    false
+                }
             }
         }
     }

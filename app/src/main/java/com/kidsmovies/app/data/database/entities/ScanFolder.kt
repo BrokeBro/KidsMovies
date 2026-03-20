@@ -14,5 +14,6 @@ data class ScanFolder(
     val name: String,
     val includeSubfolders: Boolean = true,
     val isEnabled: Boolean = true,
+    val isDownloadFolder: Boolean = false,
     val dateAdded: Long = System.currentTimeMillis()
 ) : Parcelable

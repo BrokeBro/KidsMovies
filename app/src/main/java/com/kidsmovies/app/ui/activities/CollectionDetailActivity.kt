@@ -3,6 +3,9 @@ package com.kidsmovies.app.ui.activities
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.PopupMenu
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
@@ -98,7 +101,8 @@ class CollectionDetailActivity : AppCompatActivity() {
     private fun setupVideoRecyclerView() {
         videoAdapter = VideoAdapter(
             onVideoClick = { video -> playVideo(video) },
-            onFavouriteClick = { video -> toggleFavourite(video) }
+            onFavouriteClick = { video -> toggleFavourite(video) },
+            onOptionsClick = { video -> showVideoOptions(video) }
         )
 
         gridLayoutManager = GridLayoutManager(this@CollectionDetailActivity, currentGridColumns)
@@ -222,6 +226,147 @@ class CollectionDetailActivity : AppCompatActivity() {
         lifecycleScope.launch {
             app.videoRepository.updateFavourite(video.id, !video.isFavourite)
             loadVideos()
+        }
+    }
+
+    private fun showVideoOptions(video: Video) {
+        val options = mutableListOf(
+            getString(R.string.remove_from_collection),
+            getString(R.string.move_to_collection)
+        )
+
+        // Add download options for remote videos
+        if (video.isRemote()) {
+            if (video.isDownloaded()) {
+                options.add(getString(R.string.remove_download))
+            } else {
+                options.add(getString(R.string.download_for_offline))
+            }
+        }
+
+        AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(video.title)
+            .setItems(options.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> removeVideoFromCollection(video)
+                    1 -> showMoveToCollectionDialog(video)
+                    2 -> {
+                        if (video.isDownloaded()) {
+                            removeDownload(video)
+                        } else {
+                            downloadVideo(video)
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun downloadVideo(video: Video) {
+        val downloadManager = app.videoDownloadManager
+        if (downloadManager == null) {
+            Toast.makeText(this, R.string.download_not_available, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            val downloadFolder = app.settingsRepository.getDownloadFolder()
+            if (downloadFolder == null) {
+                Toast.makeText(
+                    this@CollectionDetailActivity,
+                    R.string.no_download_folder,
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+
+            Toast.makeText(
+                this@CollectionDetailActivity,
+                getString(R.string.download_started, video.title),
+                Toast.LENGTH_SHORT
+            ).show()
+            downloadManager.downloadVideo(video)
+        }
+    }
+
+    private fun removeDownload(video: Video) {
+        val downloadManager = app.videoDownloadManager ?: return
+
+        AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.remove_download)
+            .setMessage(getString(R.string.remove_download_confirm, video.title))
+            .setPositiveButton(R.string.remove) { _, _ ->
+                lifecycleScope.launch {
+                    downloadManager.removeDownload(video)
+                    Toast.makeText(
+                        this@CollectionDetailActivity,
+                        R.string.download_removed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    loadVideos()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun removeVideoFromCollection(video: Video) {
+        AlertDialog.Builder(this, R.style.Theme_KidsMovies_Dialog)
+            .setTitle(R.string.remove_from_collection)
+            .setMessage(getString(R.string.remove_from_collection_confirm, video.title, collectionName))
+            .setPositiveButton(R.string.remove) { _, _ ->
+                lifecycleScope.launch {
+                    app.collectionRepository.removeVideoFromCollection(collectionId, video.id)
+                    Toast.makeText(
+                        this@CollectionDetailActivity,
+                        R.string.video_removed_from_collection,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    loadVideos()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showMoveToCollectionDialog(video: Video) {
+        lifecycleScope.launch {
+            val allCollections = app.collectionRepository.getAllCollections()
+            // Filter out the current collection and any TV_SHOW type (should move to seasons, not shows)
+            val availableCollections = allCollections.filter {
+                it.id != collectionId && it.collectionType != CollectionType.TV_SHOW.name
+            }
+
+            if (availableCollections.isEmpty()) {
+                Toast.makeText(
+                    this@CollectionDetailActivity,
+                    R.string.no_other_collections,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+
+            val names = availableCollections.map { it.name }.toTypedArray()
+
+            AlertDialog.Builder(this@CollectionDetailActivity, R.style.Theme_KidsMovies_Dialog)
+                .setTitle(R.string.move_to_collection)
+                .setItems(names) { _, which ->
+                    val targetCollection = availableCollections[which]
+                    lifecycleScope.launch {
+                        // Remove from current collection
+                        app.collectionRepository.removeVideoFromCollection(collectionId, video.id)
+                        // Add to target collection
+                        app.collectionRepository.addVideoToCollection(targetCollection.id, video.id)
+                        Toast.makeText(
+                            this@CollectionDetailActivity,
+                            getString(R.string.video_moved_to_collection, targetCollection.name),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        loadVideos()
+                    }
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
         }
     }
 }

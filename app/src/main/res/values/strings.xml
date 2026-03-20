@@ -286,6 +286,27 @@
         <item quantity="other">%d Seasons</item>
     </plurals>
 
+    <!-- Video collection management -->
+    <string name="move_to_collection">Move to Collection</string>
+    <string name="remove_from_collection_confirm">Remove \"%1$s\" from \"%2$s\"?</string>
+    <string name="video_removed_from_collection">Video removed from collection</string>
+    <string name="video_moved_to_collection">Moved to %s</string>
+    <string name="no_other_collections">No other collections available</string>
+
+    <!-- Download folder -->
+    <string name="cd_download_folder">Download folder</string>
+    <string name="download_folder_set">%s set as download folder</string>
+    <string name="download_folder_cleared">Download folder cleared</string>
+
+    <!-- Offline download -->
+    <string name="download_for_offline">Download for Offline</string>
+    <string name="remove_download">Remove Download</string>
+    <string name="download_started">Downloading \"%s\"…</string>
+    <string name="download_not_available">Download not available</string>
+    <string name="no_download_folder">No download folder set. Star a folder in Folder Settings first.</string>
+    <string name="remove_download_confirm">Remove the downloaded copy of \"%s\"? The online version will still be available.</string>
+    <string name="download_removed">Download removed</string>
+
     <!-- Support / Donate -->
     <string name="support_section">Support</string>
     <string name="support_development">Support Development</string>

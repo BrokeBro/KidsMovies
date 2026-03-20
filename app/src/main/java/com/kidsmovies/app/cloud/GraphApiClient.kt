@@ -43,6 +43,9 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
     /** Original sharing URL (with ?e= token) used to establish cookie-based sessions. */
     var shareUrl: String? = null
 
+    /** Drive ID extracted from the shared item's parentReference, used for sub-item access. */
+    var shareDriveId: String? = null
+
     private fun getSharePointApiBase(): String? {
         return sharePointHost?.let { "https://$it/_api/v2.0" }
     }
@@ -129,6 +132,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         cookieStore.clear()
         sessionEstablishedAt = 0
         lastSessionUrl = null
+        shareDriveId = null
     }
 
     private suspend fun executeSharePointSessionRequest(url: String): String {
@@ -279,14 +283,29 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
      */
     suspend fun listShareChildren(encodedShareId: String, itemId: String? = null): List<DriveItem> {
         val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+        val spBase = getSharePointApiBase()
+
+        // For sub-items, prefer drive-based URLs which work more reliably than /shares/.../items/{id}
+        if (itemId != null && shareDriveId != null && spBase != null) {
+            try {
+                val driveUrl = "$spBase/drives/$shareDriveId/items/$itemId/children?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl&\$top=200"
+                Log.d(TAG, "Trying drive-based session API for sub-item: $driveUrl")
+                val responseBody = executeSharePointSessionRequest(driveUrl)
+                val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
+                Log.d(TAG, "Drive-based session API returned ${result.value.size} items")
+                return result.value
+            } catch (e: Exception) {
+                Log.w(TAG, "Drive-based session API failed: ${e.message}")
+            }
+        }
+
         // For the root of the share, use /driveItem/children; for sub-items use /items/{id}/children
         val itemPath = if (itemId == null) "driveItem" else "items/$itemId"
 
         // Try SharePoint-native API with session cookies first (business "Anyone" shares)
-        val spBase = getSharePointApiBase()
         if (spBase != null && shareUrl != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl&\$top=200"
                 Log.d(TAG, "Trying SharePoint session API: $spUrl")
                 val responseBody = executeSharePointSessionRequest(spUrl)
                 val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
@@ -300,7 +319,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         // Try SharePoint-native API without session
         if (spBase != null) {
             try {
-                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+                val spUrl = "$spBase/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl&\$top=200"
                 val responseBody = executeUnauthenticatedRequest(spUrl)
                 val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
                 return result.value
@@ -311,7 +330,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
         // Try Graph API (supports OneDrive Personal, requires auth for business)
         try {
-            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@microsoft.graph.downloadUrl&\$top=200"
+            val graphUrl = "$GRAPH_BASE_URL/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,parentReference,@microsoft.graph.downloadUrl&\$top=200"
             val responseBody = executeUnauthenticatedRequest(graphUrl)
             val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
             return result.value
@@ -320,7 +339,7 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         }
 
         // Fallback to OneDrive consumer API for personal OneDrive public links
-        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,@content.downloadUrl&\$top=200"
+        val fallbackUrl = "$ONEDRIVE_API_BASE/shares/$effectiveId/$itemPath/children?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl&\$top=200"
         val responseBody = executeUnauthenticatedRequest(fallbackUrl)
         val result = gson.fromJson(responseBody, DriveItemListResponse::class.java)
         return result.value
@@ -328,10 +347,22 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
 
     suspend fun getShareItem(encodedShareId: String, itemId: String): DriveItem {
         val effectiveId = getEffectiveEncodedShareId(encodedShareId)
+        val spBase = getSharePointApiBase()
+
+        // Prefer drive-based URL when driveId is known (more reliable for sub-items)
+        if (shareDriveId != null && spBase != null) {
+            try {
+                val driveUrl = "$spBase/drives/$shareDriveId/items/$itemId?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
+                val responseBody = executeSharePointSessionRequest(driveUrl)
+                return gson.fromJson(responseBody, DriveItem::class.java)
+            } catch (e: Exception) {
+                Log.w(TAG, "Drive-based session API item failed: ${e.message}")
+            }
+        }
+
         val itemPath = "items/$itemId"
 
         // Try SharePoint-native API with session cookies first (business "Anyone" shares)
-        val spBase = getSharePointApiBase()
         if (spBase != null && shareUrl != null) {
             try {
                 val spUrl = "$spBase/shares/$effectiveId/$itemPath?\$select=id,name,size,file,folder,video,parentReference,@content.downloadUrl"
@@ -387,6 +418,15 @@ class GraphApiClient(private val authManager: MsalAuthManager) {
         try {
             val children = listShareChildren(encodedShareId, folderId)
             Log.d(TAG, "Share scan at path='$currentPath' (itemId=${folderId ?: "root"}): found ${children.size} children")
+
+            // Extract driveId from the first response so sub-item calls can use drive-based URLs
+            if (shareDriveId == null && children.isNotEmpty()) {
+                val driveId = children.firstOrNull()?.parentReference?.driveId
+                if (driveId != null) {
+                    shareDriveId = driveId
+                    Log.d(TAG, "Captured driveId from share: $driveId")
+                }
+            }
 
             for (child in children) {
                 if (child.folder != null) {
