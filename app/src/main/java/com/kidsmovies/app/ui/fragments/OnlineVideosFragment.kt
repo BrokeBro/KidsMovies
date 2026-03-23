@@ -157,7 +157,9 @@ class OnlineVideosFragment : Fragment() {
     private fun observeDownloadStates() {
         viewLifecycleOwner.lifecycleScope.launch {
             app.videoDownloadManager?.downloadStates?.collectLatest {
-                videoAdapter.notifyDataSetChanged()
+                // Re-submit current list to safely trigger rebind via DiffUtil
+                // Do NOT use notifyDataSetChanged() — it conflicts with pending submitList() DiffUtil
+                videoAdapter.submitList(videoAdapter.currentList.toList())
             }
         }
     }

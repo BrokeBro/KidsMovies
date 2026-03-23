@@ -42,6 +42,7 @@ class VideoAdapter(
 
     fun enterSelectionMode() {
         isSelectionMode = true
+        // Selection mode change affects all items — safe here because no DiffUtil is pending
         notifyDataSetChanged()
     }
 
@@ -171,7 +172,10 @@ class VideoAdapter(
             binding.videoCard.setOnClickListener {
                 if (isSelectionMode) {
                     toggleSelection(video.id)
-                    notifyItemChanged(bindingAdapterPosition)
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) {
+                        notifyItemChanged(pos)
+                    }
                 } else if (!isLocked) {
                     // Only allow playing unlocked videos
                     onVideoClick(video)

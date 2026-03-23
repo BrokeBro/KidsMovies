@@ -97,16 +97,21 @@ class CollectionIconAdapter(
     fun isInReorderMode() = isReorderMode
 
     override fun submitList(list: List<VideoCollection>?) {
+        val safeList = list?.toList() ?: emptyList()
         mutableCollections.clear()
-        list?.let { mutableCollections.addAll(it) }
-        super.submitList(list?.toList())
+        mutableCollections.addAll(safeList)
+        super.submitList(safeList)
     }
 
     override fun getItem(position: Int): VideoCollection {
-        return mutableCollections[position]
+        // During reorder mode, use mutableCollections for drag-swapped order.
+        // Otherwise, use ListAdapter's safe internal list to avoid race conditions during fast scroll.
+        return if (isReorderMode && position in mutableCollections.indices) {
+            mutableCollections[position]
+        } else {
+            super.getItem(position)
+        }
     }
-
-    override fun getItemCount(): Int = mutableCollections.size
 
     fun startDrag(viewHolder: RecyclerView.ViewHolder) {
         itemTouchHelper?.startDrag(viewHolder)
