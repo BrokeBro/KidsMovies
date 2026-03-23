@@ -9,6 +9,16 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_invite_parent"
+        android:title="@string/invite_parent"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_join_family"
+        android:title="@string/join_family"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_donate"
         android:icon="@drawable/ic_favorite"
         android:title="@string/support_development"

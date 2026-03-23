@@ -89,6 +89,20 @@
     <string name="error_network">No internet connection</string>
     <string name="error_not_signed_in">Please sign in to continue</string>
 
+    <!-- Multi-parent -->
+    <string name="invite_parent">Invite Another Parent</string>
+    <string name="join_family">Join Existing Family</string>
+    <string name="invite_parent_title">Invite Parent</string>
+    <string name="invite_parent_instructions">Share this code with the other parent. They can use it to join your family from their parent app.</string>
+    <string name="join_family_title">Join Family</string>
+    <string name="join_family_instructions">Enter the code from the other parent to join their family and manage their kids\' devices.</string>
+    <string name="join_code_label">Join Code</string>
+    <string name="join_button">Join</string>
+    <string name="join_success">Successfully joined family!</string>
+    <string name="join_code_invalid">Invalid or expired code</string>
+    <string name="join_code_expired">Code has expired</string>
+    <string name="share_join_code_message">Use this code in the Kids Movies parent app to join my family: %s</string>
+
     <!-- OneDrive -->
     <string name="connect_onedrive">Connect OneDrive</string>
 

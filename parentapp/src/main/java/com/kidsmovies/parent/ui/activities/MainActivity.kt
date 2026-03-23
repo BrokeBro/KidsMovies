@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +17,7 @@ import com.kidsmovies.parent.ParentApp
 import com.kidsmovies.parent.R
 import com.kidsmovies.parent.databinding.ActivityMainBinding
 import com.kidsmovies.parent.firebase.ChildDevice
+import com.kidsmovies.parent.firebase.JoinFamilyResult
 import com.kidsmovies.parent.ui.adapters.ChildrenAdapter
 import com.kidsmovies.shared.models.Family
 import kotlinx.coroutines.flow.collectLatest
@@ -60,6 +63,14 @@ class MainActivity : AppCompatActivity() {
                     intent.putExtra(OneDriveSetupActivity.EXTRA_FAMILY_ID, f.familyId)
                     startActivity(intent)
                 }
+                true
+            }
+            R.id.action_invite_parent -> {
+                family?.let { showInviteParentDialog(it) }
+                true
+            }
+            R.id.action_join_family -> {
+                showJoinFamilyDialog()
                 true
             }
             R.id.action_donate -> {
@@ -183,6 +194,82 @@ class MainActivity : AppCompatActivity() {
             try {
                 app.familyManager.removeChild(child.familyId, child.childUid)
                 showMessage(getString(R.string.child_removed))
+            } catch (e: Exception) {
+                showError(getString(R.string.error_generic))
+            }
+        }
+    }
+
+    private fun showInviteParentDialog(family: Family) {
+        lifecycleScope.launch {
+            try {
+                val joinCode = app.familyManager.generateFamilyJoinCode(family.familyId)
+                if (joinCode == null) {
+                    showError(getString(R.string.error_generic))
+                    return@launch
+                }
+
+                AlertDialog.Builder(this@MainActivity, R.style.Theme_KidsMoviesParent_Dialog)
+                    .setTitle(R.string.invite_parent_title)
+                    .setMessage("${getString(R.string.invite_parent_instructions)}\n\nCode: ${joinCode.code}")
+                    .setPositiveButton(R.string.share_code) { _, _ ->
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, getString(R.string.share_join_code_message, joinCode.code))
+                        }
+                        startActivity(Intent.createChooser(shareIntent, getString(R.string.share_code)))
+                    }
+                    .setNegativeButton(R.string.ok, null)
+                    .show()
+            } catch (e: Exception) {
+                showError(getString(R.string.error_generic))
+            }
+        }
+    }
+
+    private fun showJoinFamilyDialog() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.join_code_label)
+            setPadding(48, 32, 48, 32)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            maxLines = 1
+        }
+
+        AlertDialog.Builder(this, R.style.Theme_KidsMoviesParent_Dialog)
+            .setTitle(R.string.join_family_title)
+            .setMessage(R.string.join_family_instructions)
+            .setView(input)
+            .setPositiveButton(R.string.join_button) { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.length == 6) {
+                    joinFamily(code)
+                } else {
+                    showError(getString(R.string.join_code_invalid))
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun joinFamily(code: String) {
+        lifecycleScope.launch {
+            try {
+                when (val result = app.familyManager.joinFamilyWithCode(code)) {
+                    is JoinFamilyResult.Success -> {
+                        Toast.makeText(this@MainActivity, R.string.join_success, Toast.LENGTH_SHORT).show()
+                        // Reload family to show the joined family's children
+                        loadFamily()
+                    }
+                    is JoinFamilyResult.CodeInvalid -> {
+                        showError(getString(R.string.join_code_invalid))
+                    }
+                    is JoinFamilyResult.CodeExpired -> {
+                        showError(getString(R.string.join_code_expired))
+                    }
+                    is JoinFamilyResult.Error -> {
+                        showError(result.message)
+                    }
+                }
             } catch (e: Exception) {
                 showError(getString(R.string.error_generic))
             }

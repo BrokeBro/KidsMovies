@@ -162,10 +162,11 @@ data class Family(
     val familyId: String = "",
     val createdAt: Long = 0,
     val createdBy: String = "", // Parent UID who created the family
-    val familyName: String = "My Family"
+    val familyName: String = "My Family",
+    val parentUids: List<String> = emptyList() // All parent UIDs that manage this family
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", 0, "", "My Family")
+    constructor() : this("", 0, "", "My Family", emptyList())
 }
 
 /**
@@ -191,6 +192,37 @@ data class PairingCode(
 /**
  * Firebase database paths
  */
+/**
+ * Join code for a second parent to join an existing family
+ */
+@IgnoreExtraProperties
+data class FamilyJoinCode(
+    val code: String = "",
+    val familyId: String = "",
+    val createdAt: Long = 0,
+    val expiresAt: Long = 0,
+    val createdBy: String = "", // Parent UID who created this code
+    val used: Boolean = false,
+    val usedBy: String? = null // Parent UID that used this code
+) {
+    // No-arg constructor for Firebase
+    constructor() : this("", "", 0, 0, "", false, null)
+
+    fun isExpired(): Boolean = System.currentTimeMillis() > expiresAt
+    fun isValid(): Boolean = !used && !isExpired()
+}
+
+/**
+ * Per-device settings controlled by parent app
+ */
+@IgnoreExtraProperties
+data class DeviceSettings(
+    val cloudVideosEnabled: Boolean = true // Whether cloud/OneDrive videos are accessible on this device
+) {
+    // No-arg constructor for Firebase
+    constructor() : this(true)
+}
+
 object FirebasePaths {
     const val FAMILIES = "families"
     const val PAIRING_CODES = "pairingCodes"
@@ -205,8 +237,11 @@ object FirebasePaths {
     const val TIME_LIMITS = "timeLimits"
     const val METRICS = "metrics"
     const val SETTINGS = "settings"
+    const val DEVICE_SETTINGS = "deviceSettings"
+    const val PARENTS = "parents"
 
     fun familyPath(familyId: String) = "$FAMILIES/$familyId"
+    fun familyParentsPath(familyId: String) = "$FAMILIES/$familyId/$PARENTS"
     fun childPath(familyId: String, childUid: String) = "$FAMILIES/$familyId/$CHILDREN/$childUid"
     fun childVideosPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$VIDEOS"
     fun childCollectionsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$COLLECTIONS"
@@ -217,5 +252,6 @@ object FirebasePaths {
     fun childSchedulePath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$SETTINGS/$SCHEDULE"
     fun childTimeLimitsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$SETTINGS/$TIME_LIMITS"
     fun childMetricsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$METRICS"
+    fun childDeviceSettingsPath(familyId: String, childUid: String) = "${childPath(familyId, childUid)}/$DEVICE_SETTINGS"
     fun pairingCodePath(code: String) = "$PAIRING_CODES/$code"
 }

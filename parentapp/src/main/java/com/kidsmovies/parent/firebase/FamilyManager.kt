@@ -23,44 +23,6 @@ class FamilyManager {
     }
 
     /**
-     * Get or create the family for the current user
-     */
-    suspend fun getOrCreateFamily(): Family? {
-        val userId = auth.currentUser?.uid ?: return null
-
-        // Check if user already has a family
-        val familySnapshot = database.getReference(FirebasePaths.FAMILIES)
-            .orderByChild("createdBy")
-            .equalTo(userId)
-            .get()
-            .await()
-
-        if (familySnapshot.exists()) {
-            for (child in familySnapshot.children) {
-                val family = child.getValue(Family::class.java)
-                if (family != null) {
-                    return family
-                }
-            }
-        }
-
-        // Create new family
-        val familyId = UUID.randomUUID().toString()
-        val family = Family(
-            familyId = familyId,
-            createdAt = System.currentTimeMillis(),
-            createdBy = userId,
-            familyName = "My Family"
-        )
-
-        database.getReference(FirebasePaths.familyPath(familyId))
-            .setValue(family)
-            .await()
-
-        return family
-    }
-
-    /**
      * Get all children in the family as a Flow
      */
     fun getChildrenFlow(familyId: String): Flow<List<ChildDevice>> = callbackFlow {
@@ -499,9 +461,187 @@ class FamilyManager {
         }
     }
 
+    // ---- Per-device cloud video toggle ----
+
+    /**
+     * Get device settings (including cloud video toggle) as a Flow
+     */
+    fun getDeviceSettingsFlow(familyId: String, childUid: String): Flow<DeviceSettings?> = callbackFlow {
+        val settingsRef = database.getReference(FirebasePaths.childDeviceSettingsPath(familyId, childUid))
+
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val settings = snapshot.getValue(DeviceSettings::class.java)
+                trySend(settings)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Device settings listener cancelled", error.toException())
+            }
+        }
+
+        settingsRef.addValueEventListener(listener)
+
+        awaitClose {
+            settingsRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Enable or disable cloud/OneDrive videos for a specific child device
+     */
+    suspend fun setCloudVideosEnabled(familyId: String, childUid: String, enabled: Boolean) {
+        database.getReference("${FirebasePaths.childDeviceSettingsPath(familyId, childUid)}/cloudVideosEnabled")
+            .setValue(enabled)
+            .await()
+    }
+
+    // ---- Multi-parent support ----
+
+    /**
+     * Get or create the family for the current user.
+     * Also checks if the user has joined an existing family.
+     */
+    suspend fun getOrCreateFamily(): Family? {
+        val userId = auth.currentUser?.uid ?: return null
+
+        // Check if user created a family
+        val createdSnapshot = database.getReference(FirebasePaths.FAMILIES)
+            .orderByChild("createdBy")
+            .equalTo(userId)
+            .get()
+            .await()
+
+        if (createdSnapshot.exists()) {
+            for (child in createdSnapshot.children) {
+                val family = child.getValue(Family::class.java)
+                if (family != null) {
+                    return family
+                }
+            }
+        }
+
+        // Check if user joined a family as a secondary parent
+        val allFamilies = database.getReference(FirebasePaths.FAMILIES).get().await()
+        for (familySnapshot in allFamilies.children) {
+            val parentsSnapshot = familySnapshot.child(FirebasePaths.PARENTS)
+            for (parentSnapshot in parentsSnapshot.children) {
+                if (parentSnapshot.key == userId) {
+                    val family = familySnapshot.getValue(Family::class.java)
+                    if (family != null) return family
+                }
+            }
+        }
+
+        // Create new family
+        val familyId = UUID.randomUUID().toString()
+        val family = Family(
+            familyId = familyId,
+            createdAt = System.currentTimeMillis(),
+            createdBy = userId,
+            familyName = "My Family",
+            parentUids = listOf(userId)
+        )
+
+        database.getReference(FirebasePaths.familyPath(familyId))
+            .setValue(family)
+            .await()
+
+        // Also write to the parents sub-node for indexing
+        database.getReference("${FirebasePaths.familyParentsPath(familyId)}/$userId")
+            .setValue(mapOf("joinedAt" to System.currentTimeMillis(), "role" to "owner"))
+            .await()
+
+        return family
+    }
+
+    /**
+     * Generate a join code for a second parent to join this family
+     */
+    suspend fun generateFamilyJoinCode(familyId: String): FamilyJoinCode? {
+        val userId = auth.currentUser?.uid ?: return null
+
+        val code = (100000..999999).random().toString()
+        val joinCode = FamilyJoinCode(
+            code = code,
+            familyId = familyId,
+            createdAt = System.currentTimeMillis(),
+            expiresAt = System.currentTimeMillis() + 15 * 60 * 1000, // 15 minutes
+            createdBy = userId
+        )
+
+        database.getReference("familyJoinCodes/$code")
+            .setValue(joinCode)
+            .await()
+
+        return joinCode
+    }
+
+    /**
+     * Join an existing family using a join code (for second parent)
+     */
+    suspend fun joinFamilyWithCode(code: String): JoinFamilyResult {
+        val userId = auth.currentUser?.uid ?: return JoinFamilyResult.Error("Not signed in")
+
+        return try {
+            val codeRef = database.getReference("familyJoinCodes/$code")
+            val snapshot = codeRef.get().await()
+
+            if (!snapshot.exists()) {
+                return JoinFamilyResult.CodeInvalid
+            }
+
+            val joinCode = snapshot.getValue(FamilyJoinCode::class.java)
+                ?: return JoinFamilyResult.CodeInvalid
+
+            if (joinCode.isExpired()) {
+                return JoinFamilyResult.CodeExpired
+            }
+
+            if (joinCode.used) {
+                return JoinFamilyResult.CodeInvalid
+            }
+
+            val familyId = joinCode.familyId
+
+            // Add this parent to the family's parents list
+            database.getReference("${FirebasePaths.familyParentsPath(familyId)}/$userId")
+                .setValue(mapOf("joinedAt" to System.currentTimeMillis(), "role" to "parent"))
+                .await()
+
+            // Update the family's parentUids list
+            val familyRef = database.getReference(FirebasePaths.familyPath(familyId))
+            val familySnapshot = familyRef.get().await()
+            val family = familySnapshot.getValue(Family::class.java)
+            if (family != null) {
+                val updatedParents = family.parentUids.toMutableList()
+                if (!updatedParents.contains(userId)) {
+                    updatedParents.add(userId)
+                    familyRef.child("parentUids").setValue(updatedParents).await()
+                }
+            }
+
+            // Mark the code as used
+            codeRef.child("used").setValue(true).await()
+            codeRef.child("usedBy").setValue(userId).await()
+
+            JoinFamilyResult.Success(familyId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error joining family", e)
+            JoinFamilyResult.Error(e.message ?: "Unknown error")
+        }
+    }
+
     private fun sanitizeFirebaseKey(key: String): String {
         return key.replace(Regex("[.\\$#\\[\\]/]"), "_")
     }
+}
+
+sealed class JoinFamilyResult {
+    data class Success(val familyId: String) : JoinFamilyResult()
+    data class Error(val message: String) : JoinFamilyResult()
+    object CodeInvalid : JoinFamilyResult()
+    object CodeExpired : JoinFamilyResult()
 }
 
 /**
