@@ -33,7 +33,9 @@ data class VideoCollection(
     val isEnabled: Boolean = true, // For parental control (locked = visible but can't access)
     val isHidden: Boolean = false, // For parental control (hidden = completely invisible to child)
     val dateCreated: Long = System.currentTimeMillis(),
-    val dateModified: Long = System.currentTimeMillis()
+    val dateModified: Long = System.currentTimeMillis(),
+    val tmdbCertification: String? = null, // TMDB content rating e.g. "PG", "R", "TV-MA"
+    val tmdbArtworkBlocked: Boolean = false // true = rating exceeded threshold, artwork hidden
 ) : Parcelable {
 
     /**
@@ -41,7 +43,8 @@ data class VideoCollection(
      * Priority: user custom > TMDB artwork
      */
     fun getDisplayThumbnail(): String? {
-        return thumbnailPath ?: tmdbArtworkPath
+        return thumbnailPath
+            ?: (if (!tmdbArtworkBlocked) tmdbArtworkPath else null)
     }
 
     /**

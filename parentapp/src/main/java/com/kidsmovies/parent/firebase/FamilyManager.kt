@@ -496,6 +496,21 @@ class FamilyManager {
             .await()
     }
 
+    /**
+     * Set the max content rating for TMDB artwork on a specific child device.
+     * null = remove parent override (child controls locally)
+     * "G"/"PG"/"PG-13"/"R" = set specific max rating
+     * "" = no filtering (allow all)
+     */
+    suspend fun setMaxContentRating(familyId: String, childUid: String, rating: String?) {
+        val ref = database.getReference("${FirebasePaths.childDeviceSettingsPath(familyId, childUid)}/maxContentRating")
+        if (rating != null) {
+            ref.setValue(rating).await()
+        } else {
+            ref.removeValue().await()
+        }
+    }
+
     // ---- Multi-parent support ----
 
     /**

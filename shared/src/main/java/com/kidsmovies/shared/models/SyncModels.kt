@@ -217,10 +217,11 @@ data class FamilyJoinCode(
  */
 @IgnoreExtraProperties
 data class DeviceSettings(
-    val cloudVideosEnabled: Boolean = true // Whether cloud/OneDrive videos are accessible on this device
+    val cloudVideosEnabled: Boolean = true, // Whether cloud/OneDrive videos are accessible on this device
+    val maxContentRating: String? = null // null = parent hasn't set (child controls). "G"/"PG"/"PG-13"/"R"/"" = parent override ("" = no filtering)
 ) {
     // No-arg constructor for Firebase
-    constructor() : this(true)
+    constructor() : this(true, null)
 }
 
 object FirebasePaths {

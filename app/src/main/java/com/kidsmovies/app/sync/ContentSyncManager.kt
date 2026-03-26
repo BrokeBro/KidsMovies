@@ -63,6 +63,10 @@ class ContentSyncManager(
     private val _cloudVideosEnabled = MutableStateFlow(true)
     val cloudVideosEnabled: StateFlow<Boolean> = _cloudVideosEnabled
 
+    // Parent-set content rating override (null = parent hasn't set, child controls locally)
+    private val _parentMaxContentRating = MutableStateFlow<String?>(null)
+    val parentMaxContentRating: StateFlow<String?> = _parentMaxContentRating
+
     // Track currently watching video for "finish current video" feature
     private var currentlyWatchingTitle: String? = null
     private var isWatchingVideo: Boolean = false
@@ -405,7 +409,18 @@ class ContentSyncManager(
             override fun onDataChange(snapshot: DataSnapshot) {
                 val cloudEnabled = snapshot.child("cloudVideosEnabled").getValue(Boolean::class.java) ?: true
                 _cloudVideosEnabled.value = cloudEnabled
-                Log.d(TAG, "Device settings updated: cloudVideosEnabled=$cloudEnabled")
+
+                // Content rating override from parent
+                val maxRating = snapshot.child("maxContentRating").getValue(String::class.java)
+                val previousRating = _parentMaxContentRating.value
+                _parentMaxContentRating.value = maxRating
+
+                Log.d(TAG, "Device settings updated: cloudVideosEnabled=$cloudEnabled, maxContentRating=$maxRating")
+
+                // If rating changed, notify listeners (KidsMoviesApp will re-evaluate artwork)
+                if (maxRating != previousRating) {
+                    Log.d(TAG, "Parent content rating changed: $previousRating -> $maxRating")
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {

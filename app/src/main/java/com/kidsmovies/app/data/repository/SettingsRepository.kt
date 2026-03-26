@@ -1,5 +1,7 @@
 package com.kidsmovies.app.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.kidsmovies.app.data.database.dao.AppSettingsDao
 import com.kidsmovies.app.data.database.dao.ScanFolderDao
 import com.kidsmovies.app.data.database.entities.AppSettings
@@ -8,8 +10,24 @@ import kotlinx.coroutines.flow.Flow
 
 class SettingsRepository(
     private val appSettingsDao: AppSettingsDao,
-    private val scanFolderDao: ScanFolderDao
+    private val scanFolderDao: ScanFolderDao,
+    private val prefs: SharedPreferences? = null
 ) {
+    companion object {
+        private const val PREF_MAX_CONTENT_RATING = "max_content_rating"
+        private const val DEFAULT_MAX_CONTENT_RATING = "PG"
+    }
+
+    /** Get the locally-set max content rating (child-controlled, unless parent overrides) */
+    fun getMaxContentRating(): String {
+        return prefs?.getString(PREF_MAX_CONTENT_RATING, DEFAULT_MAX_CONTENT_RATING)
+            ?: DEFAULT_MAX_CONTENT_RATING
+    }
+
+    /** Set the local max content rating */
+    fun setMaxContentRating(rating: String) {
+        prefs?.edit()?.putString(PREF_MAX_CONTENT_RATING, rating)?.apply()
+    }
     // App Settings
     fun getSettingsFlow(): Flow<AppSettings?> = appSettingsDao.getSettingsFlow()
 

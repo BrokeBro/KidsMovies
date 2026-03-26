@@ -54,6 +54,9 @@ class TmdbArtworkManager(
         )
     }
 
+    /** Max content rating threshold. Artwork from titles exceeding this is blocked. */
+    var maxContentRating: ContentRating = ContentRating.PG
+
     /**
      * Result of artwork lookup
      */
@@ -61,7 +64,8 @@ class TmdbArtworkManager(
         val localPath: String?,
         val tmdbId: Int?,
         val type: ContentType,
-        val title: String?
+        val title: String?,
+        val certification: String? = null // TMDB content rating fetched during lookup
     )
 
     enum class ContentType {
@@ -215,22 +219,53 @@ class TmdbArtworkManager(
         val results = tmdbService.searchMovie(title)
         val movie = results.firstOrNull() ?: return ArtworkResult(null, null, ContentType.MOVIE, title)
 
+        // Fetch certification via movie details with release_dates appended
+        val details = tmdbService.getMovieDetailsWithReleaseDates(movie.id)
+        val certString = details?.releaseDates?.let { tmdbService.extractMovieCertification(it) }
+        val rating = certString?.let { ContentRating.fromMovieCertification(it) }
+
+        // Block if rating exceeds threshold (UNRATED also blocked as fail-safe)
+        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
+            Log.d(TAG, "Movie '$title' rated $certString exceeds max ${maxContentRating.label}, skipping artwork")
+            return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title, certString)
+        }
+        if (rating == null || rating == ContentRating.UNRATED) {
+            // No certification found - block as fail-safe for kids
+            Log.d(TAG, "Movie '$title' has no certification, blocking artwork as fail-safe")
+            return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title, certString)
+        }
+
         val imageUrl = tmdbService.getImageUrl(movie.posterPath, TmdbService.POSTER_SIZE_LARGE)
-            ?: return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title)
+            ?: return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title, certString)
 
         val localPath = downloadAndCache(imageUrl, cacheKey)
-        return ArtworkResult(localPath, movie.id, ContentType.MOVIE, movie.title)
+        return ArtworkResult(localPath, movie.id, ContentType.MOVIE, movie.title, certString)
     }
 
     private suspend fun fetchTvShowArtwork(title: String, cacheKey: String): ArtworkResult {
         val results = tmdbService.searchTv(title)
         val show = results.firstOrNull() ?: return ArtworkResult(null, null, ContentType.TV_SHOW, title)
 
+        // Fetch TV content rating
+        val ratingsResponse = tmdbService.getTvContentRatings(show.id)
+        val ratingString = tmdbService.extractTvRating(ratingsResponse)
+        val rating = ratingString?.let { ContentRating.fromTvRating(it) }
+
+        // Block if rating exceeds threshold
+        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
+            Log.d(TAG, "TV show '$title' rated $ratingString exceeds max ${maxContentRating.label}, skipping artwork")
+            return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name, ratingString)
+        }
+        if (rating == null || rating == ContentRating.UNRATED) {
+            Log.d(TAG, "TV show '$title' has no rating, blocking artwork as fail-safe")
+            return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name, ratingString)
+        }
+
         val imageUrl = tmdbService.getImageUrl(show.posterPath, TmdbService.POSTER_SIZE_LARGE)
-            ?: return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name)
+            ?: return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name, ratingString)
 
         val localPath = downloadAndCache(imageUrl, cacheKey)
-        return ArtworkResult(localPath, show.id, ContentType.TV_SHOW, show.name)
+        return ArtworkResult(localPath, show.id, ContentType.TV_SHOW, show.name, ratingString)
     }
 
     private suspend fun fetchTmdbCollectionArtwork(name: String, cacheKey: String): ArtworkResult {
@@ -267,9 +302,23 @@ class TmdbArtworkManager(
         val shows = tmdbService.searchTv(showName)
         val show = shows.firstOrNull() ?: return ArtworkResult(null, null, ContentType.TV_SEASON, showName)
 
+        // Check parent show's rating
+        val ratingsResponse = tmdbService.getTvContentRatings(show.id)
+        val ratingString = tmdbService.extractTvRating(ratingsResponse)
+        val rating = ratingString?.let { ContentRating.fromTvRating(it) }
+
+        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
+            Log.d(TAG, "TV season '$showName' S$seasonNumber rated $ratingString exceeds max, skipping artwork")
+            return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name, ratingString)
+        }
+        if (rating == null || rating == ContentRating.UNRATED) {
+            Log.d(TAG, "TV season '$showName' S$seasonNumber has no rating, blocking artwork as fail-safe")
+            return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name, ratingString)
+        }
+
         // Get show details with seasons
         val details = tmdbService.getTvDetails(show.id)
-            ?: return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name)
+            ?: return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name, ratingString)
 
         // Find the matching season
         val season = details.seasons?.find { it.seasonNumber == seasonNumber }
@@ -277,10 +326,10 @@ class TmdbArtworkManager(
         // Use season poster if available, otherwise use show poster
         val posterPath = season?.posterPath ?: details.posterPath
         val imageUrl = tmdbService.getImageUrl(posterPath, TmdbService.POSTER_SIZE_LARGE)
-            ?: return ArtworkResult(null, show.id, ContentType.TV_SEASON, season?.name ?: show.name)
+            ?: return ArtworkResult(null, show.id, ContentType.TV_SEASON, season?.name ?: show.name, ratingString)
 
         val localPath = downloadAndCache(imageUrl, cacheKey)
-        return ArtworkResult(localPath, show.id, ContentType.TV_SEASON, season?.name ?: show.name)
+        return ArtworkResult(localPath, show.id, ContentType.TV_SEASON, season?.name ?: show.name, ratingString)
     }
 
     private suspend fun fetchTvEpisodeArtwork(
@@ -297,6 +346,20 @@ class TmdbArtworkManager(
         val shows = tmdbService.searchTv(showName)
         val show = shows.firstOrNull()
             ?: return ArtworkResult(null, null, ContentType.TV_EPISODE, showName)
+
+        // Check parent show's rating
+        val ratingsResponse = tmdbService.getTvContentRatings(show.id)
+        val ratingString = tmdbService.extractTvRating(ratingsResponse)
+        val rating = ratingString?.let { ContentRating.fromTvRating(it) }
+
+        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
+            Log.d(TAG, "TV episode '$showName' rated $ratingString exceeds max, skipping artwork")
+            return ArtworkResult(null, show.id, ContentType.TV_EPISODE, show.name, ratingString)
+        }
+        if (rating == null || rating == ContentRating.UNRATED) {
+            Log.d(TAG, "TV episode '$showName' has no rating, blocking artwork as fail-safe")
+            return ArtworkResult(null, show.id, ContentType.TV_EPISODE, show.name, ratingString)
+        }
 
         // If no season specified, use season 1
         val season = seasonNumber ?: 1
@@ -315,10 +378,10 @@ class TmdbArtworkManager(
         val imageUrl = tmdbService.getImageUrl(
             imagePath,
             if (episode?.stillPath != null) TmdbService.BACKDROP_SIZE else TmdbService.POSTER_SIZE_LARGE
-        ) ?: return ArtworkResult(null, show.id, ContentType.TV_EPISODE, episode?.name ?: show.name)
+        ) ?: return ArtworkResult(null, show.id, ContentType.TV_EPISODE, episode?.name ?: show.name, ratingString)
 
         val localPath = downloadAndCache(imageUrl, cacheKey)
-        return ArtworkResult(localPath, show.id, ContentType.TV_EPISODE, episode?.name ?: show.name)
+        return ArtworkResult(localPath, show.id, ContentType.TV_EPISODE, episode?.name ?: show.name, ratingString)
     }
 
     private fun cleanTitle(title: String): String {

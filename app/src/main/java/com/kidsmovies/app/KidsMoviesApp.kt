@@ -3,6 +3,7 @@ package com.kidsmovies.app
 import android.app.Application
 import android.util.Log
 import com.kidsmovies.app.artwork.ArtworkFetcher
+import com.kidsmovies.app.artwork.ContentRating
 import com.kidsmovies.app.artwork.FranchiseCollectionManager
 import com.kidsmovies.app.artwork.TmdbArtworkManager
 import com.kidsmovies.app.artwork.TmdbService
@@ -46,7 +47,13 @@ class KidsMoviesApp : Application() {
     // Existing repositories
     val videoRepository by lazy { VideoRepository(database.videoDao()) }
     val tagRepository by lazy { TagRepository(database.tagDao()) }
-    val settingsRepository by lazy { SettingsRepository(database.appSettingsDao(), database.scanFolderDao()) }
+    val settingsRepository by lazy {
+        SettingsRepository(
+            database.appSettingsDao(),
+            database.scanFolderDao(),
+            getSharedPreferences("kids_movies_settings", MODE_PRIVATE)
+        )
+    }
     val parentalControlRepository by lazy { ParentalControlRepository(database.parentalControlDao()) }
     val collectionRepository by lazy { CollectionRepository(database.collectionDao()) }
     val metricsRepository by lazy { MetricsRepository(database.viewingSessionDao()) }
@@ -59,7 +66,9 @@ class KidsMoviesApp : Application() {
             tmdbArtworkManager,
             videoRepository,
             collectionRepository,
-            applicationScope
+            applicationScope,
+            database.videoDao(),
+            database.collectionDao()
         )
     }
 
@@ -144,11 +153,29 @@ class KidsMoviesApp : Application() {
         val pairingState = pairingRepository.getPairingState()
         _deviceId = pairingState?.childUid ?: ""
 
+        // Apply initial content rating from local settings
+        val localRating = settingsRepository.getMaxContentRating()
+        tmdbArtworkManager.maxContentRating = ContentRating.fromLabel(localRating)
+
         // If paired, start listening for settings and schedule sync
         if (pairingState?.isPaired == true) {
             settingsSyncManager.startListening()
             contentSyncManager.startListening()
             viewingTimerManager.start()
+
+            // Observe parent content rating override
+            applicationScope.launch {
+                contentSyncManager.parentMaxContentRating.collect { parentRating ->
+                    val effectiveLabel = parentRating ?: settingsRepository.getMaxContentRating()
+                    val effectiveRating = ContentRating.fromLabel(effectiveLabel)
+                    val previousRating = tmdbArtworkManager.maxContentRating
+                    if (effectiveRating != previousRating) {
+                        tmdbArtworkManager.maxContentRating = effectiveRating
+                        artworkFetcher.reEvaluateArtworkRatings(effectiveRating)
+                        Log.d("KidsMoviesApp", "Effective content rating changed: ${previousRating.label} -> ${effectiveRating.label}")
+                    }
+                }
+            }
 
             // Schedule periodic sync every 10 minutes
             SyncWorker.schedulePeriodicSync(this)

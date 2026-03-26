@@ -103,6 +103,11 @@
     <string name="join_code_expired">Code has expired</string>
     <string name="share_join_code_message">Use this code in the Kids Movies parent app to join my family: %s</string>
 
+    <!-- Thumbnail Safety -->
+    <string name="thumbnail_safety">Thumbnail Safety</string>
+    <string name="thumbnail_safety_desc">Max rating for auto-downloaded posters</string>
+    <string name="not_set_child_controls">Not set (child controls)</string>
+
     <!-- OneDrive -->
     <string name="connect_onedrive">Connect OneDrive</string>
 

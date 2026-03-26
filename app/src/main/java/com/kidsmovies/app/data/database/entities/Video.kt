@@ -37,7 +37,9 @@ data class Video(
     @ColumnInfo(name = "remote_id") val remoteId: String? = null, // Graph API item ID
     @ColumnInfo(name = "remote_url") val remoteUrl: String? = null, // Pre-authenticated download URL
     @ColumnInfo(name = "remote_url_expiry") val remoteUrlExpiry: Long = 0, // URL expiry timestamp
-    @ColumnInfo(name = "local_download_path") val localDownloadPath: String? = null // Temporarily downloaded local copy
+    @ColumnInfo(name = "local_download_path") val localDownloadPath: String? = null, // Temporarily downloaded local copy
+    val tmdbCertification: String? = null, // TMDB content rating e.g. "PG", "R", "TV-MA"
+    val tmdbArtworkBlocked: Boolean = false // true = rating exceeded threshold, artwork hidden
 ) : Parcelable {
 
     fun isRemote(): Boolean = sourceType == "onedrive"
@@ -45,8 +47,10 @@ data class Video(
     fun isDownloaded(): Boolean = localDownloadPath != null
 
     fun getDisplayThumbnail(): String? {
-        // Priority: user custom > TMDB artwork > auto-generated
-        return customThumbnailPath ?: tmdbArtworkPath ?: thumbnailPath
+        // Priority: user custom > TMDB artwork (if not blocked by rating) > auto-generated
+        return customThumbnailPath
+            ?: (if (!tmdbArtworkBlocked) tmdbArtworkPath else null)
+            ?: thumbnailPath
     }
 
     fun getFormattedDuration(): String {
