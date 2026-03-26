@@ -89,15 +89,15 @@ class HierarchicalContentAdapter(
             }
             updateLockUI(item.isLocked, parentLocked)
 
-            // Lock switch - use the item's OWN enabled state, not the combined isLocked
-            // (which includes parentLocked). This allows toggling individual items
-            // within locked collections for exception unlocks.
+            // Lock switch - show effective combined state (own + parent)
+            // but keep interactive so parents can exception-unlock individual items
             val isOwnLocked = when (item) {
                 is HierarchicalItem.Video -> !item.video.video.isEnabled
                 is HierarchicalItem.Collection -> !item.collection.collection.isEnabled
             }
             binding.lockSwitch.setOnCheckedChangeListener(null)
-            binding.lockSwitch.isChecked = isOwnLocked
+            binding.lockSwitch.isChecked = item.isLocked // Combined state: own OR parent
+            binding.lockSwitch.alpha = if (parentLocked && !isOwnLocked) 0.6f else 1.0f
             binding.lockSwitch.setOnCheckedChangeListener { _, checked ->
                 onLockToggle(item, checked)
             }

@@ -5,6 +5,8 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -257,6 +259,66 @@ class SettingsActivity : AppCompatActivity() {
 
         // Update artwork cache size display
         updateArtworkCacheSize()
+
+        // Setup max rating spinner
+        setupMaxRatingSpinner()
+    }
+
+    private fun setupMaxRatingSpinner() {
+        val labels = com.kidsmovies.app.artwork.ContentRating.pickerLabels
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.maxRatingSpinner.adapter = adapter
+
+        // Set current value
+        val currentRating = app.settingsRepository.getMaxContentRating()
+        val currentIndex = when (currentRating) {
+            "G" -> 0
+            "PG" -> 1
+            "PG-13" -> 2
+            "R" -> 3
+            "" -> 4 // No filtering
+            else -> 1 // Default to PG
+        }
+        binding.maxRatingSpinner.setSelection(currentIndex)
+
+        binding.maxRatingSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val rating = when (position) {
+                    0 -> "G"
+                    1 -> "PG"
+                    2 -> "PG-13"
+                    3 -> "R"
+                    4 -> "" // No filtering
+                    else -> "PG"
+                }
+                if (rating != app.settingsRepository.getMaxContentRating()) {
+                    app.settingsRepository.setMaxContentRating(rating)
+                    val effective = com.kidsmovies.app.artwork.ContentRating.fromLabel(rating)
+                    app.tmdbArtworkManager.maxContentRating = effective
+                    app.artworkFetcher.reEvaluateArtworkRatings(effective)
+                    Toast.makeText(this@SettingsActivity, "Max poster rating: ${if (rating.isEmpty()) "No filtering" else rating}", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        // Observe parent override - disable spinner if parent has set rating
+        lifecycleScope.launch {
+            app.contentSyncManager.parentMaxContentRating.collect { parentRating ->
+                if (parentRating != null) {
+                    binding.maxRatingSpinner.isEnabled = false
+                    binding.maxRatingSpinner.alpha = 0.5f
+                    val displayRating = if (parentRating.isEmpty()) "No filtering" else parentRating
+                    binding.maxRatingStatus.text = getString(R.string.max_rating_set_by_parent, displayRating)
+                } else {
+                    binding.maxRatingSpinner.isEnabled = true
+                    binding.maxRatingSpinner.alpha = 1f
+                    binding.maxRatingStatus.text = getString(R.string.max_poster_rating_desc)
+                }
+            }
+        }
     }
 
     private fun fetchArtwork() {

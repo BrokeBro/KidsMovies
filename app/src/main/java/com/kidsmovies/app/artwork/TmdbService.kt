@@ -38,6 +38,42 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
         const val BACKDROP_SIZE = "/w780"
     }
 
+    // Content rating models for artwork safety filtering
+    data class ReleaseDatesResponse(
+        val results: List<ReleaseDateCountry>
+    )
+
+    data class ReleaseDateCountry(
+        @SerializedName("iso_3166_1") val country: String,
+        @SerializedName("release_dates") val releaseDates: List<ReleaseDateEntry>
+    )
+
+    data class ReleaseDateEntry(
+        val certification: String,
+        val type: Int // 1=Premiere, 3=Theatrical, 4=Digital, 5=Physical, 6=TV
+    )
+
+    data class TvContentRatingsResponse(
+        val results: List<TvContentRating>
+    )
+
+    data class TvContentRating(
+        @SerializedName("iso_3166_1") val country: String,
+        val rating: String
+    )
+
+    // Movie details with release dates appended
+    data class MovieDetailsWithReleaseDatesResponse(
+        val id: Int,
+        val title: String,
+        @SerializedName("poster_path") val posterPath: String?,
+        @SerializedName("backdrop_path") val backdropPath: String?,
+        @SerializedName("belongs_to_collection") val belongsToCollection: BelongsToCollection?,
+        @SerializedName("release_date") val releaseDate: String?,
+        val overview: String?,
+        @SerializedName("release_dates") val releaseDates: ReleaseDatesResponse?
+    )
+
     // Response models
     data class SearchMovieResponse(
         val results: List<MovieResult>
@@ -342,6 +378,85 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
             Log.e(TAG, "Movie details error", e)
             null
         }
+    }
+
+    /**
+     * Get movie details with release dates (certifications) in a single API call.
+     */
+    suspend fun getMovieDetailsWithReleaseDates(movieId: Int): MovieDetailsWithReleaseDatesResponse? =
+        withContext(Dispatchers.IO) {
+            if (apiKey.isEmpty()) return@withContext null
+
+            try {
+                val url = "$BASE_URL/movie/$movieId?api_key=$apiKey&append_to_response=release_dates"
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: return@withContext null
+                    gson.fromJson(body, MovieDetailsWithReleaseDatesResponse::class.java)
+                } else {
+                    Log.e(TAG, "Movie details with release dates failed: ${response.code}")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Movie details with release dates error", e)
+                null
+            }
+        }
+
+    /**
+     * Get TV show content ratings
+     */
+    suspend fun getTvContentRatings(tvId: Int): TvContentRatingsResponse? =
+        withContext(Dispatchers.IO) {
+            if (apiKey.isEmpty()) return@withContext null
+
+            try {
+                val url = "$BASE_URL/tv/$tvId/content_ratings?api_key=$apiKey"
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: return@withContext null
+                    gson.fromJson(body, TvContentRatingsResponse::class.java)
+                } else {
+                    Log.e(TAG, "TV content ratings failed: ${response.code}")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "TV content ratings error", e)
+                null
+            }
+        }
+
+    /**
+     * Extract movie certification for a country from release dates response.
+     * Prefers theatrical (3) or digital (4) release certifications.
+     */
+    fun extractMovieCertification(
+        releaseDates: ReleaseDatesResponse?,
+        countryCode: String = "US"
+    ): String? {
+        val country = releaseDates?.results?.find { it.country == countryCode } ?: return null
+        // Prefer theatrical (3) > digital (4) > any non-empty
+        val preferred = country.releaseDates
+            .filter { it.certification.isNotBlank() }
+            .sortedBy { when (it.type) { 3 -> 0; 4 -> 1; else -> 2 } }
+        return preferred.firstOrNull()?.certification
+    }
+
+    /**
+     * Extract TV rating for a country from content ratings response.
+     */
+    fun extractTvRating(
+        contentRatings: TvContentRatingsResponse?,
+        countryCode: String = "US"
+    ): String? {
+        return contentRatings?.results
+            ?.find { it.country == countryCode }
+            ?.rating
+            ?.takeIf { it.isNotBlank() }
     }
 
     /**

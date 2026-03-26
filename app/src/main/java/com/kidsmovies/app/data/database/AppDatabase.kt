@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
         CachedDeviceOverrides::class,
         CachedSchedule::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(ScheduleConverters::class)
@@ -274,6 +274,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 14 to 15: Add TMDB content rating fields for artwork safety filtering
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE videos ADD COLUMN tmdbCertification TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE videos ADD COLUMN tmdbArtworkBlocked INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE collections ADD COLUMN tmdbCertification TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE collections ADD COLUMN tmdbArtworkBlocked INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -284,7 +294,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

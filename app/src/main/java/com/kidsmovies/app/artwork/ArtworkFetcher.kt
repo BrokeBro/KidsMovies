@@ -1,6 +1,8 @@
 package com.kidsmovies.app.artwork
 
 import android.util.Log
+import com.kidsmovies.app.data.database.dao.CollectionDao
+import com.kidsmovies.app.data.database.dao.VideoDao
 import com.kidsmovies.app.data.database.entities.Video
 import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.data.repository.CollectionRepository
@@ -19,7 +21,9 @@ class ArtworkFetcher(
     private val tmdbArtworkManager: TmdbArtworkManager,
     private val videoRepository: VideoRepository,
     private val collectionRepository: CollectionRepository,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val videoDao: VideoDao? = null,
+    private val collectionDao: CollectionDao? = null
 ) {
     private val mutex = Mutex()
     private val pendingVideos = mutableSetOf<Long>()
@@ -46,9 +50,19 @@ class ArtworkFetcher(
                 Log.d(TAG, "Fetching artwork for video: ${video.title}")
                 val result = tmdbArtworkManager.getVideoArtwork(video.title, collectionName)
 
+                // Save certification regardless of whether artwork was downloaded
+                if (result.certification != null) {
+                    videoDao?.updateTmdbCertification(video.id, result.certification)
+                }
+
                 if (result.localPath != null) {
                     videoRepository.updateTmdbArtwork(video.id, result.localPath)
+                    videoDao?.updateTmdbArtworkBlocked(video.id, false)
                     Log.d(TAG, "Updated video artwork: ${video.title} -> ${result.localPath}")
+                } else if (result.certification != null) {
+                    // Artwork was blocked by rating - mark as blocked
+                    videoDao?.updateTmdbArtworkBlocked(video.id, true)
+                    Log.d(TAG, "Video artwork blocked by rating: ${video.title} (${result.certification})")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch artwork for video: ${video.title}", e)
@@ -89,9 +103,18 @@ class ArtworkFetcher(
 
                 val result = tmdbArtworkManager.getCollectionArtwork(collection.name, parentName)
 
+                // Save certification regardless of whether artwork was downloaded
+                if (result.certification != null) {
+                    collectionDao?.updateTmdbCertification(collection.id, result.certification)
+                }
+
                 if (result.localPath != null) {
                     collectionRepository.updateTmdbArtwork(collection.id, result.localPath)
+                    collectionDao?.updateTmdbArtworkBlocked(collection.id, false)
                     Log.d(TAG, "Updated collection artwork: ${collection.name} -> ${result.localPath}")
+                } else if (result.certification != null) {
+                    collectionDao?.updateTmdbArtworkBlocked(collection.id, true)
+                    Log.d(TAG, "Collection artwork blocked by rating: ${collection.name} (${result.certification})")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch artwork for collection: ${collection.name}", e)
@@ -171,6 +194,52 @@ class ArtworkFetcher(
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch missing artwork", e)
+            }
+        }
+    }
+
+    /**
+     * Re-evaluate all existing artwork against a new max content rating.
+     * Toggles tmdbArtworkBlocked without re-downloading - artwork files are preserved on disk.
+     */
+    fun reEvaluateArtworkRatings(maxRating: ContentRating) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                // Re-evaluate videos
+                val videos = videoDao?.getVideosWithTmdbCertification() ?: emptyList()
+                for (video in videos) {
+                    val cert = video.tmdbCertification ?: continue
+                    val rating = if (cert.startsWith("TV-")) {
+                        ContentRating.fromTvRating(cert)
+                    } else {
+                        ContentRating.fromMovieCertification(cert)
+                    }
+                    val shouldBlock = !rating.isAllowedBy(maxRating) || rating == ContentRating.UNRATED
+                    if (shouldBlock != video.tmdbArtworkBlocked) {
+                        videoDao?.updateTmdbArtworkBlocked(video.id, shouldBlock)
+                        Log.d(TAG, "Re-evaluated video '${video.title}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")
+                    }
+                }
+
+                // Re-evaluate collections
+                val collections = collectionDao?.getCollectionsWithTmdbCertification() ?: emptyList()
+                for (collection in collections) {
+                    val cert = collection.tmdbCertification ?: continue
+                    val rating = if (cert.startsWith("TV-")) {
+                        ContentRating.fromTvRating(cert)
+                    } else {
+                        ContentRating.fromMovieCertification(cert)
+                    }
+                    val shouldBlock = !rating.isAllowedBy(maxRating) || rating == ContentRating.UNRATED
+                    if (shouldBlock != collection.tmdbArtworkBlocked) {
+                        collectionDao?.updateTmdbArtworkBlocked(collection.id, shouldBlock)
+                        Log.d(TAG, "Re-evaluated collection '${collection.name}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")
+                    }
+                }
+
+                Log.d(TAG, "Re-evaluation complete: ${videos.size} videos, ${collections.size} collections")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to re-evaluate artwork ratings", e)
             }
         }
     }

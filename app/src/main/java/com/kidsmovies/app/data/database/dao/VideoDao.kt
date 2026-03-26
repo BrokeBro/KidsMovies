@@ -220,4 +220,14 @@ interface VideoDao {
 
     @Query("SELECT * FROM videos WHERE tmdbMovieId IS NULL AND isHidden = 0 ORDER BY title ASC")
     suspend fun getVideosWithoutTmdbMovieId(): List<Video>
+
+    // TMDB content rating methods
+    @Query("UPDATE videos SET tmdbCertification = :certification WHERE id = :videoId")
+    suspend fun updateTmdbCertification(videoId: Long, certification: String?)
+
+    @Query("UPDATE videos SET tmdbArtworkBlocked = :blocked WHERE id = :videoId")
+    suspend fun updateTmdbArtworkBlocked(videoId: Long, blocked: Boolean)
+
+    @Query("SELECT * FROM videos WHERE tmdbCertification IS NOT NULL")
+    suspend fun getVideosWithTmdbCertification(): List<Video>
 }

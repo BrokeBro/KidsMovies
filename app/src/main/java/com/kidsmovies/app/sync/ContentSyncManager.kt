@@ -37,6 +37,7 @@ class ContentSyncManager(
     private var timeLimitsListener: ValueEventListener? = null
     private var videosStatusListener: ValueEventListener? = null
     private var collectionsStatusListener: ValueEventListener? = null
+    private var deviceSettingsListener: ValueEventListener? = null
     private var currentFamilyId: String? = null
     private var currentChildUid: String? = null
 
@@ -57,6 +58,14 @@ class ContentSyncManager(
     // Time limit settings
     private val _timeLimitSettings = MutableStateFlow<TimeLimitState?>(null)
     val timeLimitSettings: StateFlow<TimeLimitState?> = _timeLimitSettings
+
+    // Cloud video access toggle (per-device, set by parent)
+    private val _cloudVideosEnabled = MutableStateFlow(true)
+    val cloudVideosEnabled: StateFlow<Boolean> = _cloudVideosEnabled
+
+    // Parent-set content rating override (null = parent hasn't set, child controls locally)
+    private val _parentMaxContentRating = MutableStateFlow<String?>(null)
+    val parentMaxContentRating: StateFlow<String?> = _parentMaxContentRating
 
     // Track currently watching video for "finish current video" feature
     private var currentlyWatchingTitle: String? = null
@@ -138,6 +147,7 @@ class ContentSyncManager(
             listenForTimeLimitSettings(familyId, childUid)
             listenForVideoStatusChanges(familyId, childUid)
             listenForCollectionStatusChanges(familyId, childUid)
+            listenForDeviceSettings(familyId, childUid)
             loadViewingMetrics(familyId, childUid)
         }
     }
@@ -387,6 +397,38 @@ class ContentSyncManager(
         }
 
         collectionsRef.addValueEventListener(collectionsStatusListener!!)
+    }
+
+    /**
+     * Listen for per-device settings changes (e.g. cloud videos enabled/disabled).
+     */
+    private fun listenForDeviceSettings(familyId: String, childUid: String) {
+        val settingsRef = database.getReference("families/$familyId/children/$childUid/deviceSettings")
+
+        deviceSettingsListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val cloudEnabled = snapshot.child("cloudVideosEnabled").getValue(Boolean::class.java) ?: true
+                _cloudVideosEnabled.value = cloudEnabled
+
+                // Content rating override from parent
+                val maxRating = snapshot.child("maxContentRating").getValue(String::class.java)
+                val previousRating = _parentMaxContentRating.value
+                _parentMaxContentRating.value = maxRating
+
+                Log.d(TAG, "Device settings updated: cloudVideosEnabled=$cloudEnabled, maxContentRating=$maxRating")
+
+                // If rating changed, notify listeners (KidsMoviesApp will re-evaluate artwork)
+                if (maxRating != previousRating) {
+                    Log.d(TAG, "Parent content rating changed: $previousRating -> $maxRating")
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w(TAG, "Device settings listener cancelled", error.toException())
+            }
+        }
+
+        settingsRef.addValueEventListener(deviceSettingsListener!!)
     }
 
     private fun formatTime(hour: Int, minute: Int): String {
@@ -921,6 +963,10 @@ class ContentSyncManager(
                     database.getReference("families/$familyId/children/$childUid/collections")
                         .removeEventListener(it)
                 }
+                deviceSettingsListener?.let {
+                    database.getReference("families/$familyId/children/$childUid/deviceSettings")
+                        .removeEventListener(it)
+                }
             }
         }
         syncRequestListener = null
@@ -930,6 +976,7 @@ class ContentSyncManager(
         timeLimitsListener = null
         videosStatusListener = null
         collectionsStatusListener = null
+        deviceSettingsListener = null
         currentFamilyId = null
         currentChildUid = null
     }

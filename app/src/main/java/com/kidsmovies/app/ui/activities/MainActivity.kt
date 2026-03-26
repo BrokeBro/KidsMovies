@@ -184,10 +184,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             emoji = getString(R.string.emoji_wave)
             title = getString(R.string.lock_warning_title)
-            message = if (warning.allowFinishCurrentVideo) {
-                getString(R.string.lock_warning_finish_video)
-            } else {
-                getString(R.string.lock_warning_message, warning.minutesRemaining)
+            message = when {
+                warning.allowFinishCurrentVideo -> getString(R.string.lock_warning_finish_video)
+                warning.minutesRemaining <= 0 -> getString(R.string.lock_warning_immediate)
+                else -> getString(R.string.lock_warning_message, warning.minutesRemaining)
             }
             layoutRes = R.layout.dialog_kid_warning
         }

@@ -37,6 +37,7 @@ class NavigationTabAdapter(
     fun getTabs(): List<NavigationTab> = tabs.toList()
 
     fun moveItem(fromPosition: Int, toPosition: Int) {
+        if (fromPosition !in tabs.indices || toPosition !in tabs.indices) return
         if (fromPosition < toPosition) {
             for (i in fromPosition until toPosition) {
                 Collections.swap(tabs, i, i + 1)
@@ -61,7 +62,9 @@ class NavigationTabAdapter(
     }
 
     override fun onBindViewHolder(holder: TabViewHolder, position: Int) {
-        holder.bind(tabs[position])
+        if (position in tabs.indices) {
+            holder.bind(tabs[position])
+        }
     }
 
     override fun getItemCount(): Int = tabs.size
@@ -113,7 +116,10 @@ class NavigationTabTouchHelper(
         viewHolder: RecyclerView.ViewHolder,
         target: RecyclerView.ViewHolder
     ): Boolean {
-        adapter.moveItem(viewHolder.adapterPosition, target.adapterPosition)
+        val from = viewHolder.bindingAdapterPosition
+        val to = target.bindingAdapterPosition
+        if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
+        adapter.moveItem(from, to)
         return true
     }
 

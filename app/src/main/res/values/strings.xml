@@ -194,6 +194,7 @@
     <string name="ask_parent">Ask Parent</string>
     <string name="lock_warning_title">Almost Time!</string>
     <string name="lock_warning_message">In %1$d minutes, this video is going to sleep!</string>
+    <string name="lock_warning_immediate">This video has been locked!</string>
     <string name="lock_warning_finish_video">You can finish watching this one, then the videos need a rest!</string>
     <string name="last_one_title">One More!</string>
     <string name="last_one_message">This is the last one! Enjoy it!</string>
@@ -275,6 +276,9 @@
     <string name="clear_artwork_cache">Clear Artwork Cache</string>
     <string name="artwork_cache_size">Cache size: %s</string>
     <string name="artwork_cache_cleared">Artwork cache cleared</string>
+    <string name="max_poster_rating">Max Poster Rating</string>
+    <string name="max_poster_rating_desc">Only show posters for content rated up to this level</string>
+    <string name="max_rating_set_by_parent">Set by parent: %s</string>
 
     <!-- Plurals -->
     <plurals name="episode_count">

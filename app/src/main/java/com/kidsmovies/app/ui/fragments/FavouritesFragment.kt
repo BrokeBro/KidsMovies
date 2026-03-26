@@ -71,7 +71,8 @@ class FavouritesFragment : Fragment() {
                     if (it.gridColumns != currentGridColumns) {
                         currentGridColumns = it.gridColumns
                         gridLayoutManager.spanCount = currentGridColumns
-                        videoAdapter.notifyDataSetChanged()
+                        // Re-submit list to safely trigger rebind — notifyDataSetChanged() conflicts with DiffUtil
+                        videoAdapter.submitList(videoAdapter.currentList.toList())
                     }
                 }
             }

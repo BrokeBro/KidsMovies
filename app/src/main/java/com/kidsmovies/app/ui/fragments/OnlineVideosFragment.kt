@@ -47,6 +47,7 @@ class OnlineVideosFragment : Fragment() {
         observeOnlineVideos()
         observeScanState()
         observeDownloadStates()
+        observeCloudVideosEnabled()
     }
 
     private fun setupRecyclerView() {
@@ -157,9 +158,31 @@ class OnlineVideosFragment : Fragment() {
     private fun observeDownloadStates() {
         viewLifecycleOwner.lifecycleScope.launch {
             app.videoDownloadManager?.downloadStates?.collectLatest {
-                videoAdapter.notifyDataSetChanged()
+                // Re-submit current list to safely trigger rebind via DiffUtil
+                // Do NOT use notifyDataSetChanged() — it conflicts with pending submitList() DiffUtil
+                videoAdapter.submitList(videoAdapter.currentList.toList())
             }
         }
+    }
+
+    private fun observeCloudVideosEnabled() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.contentSyncManager.cloudVideosEnabled.collectLatest { enabled ->
+                if (!enabled) {
+                    showCloudDisabledState()
+                }
+                // When re-enabled, the normal observeOnlineVideos flow will restore the list
+            }
+        }
+    }
+
+    private fun showCloudDisabledState() {
+        binding.emptyState.visibility = View.VISIBLE
+        binding.videoRecyclerView.visibility = View.GONE
+        binding.emptyIcon.setImageResource(R.drawable.ic_cloud)
+        binding.emptyTitle.text = getString(R.string.online_videos)
+        binding.emptyMessage.text = "Cloud videos have been disabled by a parent"
+        binding.swipeRefresh.isEnabled = false
     }
 
     private fun showDownloadOption(video: Video) {

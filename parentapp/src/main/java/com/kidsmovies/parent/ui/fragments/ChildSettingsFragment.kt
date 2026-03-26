@@ -16,6 +16,7 @@ import com.kidsmovies.parent.ParentApp
 import com.kidsmovies.parent.R
 import com.kidsmovies.parent.databinding.FragmentChildSettingsBinding
 import com.kidsmovies.shared.models.AppLockCommand
+import com.kidsmovies.shared.models.DeviceSettings
 import com.kidsmovies.shared.models.ScheduleSettings
 import com.kidsmovies.shared.models.TimeLimitSettings
 import com.kidsmovies.shared.models.ViewingMetrics
@@ -50,6 +51,7 @@ class ChildSettingsFragment : Fragment() {
     private var currentAppLock: AppLockCommand? = null
     private var currentSchedule: ScheduleSettings? = null
     private var currentTimeLimits: TimeLimitSettings? = null
+    private var currentDeviceSettings: DeviceSettings? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,9 +86,22 @@ class ChildSettingsFragment : Fragment() {
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, timeLimitOptions)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.timeLimitSpinner.adapter = adapter
+
+        // Setup content rating spinner
+        val ratingOptions = arrayOf("Not set (child controls)", "G", "PG", "PG-13", "R", "No filtering")
+        val ratingAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, ratingOptions)
+        ratingAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.maxContentRatingSpinner.adapter = ratingAdapter
     }
 
     private fun setupListeners() {
+        // Cloud videos toggle
+        binding.cloudVideosSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked != (currentDeviceSettings?.cloudVideosEnabled != false)) {
+                updateCloudVideosEnabled(isChecked)
+            }
+        }
+
         // App Lock button
         binding.lockAppButton.setOnClickListener {
             showAppLockDialog()
@@ -120,6 +135,27 @@ class ChildSettingsFragment : Fragment() {
         binding.dayThursday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
         binding.dayFriday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
         binding.daySaturday.setOnCheckedChangeListener { _, _ -> updateScheduleDays() }
+
+        // Content rating spinner
+        binding.maxContentRatingSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val rating: String? = when (position) {
+                    0 -> null  // Not set (child controls)
+                    1 -> "G"
+                    2 -> "PG"
+                    3 -> "PG-13"
+                    4 -> "R"
+                    5 -> ""    // No filtering
+                    else -> null
+                }
+                val currentParentRating = currentDeviceSettings?.maxContentRating
+                if (rating != currentParentRating) {
+                    updateMaxContentRating(rating)
+                }
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         // Donate button
         binding.donateButton.setOnClickListener {
@@ -180,10 +216,68 @@ class ChildSettingsFragment : Fragment() {
             }
         }
 
+        // Observe device settings (cloud videos toggle)
+        viewLifecycleOwner.lifecycleScope.launch {
+            app.familyManager.getDeviceSettingsFlow(familyId, childUid).collectLatest { settings ->
+                currentDeviceSettings = settings
+                updateCloudVideosUI(settings)
+            }
+        }
+
         // Observe viewing metrics
         viewLifecycleOwner.lifecycleScope.launch {
             app.familyManager.getViewingMetricsFlow(familyId, childUid).collectLatest { metrics ->
                 updateMetricsUI(metrics)
+            }
+        }
+    }
+
+    private fun updateCloudVideosUI(settings: DeviceSettings?) {
+        val enabled = settings?.cloudVideosEnabled != false
+        binding.cloudVideosSwitch.setOnCheckedChangeListener(null)
+        binding.cloudVideosSwitch.isChecked = enabled
+        binding.cloudVideosSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked != (currentDeviceSettings?.cloudVideosEnabled != false)) {
+                updateCloudVideosEnabled(isChecked)
+            }
+        }
+
+        // Update content rating spinner
+        val ratingPosition = when (settings?.maxContentRating) {
+            null -> 0  // Not set
+            "G" -> 1
+            "PG" -> 2
+            "PG-13" -> 3
+            "R" -> 4
+            "" -> 5    // No filtering
+            else -> 0
+        }
+        binding.maxContentRatingSpinner.setSelection(ratingPosition)
+    }
+
+    private fun updateCloudVideosEnabled(enabled: Boolean) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                app.familyManager.setCloudVideosEnabled(familyId, childUid, enabled)
+                showMessage(if (enabled) "Cloud videos enabled" else "Cloud videos disabled")
+            } catch (e: Exception) {
+                showError("Failed to update cloud video setting")
+            }
+        }
+    }
+
+    private fun updateMaxContentRating(rating: String?) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                app.familyManager.setMaxContentRating(familyId, childUid, rating)
+                val message = when {
+                    rating == null -> "Content rating: child controls"
+                    rating.isEmpty() -> "Content rating: no filtering"
+                    else -> "Max poster rating set to $rating"
+                }
+                showMessage(message)
+            } catch (e: Exception) {
+                showError("Failed to update content rating")
             }
         }
     }

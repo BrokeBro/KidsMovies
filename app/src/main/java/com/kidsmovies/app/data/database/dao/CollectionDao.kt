@@ -153,4 +153,14 @@ interface CollectionDao {
 
     @Query("UPDATE collections SET tmdbCollectionId = :tmdbCollectionId WHERE id = :collectionId")
     suspend fun updateTmdbCollectionId(collectionId: Long, tmdbCollectionId: Int?)
+
+    // TMDB content rating methods
+    @Query("UPDATE collections SET tmdbCertification = :certification WHERE id = :collectionId")
+    suspend fun updateTmdbCertification(collectionId: Long, certification: String?)
+
+    @Query("UPDATE collections SET tmdbArtworkBlocked = :blocked WHERE id = :collectionId")
+    suspend fun updateTmdbArtworkBlocked(collectionId: Long, blocked: Boolean)
+
+    @Query("SELECT * FROM collections WHERE tmdbCertification IS NOT NULL")
+    suspend fun getCollectionsWithTmdbCertification(): List<VideoCollection>
 }
