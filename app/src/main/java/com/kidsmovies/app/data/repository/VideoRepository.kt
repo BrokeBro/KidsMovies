@@ -58,6 +58,8 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun getAllFilePaths(): List<String> = videoDao.getAllFilePaths()
 
+    suspend fun getAllLocalFilePaths(): List<String> = videoDao.getAllLocalFilePaths()
+
     suspend fun getVideoCount(): Int = videoDao.getVideoCount()
 
     suspend fun getFavouriteCount(): Int = videoDao.getFavouriteCount()

@@ -185,6 +185,10 @@ interface VideoDao {
     @Query("SELECT filePath FROM videos")
     suspend fun getAllFilePaths(): List<String>
 
+    // Get file paths for local videos only (excludes OneDrive/remote videos)
+    @Query("SELECT filePath FROM videos WHERE source_type = 'local'")
+    suspend fun getAllLocalFilePaths(): List<String>
+
     // OneDrive/SharePoint remote video queries
     @Query("SELECT * FROM videos WHERE source_type = :sourceType AND isHidden = 0 ORDER BY title ASC")
     fun getVideosBySourceFlow(sourceType: String): Flow<List<Video>>
