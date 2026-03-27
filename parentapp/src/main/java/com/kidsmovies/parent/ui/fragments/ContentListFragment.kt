@@ -363,6 +363,7 @@ class ContentListFragment : Fragment() {
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
                         )
+                        applyVideoLockLocally(name, isLocked = true)
                     }
                     is HierarchicalItem.Collection -> {
                         app.familyManager.setCollectionLock(
@@ -373,6 +374,7 @@ class ContentListFragment : Fragment() {
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
                         )
+                        applyCascadingLockLocally(name, isLocked = true)
                     }
                 }
                 showMessage(getString(R.string.content_locked_success))
@@ -394,6 +396,7 @@ class ContentListFragment : Fragment() {
                             videoTitle = name,
                             isLocked = false
                         )
+                        applyVideoLockLocally(name, isLocked = false)
                     }
                     is HierarchicalItem.Collection -> {
                         app.familyManager.setCollectionLock(
@@ -402,6 +405,7 @@ class ContentListFragment : Fragment() {
                             collectionName = name,
                             isLocked = false
                         )
+                        applyCascadingLockLocally(name, isLocked = false)
                     }
                 }
                 showMessage(getString(R.string.content_unlocked_success))
@@ -410,6 +414,49 @@ class ContentListFragment : Fragment() {
                 hierarchicalAdapter.notifyDataSetChanged()
             }
         }
+    }
+
+    /**
+     * Optimistically update local cache when a collection is locked/unlocked,
+     * cascading the state to child seasons and videos for immediate UI feedback.
+     */
+    private fun applyCascadingLockLocally(collectionName: String, isLocked: Boolean) {
+        val enabled = !isLocked
+        val targetNames = mutableSetOf(collectionName)
+
+        // Find child seasons of this collection
+        allCollections.filter { it.collection.parentName == collectionName }
+            .forEach { targetNames.add(it.collection.name) }
+
+        // Update collections in local cache
+        allCollections = allCollections.map { child ->
+            if (child.collection.name in targetNames) {
+                ChildCollection(child.collection.copy(isEnabled = enabled), child.firebaseKey)
+            } else child
+        }
+
+        // Update videos belonging to those collections in local cache
+        allVideos = allVideos.map { child ->
+            if (child.video.collectionNames.any { it in targetNames }) {
+                ChildVideo(child.video.copy(isEnabled = enabled), child.firebaseKey)
+            } else child
+        }
+
+        updateHierarchicalContent()
+    }
+
+    /**
+     * Optimistically update local cache when a single video is locked/unlocked.
+     */
+    private fun applyVideoLockLocally(videoTitle: String, isLocked: Boolean) {
+        val enabled = !isLocked
+        allVideos = allVideos.map { child ->
+            if (child.video.title == videoTitle) {
+                ChildVideo(child.video.copy(isEnabled = enabled), child.firebaseKey)
+            } else child
+        }
+
+        updateHierarchicalContent()
     }
 
     private fun showLockDialog(item: ContentItem, isLocked: Boolean) {
@@ -480,6 +527,7 @@ class ContentListFragment : Fragment() {
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
                         )
+                        applyVideoLockLocally(name, isLocked = true)
                     }
                     is ContentItem.Collection -> {
                         app.familyManager.setCollectionLock(
@@ -490,6 +538,7 @@ class ContentListFragment : Fragment() {
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
                         )
+                        applyCascadingLockLocally(name, isLocked = true)
                     }
                 }
                 showMessage(getString(R.string.content_locked_success))
@@ -511,6 +560,7 @@ class ContentListFragment : Fragment() {
                             videoTitle = name,
                             isLocked = false
                         )
+                        applyVideoLockLocally(name, isLocked = false)
                     }
                     is ContentItem.Collection -> {
                         app.familyManager.setCollectionLock(
@@ -519,6 +569,7 @@ class ContentListFragment : Fragment() {
                             collectionName = name,
                             isLocked = false
                         )
+                        applyCascadingLockLocally(name, isLocked = false)
                     }
                 }
                 showMessage(getString(R.string.content_unlocked_success))
