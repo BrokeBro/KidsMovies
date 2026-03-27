@@ -330,17 +330,41 @@ class ViewingMetrics {
   }
 }
 
+class DeviceSettings {
+  final bool cloudVideosEnabled;
+  final String? maxContentRating;
+
+  DeviceSettings({
+    this.cloudVideosEnabled = true,
+    this.maxContentRating,
+  });
+
+  factory DeviceSettings.fromMap(Map<dynamic, dynamic> map) {
+    return DeviceSettings(
+      cloudVideosEnabled: map['cloudVideosEnabled'] as bool? ?? true,
+      maxContentRating: map['maxContentRating'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'cloudVideosEnabled': cloudVideosEnabled,
+        if (maxContentRating != null) 'maxContentRating': maxContentRating,
+      };
+}
+
 class Family {
   final String familyId;
   final int createdAt;
   final String createdBy;
   final String familyName;
+  final List<String> parentUids;
 
   Family({
     required this.familyId,
     this.createdAt = 0,
     this.createdBy = '',
     this.familyName = '',
+    this.parentUids = const [],
   });
 
   factory Family.fromMap(String id, Map<dynamic, dynamic> map) {
@@ -349,8 +373,45 @@ class Family {
       createdAt: (map['createdAt'] as num?)?.toInt() ?? 0,
       createdBy: map['createdBy'] as String? ?? '',
       familyName: map['familyName'] as String? ?? '',
+      parentUids: (map['parentUids'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
+}
+
+class FamilyJoinCode {
+  final String code;
+  final String familyId;
+  final int createdAt;
+  final int expiresAt;
+  final String createdBy;
+  final bool used;
+  final String? usedBy;
+
+  FamilyJoinCode({
+    required this.code,
+    required this.familyId,
+    this.createdAt = 0,
+    this.expiresAt = 0,
+    this.createdBy = '',
+    this.used = false,
+    this.usedBy,
+  });
+
+  bool get isExpired =>
+      DateTime.now().millisecondsSinceEpoch > expiresAt || used;
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'familyId': familyId,
+        'createdAt': createdAt,
+        'expiresAt': expiresAt,
+        'createdBy': createdBy,
+        'used': used,
+        if (usedBy != null) 'usedBy': usedBy,
+      };
 }
 
 class PairingCode {
@@ -421,6 +482,10 @@ class FirebasePaths {
       'families/$familyId/children/$childUid/metrics';
   static String childSyncRequestPath(String familyId, String childUid) =>
       'families/$familyId/children/$childUid/syncRequest';
+  static String childDeviceSettingsPath(String familyId, String childUid) =>
+      'families/$familyId/children/$childUid/deviceSettings';
+  static String familyParentsPath(String familyId) =>
+      'families/$familyId/parents';
   static String oneDriveConfigPath(String familyId) =>
       'families/$familyId/oneDriveConfig';
   static String pairingCodePath(String code) => 'pairingCodes/$code';

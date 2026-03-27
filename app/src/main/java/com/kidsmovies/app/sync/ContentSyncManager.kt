@@ -10,17 +10,23 @@ import com.kidsmovies.app.data.database.entities.VideoCollection
 import com.kidsmovies.app.data.repository.CollectionRepository
 import com.kidsmovies.app.data.repository.VideoRepository
 import com.kidsmovies.app.pairing.PairingDao
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class ContentSyncManager(
     private val pairingDao: PairingDao,
@@ -30,6 +36,8 @@ class ContentSyncManager(
 ) {
     private val database = FirebaseDatabase.getInstance()
 
+    private val listenerMutex = Mutex()
+    private var isListening = false
     private var syncRequestListener: ValueEventListener? = null
     private var locksListener: ValueEventListener? = null
     private var appLockListener: ValueEventListener? = null
@@ -40,6 +48,10 @@ class ContentSyncManager(
     private var deviceSettingsListener: ValueEventListener? = null
     private var currentFamilyId: String? = null
     private var currentChildUid: String? = null
+
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Coroutine exception in content sync", throwable)
+    }
 
     private val _pendingLocks = MutableStateFlow<List<PendingLock>>(emptyList())
     val pendingLocks: StateFlow<List<PendingLock>> = _pendingLocks
@@ -71,13 +83,13 @@ class ContentSyncManager(
     private var currentlyWatchingTitle: String? = null
     private var isWatchingVideo: Boolean = false
 
-    // Viewing metrics tracking
-    private var sessionStartTime: Long = 0
-    private var todayWatchTimeMinutes: Long = 0
-    private var weekWatchTimeMinutes: Long = 0
-    private var totalWatchTimeMinutes: Long = 0
-    private var videosWatchedToday: Int = 0
-    private var lastWatchDate: String = ""
+    // Viewing metrics tracking (atomic to prevent race conditions between coroutines)
+    private val sessionStartTime = AtomicLong(0)
+    private val todayWatchTimeMinutes = AtomicLong(0)
+    private val weekWatchTimeMinutes = AtomicLong(0)
+    private val totalWatchTimeMinutes = AtomicLong(0)
+    private val videosWatchedToday = AtomicInteger(0)
+    @Volatile private var lastWatchDate: String = ""
 
     // Locks waiting for video to finish (allowFinishCurrentVideo = true)
     private val _locksWaitingForVideoEnd = MutableStateFlow<List<PendingLock>>(emptyList())
@@ -85,6 +97,9 @@ class ContentSyncManager(
 
     companion object {
         private const val TAG = "ContentSyncManager"
+        private const val MAX_RETRY_ATTEMPTS = 5
+        private const val RETRY_BASE_DELAY_MS = 1000L
+        private const val MAX_RETRY_DELAY_MS = 60_000L
     }
 
     data class LockWarning(
@@ -123,39 +138,45 @@ class ContentSyncManager(
      * Start listening for sync requests and lock commands
      */
     fun startListening() {
-        coroutineScope.launch(Dispatchers.IO) {
-            val pairingState = pairingDao.getPairingState()
-            if (pairingState == null || !pairingState.isPaired) {
-                Log.d(TAG, "Not paired, skipping content sync")
-                return@launch
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            listenerMutex.withLock {
+                val pairingState = pairingDao.getPairingState()
+                if (pairingState == null || !pairingState.isPaired) {
+                    Log.d(TAG, "Not paired, skipping content sync")
+                    return@withLock
+                }
+
+                val familyId = pairingState.familyId ?: return@withLock
+                val childUid = pairingState.childUid ?: return@withLock
+
+                // Remove all existing listeners before re-registering
+                if (currentFamilyId != familyId || isListening) {
+                    removeAllListeners()
+                }
+
+                currentFamilyId = familyId
+                currentChildUid = childUid
+                isListening = true
+
+                listenForSyncRequests(familyId, childUid)
+                listenForLockCommands(familyId, childUid)
+                listenForAppLock(familyId, childUid)
+                listenForScheduleSettings(familyId, childUid)
+                listenForTimeLimitSettings(familyId, childUid)
+                listenForVideoStatusChanges(familyId, childUid)
+                listenForCollectionStatusChanges(familyId, childUid)
+                listenForDeviceSettings(familyId, childUid)
+                loadViewingMetrics(familyId, childUid)
             }
-
-            val familyId = pairingState.familyId ?: return@launch
-            val childUid = pairingState.childUid ?: return@launch
-
-            if (currentFamilyId != familyId) {
-                stopListening()
-            }
-
-            currentFamilyId = familyId
-            currentChildUid = childUid
-
-            listenForSyncRequests(familyId, childUid)
-            listenForLockCommands(familyId, childUid)
-            listenForAppLock(familyId, childUid)
-            listenForScheduleSettings(familyId, childUid)
-            listenForTimeLimitSettings(familyId, childUid)
-            listenForVideoStatusChanges(familyId, childUid)
-            listenForCollectionStatusChanges(familyId, childUid)
-            listenForDeviceSettings(familyId, childUid)
-            loadViewingMetrics(familyId, childUid)
         }
     }
 
     private fun listenForAppLock(familyId: String, childUid: String) {
         val appLockRef = database.getReference("families/$familyId/children/$childUid/appLock")
 
-        appLockListener = object : ValueEventListener {
+        appLockListener?.let { appLockRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
                 val isLocked = snapshot.child("locked").getValue(Boolean::class.java) ?: false
@@ -181,16 +202,20 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "App lock listener cancelled", error.toException())
+                scheduleListenerRetry("appLock", familyId, childUid)
             }
         }
 
-        appLockRef.addValueEventListener(appLockListener!!)
+        appLockListener = listener
+        appLockRef.addValueEventListener(listener)
     }
 
     private fun listenForScheduleSettings(familyId: String, childUid: String) {
         val scheduleRef = database.getReference("families/$familyId/children/$childUid/settings/schedule")
 
-        scheduleListener = object : ValueEventListener {
+        scheduleListener?.let { scheduleRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val enabled = snapshot.child("enabled").getValue(Boolean::class.java) ?: false
                 if (!enabled) {
@@ -247,16 +272,20 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Schedule listener cancelled", error.toException())
+                scheduleListenerRetry("schedule", familyId, childUid)
             }
         }
 
-        scheduleRef.addValueEventListener(scheduleListener!!)
+        scheduleListener = listener
+        scheduleRef.addValueEventListener(listener)
     }
 
     private fun listenForTimeLimitSettings(familyId: String, childUid: String) {
         val timeLimitsRef = database.getReference("families/$familyId/children/$childUid/settings/timeLimits")
 
-        timeLimitsListener = object : ValueEventListener {
+        timeLimitsListener?.let { timeLimitsRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val enabled = snapshot.child("enabled").getValue(Boolean::class.java) ?: false
                 val dailyLimitMinutes = snapshot.child("dailyLimitMinutes").getValue(Int::class.java) ?: 120
@@ -271,7 +300,7 @@ class ContentSyncManager(
                     return
                 }
 
-                val remaining = (dailyLimitMinutes - todayWatchTimeMinutes).coerceAtLeast(0).toInt()
+                val remaining = (dailyLimitMinutes - todayWatchTimeMinutes.get()).coerceAtLeast(0).toInt()
                 val isReached = remaining <= 0
 
                 _timeLimitSettings.value = TimeLimitState(
@@ -286,10 +315,12 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Time limits listener cancelled", error.toException())
+                scheduleListenerRetry("timeLimits", familyId, childUid)
             }
         }
 
-        timeLimitsRef.addValueEventListener(timeLimitsListener!!)
+        timeLimitsListener = listener
+        timeLimitsRef.addValueEventListener(listener)
     }
 
     private fun loadViewingMetrics(familyId: String, childUid: String) {
@@ -298,20 +329,20 @@ class ContentSyncManager(
                 val metricsRef = database.getReference("families/$familyId/children/$childUid/metrics")
                 val snapshot = metricsRef.get().await()
 
-                todayWatchTimeMinutes = snapshot.child("todayWatchTimeMinutes").getValue(Long::class.java) ?: 0
-                weekWatchTimeMinutes = snapshot.child("weekWatchTimeMinutes").getValue(Long::class.java) ?: 0
-                totalWatchTimeMinutes = snapshot.child("totalWatchTimeMinutes").getValue(Long::class.java) ?: 0
-                videosWatchedToday = snapshot.child("videosWatchedToday").getValue(Int::class.java) ?: 0
+                todayWatchTimeMinutes.set(snapshot.child("todayWatchTimeMinutes").getValue(Long::class.java) ?: 0)
+                weekWatchTimeMinutes.set(snapshot.child("weekWatchTimeMinutes").getValue(Long::class.java) ?: 0)
+                totalWatchTimeMinutes.set(snapshot.child("totalWatchTimeMinutes").getValue(Long::class.java) ?: 0)
+                videosWatchedToday.set(snapshot.child("videosWatchedToday").getValue(Int::class.java) ?: 0)
                 lastWatchDate = snapshot.child("lastWatchDate").getValue(String::class.java) ?: ""
 
                 // Reset today's metrics if it's a new day
                 val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
                 if (lastWatchDate != todayDate) {
-                    todayWatchTimeMinutes = 0
-                    videosWatchedToday = 0
+                    todayWatchTimeMinutes.set(0)
+                    videosWatchedToday.set(0)
                 }
 
-                Log.d(TAG, "Loaded viewing metrics: today=$todayWatchTimeMinutes min")
+                Log.d(TAG, "Loaded viewing metrics: today=${todayWatchTimeMinutes.get()} min")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load viewing metrics", e)
             }
@@ -325,9 +356,11 @@ class ContentSyncManager(
     private fun listenForVideoStatusChanges(familyId: String, childUid: String) {
         val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
 
-        videosStatusListener = object : ValueEventListener {
+        videosStatusListener?.let { videosRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                     for (videoSnapshot in snapshot.children) {
                         val videoKey = videoSnapshot.key ?: continue
                         val title = videoSnapshot.child("title").getValue(String::class.java) ?: continue
@@ -353,10 +386,12 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Videos status listener cancelled", error.toException())
+                scheduleListenerRetry("videosStatus", familyId, childUid)
             }
         }
 
-        videosRef.addValueEventListener(videosStatusListener!!)
+        videosStatusListener = listener
+        videosRef.addValueEventListener(listener)
     }
 
     /**
@@ -365,9 +400,11 @@ class ContentSyncManager(
     private fun listenForCollectionStatusChanges(familyId: String, childUid: String) {
         val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
 
-        collectionsStatusListener = object : ValueEventListener {
+        collectionsStatusListener?.let { collectionsRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                     for (collectionSnapshot in snapshot.children) {
                         val collectionKey = collectionSnapshot.key ?: continue
                         val name = collectionSnapshot.child("name").getValue(String::class.java) ?: continue
@@ -393,10 +430,12 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Collections status listener cancelled", error.toException())
+                scheduleListenerRetry("collectionsStatus", familyId, childUid)
             }
         }
 
-        collectionsRef.addValueEventListener(collectionsStatusListener!!)
+        collectionsStatusListener = listener
+        collectionsRef.addValueEventListener(listener)
     }
 
     /**
@@ -405,7 +444,9 @@ class ContentSyncManager(
     private fun listenForDeviceSettings(familyId: String, childUid: String) {
         val settingsRef = database.getReference("families/$familyId/children/$childUid/deviceSettings")
 
-        deviceSettingsListener = object : ValueEventListener {
+        deviceSettingsListener?.let { settingsRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val cloudEnabled = snapshot.child("cloudVideosEnabled").getValue(Boolean::class.java) ?: true
                 _cloudVideosEnabled.value = cloudEnabled
@@ -425,10 +466,12 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Device settings listener cancelled", error.toException())
+                scheduleListenerRetry("deviceSettings", familyId, childUid)
             }
         }
 
-        settingsRef.addValueEventListener(deviceSettingsListener!!)
+        deviceSettingsListener = listener
+        settingsRef.addValueEventListener(listener)
     }
 
     private fun formatTime(hour: Int, minute: Int): String {
@@ -440,12 +483,14 @@ class ContentSyncManager(
     private fun listenForSyncRequests(familyId: String, childUid: String) {
         val syncRequestRef = database.getReference("families/$familyId/children/$childUid/syncRequest")
 
-        syncRequestListener = object : ValueEventListener {
+        syncRequestListener?.let { syncRequestRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val requested = snapshot.child("requested").getValue(Boolean::class.java) ?: false
                 if (requested) {
                     Log.d(TAG, "Sync request received from parent")
-                    coroutineScope.launch(Dispatchers.IO) {
+                    coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                         performFullSync()
                         // Clear the sync request flag
                         syncRequestRef.child("requested").setValue(false)
@@ -455,28 +500,34 @@ class ContentSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Sync request listener cancelled", error.toException())
+                scheduleListenerRetry("syncRequest", familyId, childUid)
             }
         }
 
-        syncRequestRef.addValueEventListener(syncRequestListener!!)
+        syncRequestListener = listener
+        syncRequestRef.addValueEventListener(listener)
     }
 
     private fun listenForLockCommands(familyId: String, childUid: String) {
         val locksRef = database.getReference("families/$familyId/children/$childUid/locks")
 
-        locksListener = object : ValueEventListener {
+        locksListener?.let { locksRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                     processLockCommands(snapshot)
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Locks listener cancelled", error.toException())
+                scheduleListenerRetry("locks", familyId, childUid)
             }
         }
 
-        locksRef.addValueEventListener(locksListener!!)
+        locksListener = listener
+        locksRef.addValueEventListener(listener)
     }
 
     private suspend fun processLockCommands(snapshot: DataSnapshot) {
@@ -933,6 +984,17 @@ class ContentSyncManager(
     }
 
     fun stopListening() {
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            listenerMutex.withLock {
+                removeAllListeners()
+            }
+        }
+    }
+
+    /**
+     * Remove all listeners. Must be called under listenerMutex.
+     */
+    private fun removeAllListeners() {
         currentFamilyId?.let { familyId ->
             currentChildUid?.let { childUid ->
                 syncRequestListener?.let {
@@ -979,6 +1041,40 @@ class ContentSyncManager(
         deviceSettingsListener = null
         currentFamilyId = null
         currentChildUid = null
+        isListening = false
+    }
+
+    /**
+     * Retry listener registration with exponential backoff after non-permanent failures.
+     */
+    private fun scheduleListenerRetry(
+        listenerType: String,
+        familyId: String,
+        childUid: String,
+        attempt: Int = 0
+    ) {
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+            Log.e(TAG, "Max retry attempts reached for $listenerType listener")
+            return
+        }
+        val delayMs = RETRY_BASE_DELAY_MS * (1L shl attempt).coerceAtMost(MAX_RETRY_DELAY_MS)
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            delay(delayMs)
+            listenerMutex.withLock {
+                if (!isListening) return@withLock
+                Log.d(TAG, "Retrying $listenerType listener (attempt ${attempt + 1})")
+                when (listenerType) {
+                    "syncRequest" -> listenForSyncRequests(familyId, childUid)
+                    "locks" -> listenForLockCommands(familyId, childUid)
+                    "appLock" -> listenForAppLock(familyId, childUid)
+                    "schedule" -> listenForScheduleSettings(familyId, childUid)
+                    "timeLimits" -> listenForTimeLimitSettings(familyId, childUid)
+                    "videosStatus" -> listenForVideoStatusChanges(familyId, childUid)
+                    "collectionsStatus" -> listenForCollectionStatusChanges(familyId, childUid)
+                    "deviceSettings" -> listenForDeviceSettings(familyId, childUid)
+                }
+            }
+        }
     }
 
     fun dismissLockWarning() {
@@ -1032,10 +1128,10 @@ class ContentSyncManager(
      * Start watching session - call when video playback starts
      */
     fun startWatchingSession(videoTitle: String) {
-        sessionStartTime = System.currentTimeMillis()
-        videosWatchedToday++
+        sessionStartTime.set(System.currentTimeMillis())
+        videosWatchedToday.incrementAndGet()
 
-        coroutineScope.launch(Dispatchers.IO) {
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             updateCurrentlyWatching(videoTitle)
         }
     }
@@ -1044,14 +1140,14 @@ class ContentSyncManager(
      * End watching session - call when video playback stops
      */
     fun endWatchingSession() {
-        if (sessionStartTime > 0) {
-            val sessionDuration = (System.currentTimeMillis() - sessionStartTime) / 60000 // Convert to minutes
-            todayWatchTimeMinutes += sessionDuration
-            weekWatchTimeMinutes += sessionDuration
-            totalWatchTimeMinutes += sessionDuration
-            sessionStartTime = 0
+        val startTime = sessionStartTime.getAndSet(0)
+        if (startTime > 0) {
+            val sessionDuration = (System.currentTimeMillis() - startTime) / 60000 // Convert to minutes
+            todayWatchTimeMinutes.addAndGet(sessionDuration)
+            weekWatchTimeMinutes.addAndGet(sessionDuration)
+            totalWatchTimeMinutes.addAndGet(sessionDuration)
 
-            coroutineScope.launch(Dispatchers.IO) {
+            coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                 updateCurrentlyWatching(null)
                 uploadViewingMetrics()
             }
@@ -1066,11 +1162,11 @@ class ContentSyncManager(
 
         try {
             val metrics = mapOf(
-                "todayWatchTimeMinutes" to todayWatchTimeMinutes,
-                "weekWatchTimeMinutes" to weekWatchTimeMinutes,
-                "totalWatchTimeMinutes" to totalWatchTimeMinutes,
+                "todayWatchTimeMinutes" to todayWatchTimeMinutes.get(),
+                "weekWatchTimeMinutes" to weekWatchTimeMinutes.get(),
+                "totalWatchTimeMinutes" to totalWatchTimeMinutes.get(),
                 "lastWatchDate" to todayDate,
-                "videosWatchedToday" to videosWatchedToday,
+                "videosWatchedToday" to videosWatchedToday.get(),
                 "lastVideoWatched" to currentlyWatchingTitle,
                 "lastWatchedAt" to System.currentTimeMillis()
             )
@@ -1080,9 +1176,9 @@ class ContentSyncManager(
 
             // Also update deviceInfo with today's watch time
             database.getReference("families/$familyId/children/$childUid/deviceInfo/todayWatchTime")
-                .setValue(todayWatchTimeMinutes).await()
+                .setValue(todayWatchTimeMinutes.get()).await()
 
-            Log.d(TAG, "Uploaded viewing metrics: today=$todayWatchTimeMinutes min")
+            Log.d(TAG, "Uploaded viewing metrics: today=${todayWatchTimeMinutes.get()} min")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to upload viewing metrics", e)
         }

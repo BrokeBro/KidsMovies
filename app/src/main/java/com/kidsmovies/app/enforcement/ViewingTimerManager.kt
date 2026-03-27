@@ -20,7 +20,8 @@ class ViewingTimerManager(
     private val cachedSettingsDao: CachedSettingsDao,
     private val scheduleEvaluator: ScheduleEvaluator,
     private val deviceId: String,
-    private val coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope,
+    private val onDeviceRevoked: (() -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "ViewingTimerManager"
@@ -98,6 +99,8 @@ class ViewingTimerManager(
             // Check device-level blocks first
             if (settings.isDeviceRevoked) {
                 transitionTo(ViewingState.LOCKED, "Device has been disconnected")
+                // Notify the app to stop all sync and clear pairing state
+                onDeviceRevoked?.invoke()
                 return
             }
 

@@ -97,7 +97,7 @@ class SyncWorker(
             }
 
             // Perform settings sync
-            app.settingsSyncManager.forcSync()
+            app.settingsSyncManager.forceSync()
 
             // Perform content sync
             app.contentSyncManager.performFullSync()

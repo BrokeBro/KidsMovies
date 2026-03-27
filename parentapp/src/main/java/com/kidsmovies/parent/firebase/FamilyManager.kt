@@ -51,6 +51,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Children listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -81,6 +82,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Videos listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -111,6 +113,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Collections listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -266,6 +269,7 @@ class FamilyManager {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error setting collection lock with cascade", e)
+            throw e
         }
     }
 
@@ -353,6 +357,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "App lock listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -390,6 +395,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Schedule listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -427,6 +433,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Time limits listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -451,6 +458,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Metrics listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
@@ -477,6 +485,7 @@ class FamilyManager {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Device settings listener cancelled", error.toException())
+                channel.close(error.toException())
             }
         }
 
