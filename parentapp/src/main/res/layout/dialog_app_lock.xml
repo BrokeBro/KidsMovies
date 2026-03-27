@@ -23,6 +23,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/immediate"
+            android:checked="true"
             android:padding="8dp" />
 
         <RadioButton
@@ -37,7 +38,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/five_minutes"
-            android:checked="true"
             android:padding="8dp" />
 
         <RadioButton

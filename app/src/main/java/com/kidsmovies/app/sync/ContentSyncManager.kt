@@ -812,7 +812,10 @@ class ContentSyncManager(
         val videos = videoRepository.getAllVideos()
         val collections = collectionRepository.getAllCollections()
 
-        val syncedVideos = mutableMapOf<String, SyncedVideo>()
+        // Use updateChildren() with per-field paths to avoid overwriting
+        // the enabled/hidden fields that are controlled by the parent app.
+        // setValue() on the videos node would replace the parent's lock state.
+        val updates = mutableMapOf<String, Any?>()
 
         for (video in videos) {
             // Get collections this video belongs to
@@ -820,33 +823,31 @@ class ContentSyncManager(
                 collectionRepository.isVideoInCollection(video.id, collection.id)
             }
 
-            val syncedVideo = SyncedVideo(
-                title = video.title,
-                collectionNames = videoCollections.map { it.name },
-                isFavourite = video.isFavourite,
-                isEnabled = video.isEnabled,
-                isHidden = video.isHidden,
-                duration = video.duration,
-                playbackPosition = video.playbackPosition,
-                lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
-                thumbnailUrl = null, // Thumbnails are local, not synced
-                sourceType = video.sourceType,
-                remoteId = video.remoteId
-            )
-
-            // Use sanitized title as key (Firebase doesn't allow certain characters)
             val key = sanitizeFirebaseKey(video.title)
-            syncedVideos[key] = syncedVideo
+            updates["$key/title"] = video.title
+            updates["$key/collectionNames"] = videoCollections.map { it.name }
+            updates["$key/isFavourite"] = video.isFavourite
+            updates["$key/duration"] = video.duration
+            updates["$key/playbackPosition"] = video.playbackPosition
+            updates["$key/lastWatched"] = if (video.playbackPosition > 0) video.dateModified else null
+            updates["$key/sourceType"] = video.sourceType
+            updates["$key/remoteId"] = video.remoteId
+            // Note: isEnabled and isHidden are intentionally NOT uploaded here.
+            // They are controlled by the parent app via lock/hide commands.
         }
 
-        database.getReference("families/$familyId/children/$childUid/videos")
-            .setValue(syncedVideos).await()
+        val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
+        if (updates.isNotEmpty()) {
+            videosRef.updateChildren(updates).await()
+        }
     }
 
     private suspend fun uploadCollectionList(familyId: String, childUid: String) {
         val collections = collectionRepository.getAllCollections()
 
-        val syncedCollections = mutableMapOf<String, SyncedCollection>()
+        // Use updateChildren() with per-field paths to avoid overwriting
+        // the enabled/hidden fields that are controlled by the parent app.
+        val updates = mutableMapOf<String, Any?>()
 
         for (collection in collections) {
             val videoCount = collectionRepository.getVideoCountInCollection(collection.id)
@@ -854,22 +855,19 @@ class ContentSyncManager(
                 collectionRepository.getCollectionById(it)
             }
 
-            val syncedCollection = SyncedCollection(
-                name = collection.name,
-                type = collection.collectionType,
-                parentName = parentCollection?.name,
-                videoCount = videoCount,
-                isEnabled = collection.isEnabled,
-                isHidden = collection.isHidden,
-                thumbnailUrl = null
-            )
-
             val key = sanitizeFirebaseKey(collection.name)
-            syncedCollections[key] = syncedCollection
+            updates["$key/name"] = collection.name
+            updates["$key/type"] = collection.collectionType
+            updates["$key/parentName"] = parentCollection?.name
+            updates["$key/videoCount"] = videoCount
+            // Note: isEnabled and isHidden are intentionally NOT uploaded here.
+            // They are controlled by the parent app via lock/hide commands.
         }
 
-        database.getReference("families/$familyId/children/$childUid/collections")
-            .setValue(syncedCollections).await()
+        val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
+        if (updates.isNotEmpty()) {
+            collectionsRef.updateChildren(updates).await()
+        }
     }
 
     /**

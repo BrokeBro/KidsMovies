@@ -245,6 +245,8 @@ class FamilyManager {
                 FirebasePaths.childVideosPath(familyId, childUid)
             ).get().await()
 
+            val matchedVideoKeys = mutableSetOf<String>()
+
             for (videoSnapshot in videosSnapshot.children) {
                 val video = videoSnapshot.getValue(SyncedVideo::class.java) ?: continue
                 val videoKey = videoSnapshot.key ?: continue
@@ -261,6 +263,35 @@ class FamilyManager {
                         warningMinutes = warningMinutes,
                         allowFinishCurrentVideo = allowFinishCurrentVideo
                     )
+                    matchedVideoKeys.add(videoKey)
+                }
+            }
+
+            // Safety net for unlock: also catch videos that are currently locked but
+            // weren't matched by collectionNames (e.g. child hasn't synced associations).
+            // Scan the locks path for any remaining video lock commands, and check if the
+            // video is currently disabled.
+            if (!isLocked) {
+                val locksSnapshot = database.getReference(
+                    FirebasePaths.childLocksPath(familyId, childUid)
+                ).get().await()
+
+                for (videoSnapshot in videosSnapshot.children) {
+                    val videoKey = videoSnapshot.key ?: continue
+                    if (matchedVideoKeys.contains(videoKey)) continue
+
+                    // Check: Firebase serializes isEnabled → enabled
+                    val videoEnabled = videoSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
+                    if (!videoEnabled) {
+                        // Video is locked but wasn't matched by collectionNames.
+                        // Check if there's a lock command for this video (indicating it
+                        // was locked as part of a cascade or individually).
+                        val hasLockCommand = locksSnapshot.child(videoKey).exists()
+                        if (hasLockCommand) {
+                            updates["${FirebasePaths.VIDEOS}/$videoKey/enabled"] = true
+                            updates["${FirebasePaths.LOCKS}/$videoKey"] = null
+                        }
+                    }
                 }
             }
 

@@ -378,6 +378,8 @@ class FamilyManager extends ChangeNotifier {
           .ref(FirebasePaths.childVideosPath(familyId, childUid))
           .get();
 
+      final matchedVideoKeys = <String>{};
+
       if (videosSnapshot.exists && videosSnapshot.value != null) {
         final videosData =
             Map<dynamic, dynamic>.from(videosSnapshot.value as Map);
@@ -405,6 +407,33 @@ class FamilyManager extends ChangeNotifier {
               warningMinutes: warningMinutes,
               allowFinishCurrentVideo: allowFinishCurrentVideo,
             ).toMap();
+            matchedVideoKeys.add(videoKey);
+          }
+        }
+
+        // Safety net for unlock: catch videos that are locked but weren't
+        // matched by collectionNames (e.g. child hasn't synced associations)
+        if (!isLocked) {
+          final locksSnapshot = await _database
+              .ref(FirebasePaths.childLocksPath(familyId, childUid))
+              .get();
+
+          for (final entry in videosData.entries) {
+            final videoKey = entry.key.toString();
+            if (matchedVideoKeys.contains(videoKey)) continue;
+
+            final videoData =
+                Map<dynamic, dynamic>.from(entry.value as Map);
+            final videoEnabled = videoData['enabled'] as bool? ?? true;
+            if (!videoEnabled) {
+              final hasLockCommand = locksSnapshot.exists &&
+                  locksSnapshot.value != null &&
+                  (locksSnapshot.value as Map).containsKey(videoKey);
+              if (hasLockCommand) {
+                updates['videos/$videoKey/enabled'] = true;
+                updates['locks/$videoKey'] = null;
+              }
+            }
           }
         }
       }
