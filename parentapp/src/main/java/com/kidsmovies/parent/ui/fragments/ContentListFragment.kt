@@ -447,16 +447,33 @@ class ContentListFragment : Fragment() {
 
     /**
      * Optimistically update local cache when a single video is locked/unlocked.
+     * Patches only the specific item in the adapter's current list rather than
+     * doing a full hierarchy rebuild, which would recompute parentLocked from
+     * allCollections data that may have stale isEnabled values from Firebase.
      */
     private fun applyVideoLockLocally(videoTitle: String, isLocked: Boolean) {
         val enabled = !isLocked
+
+        // Update the cached allVideos so future rebuilds use the correct state
         allVideos = allVideos.map { child ->
             if (child.video.title == videoTitle) {
                 ChildVideo(child.video.copy(isEnabled = enabled), child.firebaseKey)
             } else child
         }
 
-        updateHierarchicalContent()
+        // Patch only the affected item in the adapter's current list.
+        // This preserves the parentLocked state on all sibling items.
+        val currentList = hierarchicalAdapter.currentList.toMutableList()
+        val index = currentList.indexOfFirst { item ->
+            item is HierarchicalItem.Video && item.video.video.title == videoTitle
+        }
+        if (index >= 0) {
+            val item = currentList[index] as HierarchicalItem.Video
+            currentList[index] = item.copy(
+                video = ChildVideo(item.video.video.copy(isEnabled = enabled), item.video.firebaseKey)
+            )
+            hierarchicalAdapter.submitList(currentList)
+        }
     }
 
     private fun showLockDialog(item: ContentItem, isLocked: Boolean) {
