@@ -56,6 +56,11 @@ class ContentListFragment : Fragment() {
     // Track expanded collections for hierarchical view
     private val expandedCollections = mutableSetOf<String>()
 
+    // Track which collections have been explicitly locked by the parent.
+    // This is the source of truth for parentLocked state, since the Firebase
+    // isEnabled field can be overwritten by the child's sync and become unreliable.
+    private val parentLockedCollections = mutableSetOf<String>()
+
     // Cached data for building hierarchy
     private var allCollections: List<ChildCollection> = emptyList()
     private var allVideos: List<ChildVideo> = emptyList()
@@ -140,6 +145,15 @@ class ContentListFragment : Fragment() {
                 }.collectLatest { (collections, videos) ->
                     allCollections = collections
                     allVideos = videos
+
+                    // On first load, initialize parentLockedCollections from Firebase data.
+                    // After that, only lock/unlock actions update it (so child sync
+                    // overwriting isEnabled doesn't affect the parent's lock tracking).
+                    if (parentLockedCollections.isEmpty()) {
+                        collections.filter { !it.collection.isEnabled }
+                            .forEach { parentLockedCollections.add(it.collection.name) }
+                    }
+
                     updateHierarchicalContent()
                 }
             }
@@ -182,7 +196,8 @@ class ContentListFragment : Fragment() {
                     collection = tvShow,
                     depth = 0,
                     isExpanded = isExpanded,
-                    isTvShow = true
+                    isTvShow = true,
+                    explicitlyLocked = parentLockedCollections.contains(tvShow.collection.name)
                 )
             )
 
@@ -195,7 +210,10 @@ class ContentListFragment : Fragment() {
                 for (season in showSeasons) {
                     val seasonExpanded = expandedCollections.contains(season.firebaseKey)
                     val seasonNum = extractSeasonNumber(season.collection.name)
-                    val parentLocked = !tvShow.collection.isEnabled
+                    // Use parentLockedCollections (our local tracking) instead of isEnabled
+                    // from Firebase, which can be overwritten by the child's sync.
+                    val tvShowLocked = parentLockedCollections.contains(tvShow.collection.name)
+                    val seasonLocked = parentLockedCollections.contains(season.collection.name)
 
                     items.add(
                         HierarchicalItem.Collection(
@@ -204,7 +222,8 @@ class ContentListFragment : Fragment() {
                             isExpanded = seasonExpanded,
                             seasonNumber = seasonNum,
                             isSeason = true,
-                            parentLocked = parentLocked
+                            parentLocked = tvShowLocked,
+                            explicitlyLocked = seasonLocked
                         )
                     )
 
@@ -219,7 +238,7 @@ class ContentListFragment : Fragment() {
                                 HierarchicalItem.Video(
                                     video = episode,
                                     depth = 2,
-                                    parentLocked = parentLocked || !season.collection.isEnabled
+                                    parentLocked = tvShowLocked || seasonLocked
                                 )
                             )
                         }
@@ -235,7 +254,8 @@ class ContentListFragment : Fragment() {
                 HierarchicalItem.Collection(
                     collection = collection,
                     depth = 0,
-                    isExpanded = isExpanded
+                    isExpanded = isExpanded,
+                    explicitlyLocked = parentLockedCollections.contains(collection.collection.name)
                 )
             )
 
@@ -245,12 +265,13 @@ class ContentListFragment : Fragment() {
                     video.video.collectionNames.contains(collection.collection.name)
                 }
 
+                val collectionLocked = parentLockedCollections.contains(collection.collection.name)
                 for (video in videos) {
                     items.add(
                         HierarchicalItem.Video(
                             video = video,
                             depth = 1,
-                            parentLocked = !collection.collection.isEnabled
+                            parentLocked = collectionLocked
                         )
                     )
                 }
@@ -427,6 +448,13 @@ class ContentListFragment : Fragment() {
         // Find child seasons of this collection
         allCollections.filter { it.collection.parentName == collectionName }
             .forEach { targetNames.add(it.collection.name) }
+
+        // Update our local lock tracking — this is the source of truth for parentLocked
+        if (isLocked) {
+            parentLockedCollections.addAll(targetNames)
+        } else {
+            parentLockedCollections.removeAll(targetNames)
+        }
 
         // Update collections in local cache
         allCollections = allCollections.map { child ->
