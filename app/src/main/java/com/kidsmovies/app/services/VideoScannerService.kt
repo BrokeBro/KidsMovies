@@ -93,22 +93,31 @@ class VideoScannerService : Service() {
             return
         }
 
-        // Collect all video files
+        // Collect all video files from each enabled folder.
+        // Try File API first (fastest), fall back to MediaStore if it returns nothing
+        // (needed on Android 10+ where scoped storage may block direct File access).
         val allVideoFiles = mutableListOf<File>()
         enabledFolders.forEach { folder ->
-            val files = FileUtils.getVideoFiles(folder.path, folder.includeSubfolders)
+            var files = FileUtils.getVideoFiles(folder.path, folder.includeSubfolders)
+            if (files.isEmpty()) {
+                Log.d(TAG, "File API found nothing in ${folder.path}, trying MediaStore")
+                files = FileUtils.getVideoFilesViaMediaStore(this, folder.path, folder.includeSubfolders)
+            }
             allVideoFiles.addAll(files)
+            Log.d(TAG, "Found ${files.size} videos in ${folder.path}")
         }
 
-        // Get existing video paths
-        val existingPaths = videoRepository.getAllFilePaths().toSet()
+        // Get existing LOCAL video paths (exclude OneDrive/remote videos from removal check)
+        val existingPaths = videoRepository.getAllLocalFilePaths().toSet()
 
         // Find new videos
         val newVideoFiles = allVideoFiles.filter { !existingPaths.contains(it.absolutePath) }
 
-        // Find removed videos
+        // Find removed videos - only consider local videos, not remote ones
         val currentPaths = allVideoFiles.map { it.absolutePath }.toSet()
-        val removedPaths = existingPaths.filter { !currentPaths.contains(it) && !File(it).exists() }
+        val removedPaths = existingPaths.filter { path ->
+            path.isNotBlank() && !currentPaths.contains(path) && !File(path).exists()
+        }
 
         var addedCount = 0
         var removedCount = 0

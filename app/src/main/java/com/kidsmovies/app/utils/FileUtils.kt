@@ -41,6 +41,52 @@ object FileUtils {
         return videos
     }
 
+    /**
+     * Find video files in a folder using the MediaStore API.
+     * This works on Android 10+ where direct File API access may be restricted
+     * by scoped storage, even when the user has selected the folder via SAF.
+     */
+    fun getVideoFilesViaMediaStore(
+        context: Context,
+        folderPath: String,
+        includeSubfolders: Boolean
+    ): List<File> {
+        val videos = mutableListOf<File>()
+        val normalizedFolder = if (folderPath.endsWith("/")) folderPath else "$folderPath/"
+
+        val projection = arrayOf(
+            MediaStore.Video.Media.DATA,
+            MediaStore.Video.Media.DISPLAY_NAME
+        )
+
+        context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+
+            while (cursor.moveToNext()) {
+                val filePath = cursor.getString(dataColumn) ?: continue
+                val file = File(filePath)
+
+                val matchesFolder = if (includeSubfolders) {
+                    filePath.startsWith(normalizedFolder)
+                } else {
+                    file.parent?.let { "$it/" } == normalizedFolder
+                }
+
+                if (matchesFolder && file.exists()) {
+                    videos.add(file)
+                }
+            }
+        }
+
+        return videos
+    }
+
     fun getFolderName(folderPath: String): String {
         return File(folderPath).name
     }

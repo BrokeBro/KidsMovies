@@ -7,12 +7,16 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.google.gson.Gson
 import com.kidsmovies.app.pairing.PairingDao
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class SettingsSyncManager(
     private val pairingDao: PairingDao,
@@ -22,6 +26,8 @@ class SettingsSyncManager(
     private val database = FirebaseDatabase.getInstance()
     private val gson = Gson()
 
+    private val listenerMutex = Mutex()
+    private var isListening = false
     private var settingsListener: ValueEventListener? = null
     private var deviceListener: ValueEventListener? = null
     private var currentFamilyId: String? = null
@@ -30,8 +36,16 @@ class SettingsSyncManager(
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState
 
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Coroutine exception in sync manager", throwable)
+        _syncState.value = SyncState.Error(throwable.message ?: "Unexpected error")
+    }
+
     companion object {
         private const val TAG = "SettingsSyncManager"
+        private const val MAX_RETRY_ATTEMPTS = 5
+        private const val RETRY_BASE_DELAY_MS = 1000L
+        private const val MAX_RETRY_DELAY_MS = 60_000L
     }
 
     sealed class SyncState {
@@ -45,39 +59,45 @@ class SettingsSyncManager(
      * Start listening for settings changes from Firebase
      */
     fun startListening() {
-        coroutineScope.launch(Dispatchers.IO) {
-            val pairingState = pairingDao.getPairingState()
-            if (pairingState == null || !pairingState.isPaired) {
-                Log.d(TAG, "Not paired, skipping sync")
-                return@launch
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            listenerMutex.withLock {
+                val pairingState = pairingDao.getPairingState()
+                if (pairingState == null || !pairingState.isPaired) {
+                    Log.d(TAG, "Not paired, skipping sync")
+                    return@withLock
+                }
+
+                val familyId = pairingState.familyId ?: return@withLock
+                val childUid = pairingState.childUid ?: return@withLock
+
+                // Stop existing listeners if family changed or already listening
+                if (currentFamilyId != familyId || isListening) {
+                    removeAllListeners()
+                }
+
+                currentFamilyId = familyId
+                currentChildUid = childUid
+                isListening = true
+
+                // Listen to settings changes
+                listenToSettings(familyId)
+
+                // Listen to device-specific changes (revocation, overrides)
+                listenToDeviceStatus(familyId, childUid)
             }
-
-            val familyId = pairingState.familyId ?: return@launch
-            val childUid = pairingState.childUid ?: return@launch
-
-            // Stop existing listeners if family changed
-            if (currentFamilyId != familyId) {
-                stopListening()
-            }
-
-            currentFamilyId = familyId
-            currentChildUid = childUid
-
-            // Listen to settings changes
-            listenToSettings(familyId)
-
-            // Listen to device-specific changes (revocation, overrides)
-            listenToDeviceStatus(familyId, childUid)
         }
     }
 
     private fun listenToSettings(familyId: String) {
         val settingsRef = database.getReference("families/$familyId/settings")
 
-        settingsListener = object : ValueEventListener {
+        // Remove existing listener before adding a new one
+        settingsListener?.let { settingsRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 _syncState.value = SyncState.Syncing
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                     try {
                         parseAndCacheSettings(snapshot)
                         _syncState.value = SyncState.Synced(System.currentTimeMillis())
@@ -92,18 +112,23 @@ class SettingsSyncManager(
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Settings listener cancelled", error.toException())
                 _syncState.value = SyncState.Error(error.message)
+                scheduleListenerRetry("settings", familyId)
             }
         }
 
-        settingsRef.addValueEventListener(settingsListener!!)
+        settingsListener = listener
+        settingsRef.addValueEventListener(listener)
     }
 
     private fun listenToDeviceStatus(familyId: String, childUid: String) {
         val deviceRef = database.getReference("families/$familyId/devices/$childUid")
 
-        deviceListener = object : ValueEventListener {
+        // Remove existing listener before adding a new one
+        deviceListener?.let { deviceRef.removeEventListener(it) }
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
                     try {
                         parseAndCacheDeviceStatus(snapshot)
                     } catch (e: Exception) {
@@ -114,10 +139,12 @@ class SettingsSyncManager(
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w(TAG, "Device listener cancelled", error.toException())
+                scheduleListenerRetry("device", familyId, childUid)
             }
         }
 
-        deviceRef.addValueEventListener(deviceListener!!)
+        deviceListener = listener
+        deviceRef.addValueEventListener(listener)
     }
 
     private suspend fun parseAndCacheSettings(snapshot: DataSnapshot) {
@@ -214,6 +241,17 @@ class SettingsSyncManager(
      * Stop listening to Firebase
      */
     fun stopListening() {
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            listenerMutex.withLock {
+                removeAllListeners()
+            }
+        }
+    }
+
+    /**
+     * Remove all listeners. Must be called under listenerMutex.
+     */
+    private fun removeAllListeners() {
         currentFamilyId?.let { familyId ->
             settingsListener?.let {
                 database.getReference("families/$familyId/settings").removeEventListener(it)
@@ -228,6 +266,34 @@ class SettingsSyncManager(
         deviceListener = null
         currentFamilyId = null
         currentChildUid = null
+        isListening = false
+    }
+
+    /**
+     * Retry listener registration with exponential backoff after non-permanent failures.
+     */
+    private fun scheduleListenerRetry(
+        listenerType: String,
+        familyId: String,
+        childUid: String? = null,
+        attempt: Int = 0
+    ) {
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+            Log.e(TAG, "Max retry attempts reached for $listenerType listener")
+            return
+        }
+        val delayMs = RETRY_BASE_DELAY_MS * (1L shl attempt).coerceAtMost(MAX_RETRY_DELAY_MS)
+        coroutineScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            delay(delayMs)
+            listenerMutex.withLock {
+                if (!isListening) return@withLock
+                Log.d(TAG, "Retrying $listenerType listener (attempt ${attempt + 1})")
+                when (listenerType) {
+                    "settings" -> listenToSettings(familyId)
+                    "device" -> if (childUid != null) listenToDeviceStatus(familyId, childUid)
+                }
+            }
+        }
     }
 
     /**
@@ -240,7 +306,7 @@ class SettingsSyncManager(
     /**
      * Force a one-time sync (for WorkManager fallback)
      */
-    suspend fun forcSync() {
+    suspend fun forceSync() {
         val pairingState = pairingDao.getPairingState()
         if (pairingState == null || !pairingState.isPaired) return
 

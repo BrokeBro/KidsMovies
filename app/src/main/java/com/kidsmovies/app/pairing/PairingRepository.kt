@@ -100,6 +100,12 @@ class PairingRepository(
             }
             Log.d(TAG, "Pairing code parsed: familyId=${pairingCode.familyId}")
 
+            // Check if code has already been used
+            if (pairingCode.used) {
+                onStatus?.invoke("Code already used")
+                return PairingResult.CodeInvalid
+            }
+
             // Check if code has expired
             if (System.currentTimeMillis() > pairingCode.expiresAt) {
                 onStatus?.invoke("Code expired")

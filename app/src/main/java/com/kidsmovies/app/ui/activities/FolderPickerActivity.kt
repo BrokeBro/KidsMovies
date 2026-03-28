@@ -1,9 +1,11 @@
 package com.kidsmovies.app.ui.activities
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -132,6 +134,16 @@ class FolderPickerActivity : AppCompatActivity() {
     }
 
     private fun handleFolderSelected(uri: Uri) {
+        // Take persistent permission so the app retains access across restarts
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            Log.w("FolderPickerActivity", "Could not take persistable URI permission", e)
+        }
+
         // Get the actual path from the URI
         val path = getPathFromUri(uri)
         if (path != null) {

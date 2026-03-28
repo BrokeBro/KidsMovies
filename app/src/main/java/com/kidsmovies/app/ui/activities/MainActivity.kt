@@ -29,6 +29,7 @@ import com.kidsmovies.app.ui.fragments.FavouritesFragment
 import com.kidsmovies.app.ui.fragments.OnlineVideosFragment
 import com.kidsmovies.app.ui.fragments.RecentVideosFragment
 import com.kidsmovies.app.utils.ThemeManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -147,6 +148,24 @@ class MainActivity : AppCompatActivity() {
                             val isPaired = app.pairingRepository.isPaired()
                             if (isPaired) {
                                 showLockScreen()
+                            }
+                        }
+                    } else {
+                        // Warning period still active - wait for it to expire then lock.
+                        // If a new emission arrives (e.g. parent unlocks), collectLatest
+                        // cancels this delay automatically.
+                        val delayMs = appLockState.appliesAt - now
+                        delay(delayMs)
+                        // Re-verify lock is still active after the delay
+                        val currentLock = app.contentSyncManager.appLock.value
+                        if (currentLock != null && currentLock.isLocked) {
+                            val unlockAt = currentLock.unlockAt
+                            val nowAfterDelay = System.currentTimeMillis()
+                            if (unlockAt == null || nowAfterDelay < unlockAt) {
+                                val isPaired = app.pairingRepository.isPaired()
+                                if (isPaired) {
+                                    showLockScreen()
+                                }
                             }
                         }
                     }
