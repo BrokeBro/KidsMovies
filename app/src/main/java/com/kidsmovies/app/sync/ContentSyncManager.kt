@@ -178,8 +178,10 @@ class ContentSyncManager(
 
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
-                val isLocked = snapshot.child("locked").getValue(Boolean::class.java) ?: false
+                // Read isLocked: try both field names for Firebase Kotlin serialization compatibility
+                val isLocked = snapshot.child("locked").getValue(Boolean::class.java)
+                    ?: snapshot.child("isLocked").getValue(Boolean::class.java)
+                    ?: false
                 val message = snapshot.child("message").getValue(String::class.java) ?: "App is locked by parent"
                 val unlockAt = snapshot.child("unlockAt").getValue(Long::class.java)
                 val warningMinutes = snapshot.child("warningMinutes").getValue(Int::class.java) ?: 0
@@ -364,9 +366,13 @@ class ContentSyncManager(
                     for (videoSnapshot in snapshot.children) {
                         val videoKey = videoSnapshot.key ?: continue
                         val title = videoSnapshot.child("title").getValue(String::class.java) ?: continue
-                        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
-                        val enabled = videoSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
-                        val hidden = videoSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
+                        // Read enabled/hidden: try both field names for Firebase Kotlin serialization compatibility
+                        val enabled = videoSnapshot.child("enabled").getValue(Boolean::class.java)
+                            ?: videoSnapshot.child("isEnabled").getValue(Boolean::class.java)
+                            ?: true
+                        val hidden = videoSnapshot.child("hidden").getValue(Boolean::class.java)
+                            ?: videoSnapshot.child("isHidden").getValue(Boolean::class.java)
+                            ?: false
 
                         // Find video by title and update status
                         val video = videoRepository.getVideoByTitle(title)
@@ -408,9 +414,13 @@ class ContentSyncManager(
                     for (collectionSnapshot in snapshot.children) {
                         val collectionKey = collectionSnapshot.key ?: continue
                         val name = collectionSnapshot.child("name").getValue(String::class.java) ?: continue
-                        // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
-                        val enabled = collectionSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
-                        val hidden = collectionSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
+                        // Read enabled/hidden: try both field names for Firebase Kotlin serialization compatibility
+                        val enabled = collectionSnapshot.child("enabled").getValue(Boolean::class.java)
+                            ?: collectionSnapshot.child("isEnabled").getValue(Boolean::class.java)
+                            ?: true
+                        val hidden = collectionSnapshot.child("hidden").getValue(Boolean::class.java)
+                            ?: collectionSnapshot.child("isHidden").getValue(Boolean::class.java)
+                            ?: false
 
                         // Find collection by name and update status
                         val collection = collectionRepository.getCollectionByName(name)
@@ -538,8 +548,10 @@ class ContentSyncManager(
             val lockId = lockSnapshot.key ?: continue
             val videoTitle = lockSnapshot.child("videoTitle").getValue(String::class.java)
             val collectionName = lockSnapshot.child("collectionName").getValue(String::class.java)
-            // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
-            val isLocked = lockSnapshot.child("locked").getValue(Boolean::class.java) ?: false
+            // Read isLocked: try both field names for Firebase Kotlin serialization compatibility
+            val isLocked = lockSnapshot.child("locked").getValue(Boolean::class.java)
+                ?: lockSnapshot.child("isLocked").getValue(Boolean::class.java)
+                ?: false
             val warningMinutes = lockSnapshot.child("warningMinutes").getValue(Int::class.java) ?: 5
             val lockedAt = lockSnapshot.child("lockedAt").getValue(Long::class.java) ?: now
             val allowFinishCurrentVideo = lockSnapshot.child("allowFinishCurrentVideo").getValue(Boolean::class.java) ?: false
@@ -832,8 +844,11 @@ class ContentSyncManager(
             updates["$key/lastWatched"] = if (video.playbackPosition > 0) video.dateModified else null
             updates["$key/sourceType"] = video.sourceType
             updates["$key/remoteId"] = video.remoteId
-            // Note: isEnabled and isHidden are intentionally NOT uploaded here.
-            // They are controlled by the parent app via lock/hide commands.
+            // Write enabled/hidden using the explicit field names the parent app writes to.
+            // The Room DB values are kept in sync with Firebase by listenForVideoStatusChanges(),
+            // so writing them back is safe and ensures the fields always exist for the parent to override.
+            updates["$key/enabled"] = video.isEnabled
+            updates["$key/hidden"] = video.isHidden
         }
 
         val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
@@ -860,8 +875,9 @@ class ContentSyncManager(
             updates["$key/type"] = collection.collectionType
             updates["$key/parentName"] = parentCollection?.name
             updates["$key/videoCount"] = videoCount
-            // Note: isEnabled and isHidden are intentionally NOT uploaded here.
-            // They are controlled by the parent app via lock/hide commands.
+            // Write enabled/hidden using the explicit field names the parent app writes to.
+            updates["$key/enabled"] = collection.isEnabled
+            updates["$key/hidden"] = collection.isHidden
         }
 
         val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
