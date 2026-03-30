@@ -10,8 +10,8 @@ data class SyncedVideo(
     val title: String = "",
     val collectionNames: List<String> = emptyList(),
     val isFavourite: Boolean = false,
-    val isEnabled: Boolean = true, // Locked = visible but can't play
-    val isHidden: Boolean = false, // Hidden = completely invisible to child
+    val enabled: Boolean = true, // Locked = visible but can't play
+    val hidden: Boolean = false, // Hidden = completely invisible to child
     val duration: Long = 0,
     val playbackPosition: Long = 0,
     val lastWatched: Long? = null,
@@ -32,8 +32,8 @@ data class SyncedCollection(
     val type: String = "REGULAR", // REGULAR, TV_SHOW, SEASON
     val parentName: String? = null, // For seasons - parent TV show name
     val videoCount: Int = 0,
-    val isEnabled: Boolean = true, // Locked = visible but can't access
-    val isHidden: Boolean = false, // Hidden = completely invisible to child
+    val enabled: Boolean = true, // Locked = visible but can't access
+    val hidden: Boolean = false, // Hidden = completely invisible to child
     val thumbnailUrl: String? = null
 ) {
     // No-arg constructor for Firebase

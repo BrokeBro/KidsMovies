@@ -36,8 +36,8 @@ class SyncedVideo {
               .toList() ??
           [],
       isFavourite: map['isFavourite'] as bool? ?? false,
-      isEnabled: map['isEnabled'] as bool? ?? true,
-      isHidden: map['isHidden'] as bool? ?? false,
+      isEnabled: map['enabled'] as bool? ?? map['isEnabled'] as bool? ?? true,
+      isHidden: map['hidden'] as bool? ?? map['isHidden'] as bool? ?? false,
       duration: (map['duration'] as num?)?.toInt() ?? 0,
       playbackPosition: (map['playbackPosition'] as num?)?.toInt() ?? 0,
       lastWatched: (map['lastWatched'] as num?)?.toInt(),
@@ -81,8 +81,8 @@ class SyncedCollection {
       type: map['type'] as String? ?? 'REGULAR',
       parentName: map['parentName'] as String?,
       videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
-      isEnabled: map['isEnabled'] as bool? ?? true,
-      isHidden: map['isHidden'] as bool? ?? false,
+      isEnabled: map['enabled'] as bool? ?? map['isEnabled'] as bool? ?? true,
+      isHidden: map['hidden'] as bool? ?? map['isHidden'] as bool? ?? false,
       thumbnailUrl: map['thumbnailUrl'] as String?,
     );
   }

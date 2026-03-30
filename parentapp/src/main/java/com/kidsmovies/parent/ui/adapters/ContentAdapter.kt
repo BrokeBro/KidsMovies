@@ -69,7 +69,7 @@ class ContentAdapter(
                     }
 
                     // Lock status
-                    val isLocked = !video.isEnabled
+                    val isLocked = !video.enabled
                     updateLockUI(isLocked)
 
                     binding.lockSwitch.setOnCheckedChangeListener(null)
@@ -89,7 +89,7 @@ class ContentAdapter(
                     binding.subtitleText.text = "${collection.videoCount} videos • ${collection.type}"
 
                     // Lock status
-                    val isLocked = !collection.isEnabled
+                    val isLocked = !collection.enabled
                     updateLockUI(isLocked)
 
                     binding.lockSwitch.setOnCheckedChangeListener(null)

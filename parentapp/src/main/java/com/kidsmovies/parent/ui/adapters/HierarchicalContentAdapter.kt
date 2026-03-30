@@ -25,7 +25,7 @@ sealed class HierarchicalItem {
         override val depth: Int = 0,
         val parentLocked: Boolean = false // If parent collection is locked
     ) : HierarchicalItem() {
-        override val isLocked: Boolean get() = !video.video.isEnabled || parentLocked
+        override val isLocked: Boolean get() = !video.video.enabled || parentLocked
         override val name: String get() = video.video.title
     }
 
@@ -38,7 +38,7 @@ sealed class HierarchicalItem {
         val isSeason: Boolean = false,
         val parentLocked: Boolean = false
     ) : HierarchicalItem() {
-        override val isLocked: Boolean get() = !collection.collection.isEnabled || parentLocked
+        override val isLocked: Boolean get() = !collection.collection.enabled || parentLocked
         override val name: String get() = collection.collection.name
     }
 }
@@ -92,8 +92,8 @@ class HierarchicalContentAdapter(
             // Lock switch - show effective combined state (own + parent)
             // but keep interactive so parents can exception-unlock individual items
             val isOwnLocked = when (item) {
-                is HierarchicalItem.Video -> !item.video.video.isEnabled
-                is HierarchicalItem.Collection -> !item.collection.collection.isEnabled
+                is HierarchicalItem.Video -> !item.video.video.enabled
+                is HierarchicalItem.Collection -> !item.collection.collection.enabled
             }
             binding.lockSwitch.setOnCheckedChangeListener(null)
             binding.lockSwitch.isChecked = item.isLocked // Combined state: own OR parent
@@ -131,7 +131,7 @@ class HierarchicalContentAdapter(
             binding.typeBadge.text = "VIDEO"
 
             // If this is an episode within a locked parent, show special badge
-            if (item.parentLocked && video.isEnabled) {
+            if (item.parentLocked && video.enabled) {
                 binding.typeBadge.text = "UNLOCKED EPISODE"
                 binding.typeBadge.setBackgroundResource(R.drawable.badge_unlocked_background)
             } else {
