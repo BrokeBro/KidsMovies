@@ -36,10 +36,9 @@ sealed class HierarchicalItem {
         val seasonNumber: Int? = null, // For seasons
         val isTvShow: Boolean = false,
         val isSeason: Boolean = false,
-        val parentLocked: Boolean = false,
-        val explicitlyLocked: Boolean = false // Tracked locally by parent app
+        val parentLocked: Boolean = false
     ) : HierarchicalItem() {
-        override val isLocked: Boolean get() = !collection.collection.isEnabled || parentLocked || explicitlyLocked
+        override val isLocked: Boolean get() = !collection.collection.isEnabled || parentLocked
         override val name: String get() = collection.collection.name
     }
 }

@@ -844,11 +844,9 @@ class ContentSyncManager(
             updates["$key/lastWatched"] = if (video.playbackPosition > 0) video.dateModified else null
             updates["$key/sourceType"] = video.sourceType
             updates["$key/remoteId"] = video.remoteId
-            // Write enabled/hidden using the explicit field names the parent app writes to.
-            // The Room DB values are kept in sync with Firebase by listenForVideoStatusChanges(),
-            // so writing them back is safe and ensures the fields always exist for the parent to override.
-            updates["$key/enabled"] = video.isEnabled
-            updates["$key/hidden"] = video.isHidden
+            // Do NOT write enabled/hidden here. Those fields are controlled exclusively
+            // by the parent app via lock/hide commands. updateChildren() preserves
+            // unspecified fields, so the parent's writes persist across child syncs.
         }
 
         val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
@@ -875,9 +873,8 @@ class ContentSyncManager(
             updates["$key/type"] = collection.collectionType
             updates["$key/parentName"] = parentCollection?.name
             updates["$key/videoCount"] = videoCount
-            // Write enabled/hidden using the explicit field names the parent app writes to.
-            updates["$key/enabled"] = collection.isEnabled
-            updates["$key/hidden"] = collection.isHidden
+            // Do NOT write enabled/hidden here. Those fields are controlled exclusively
+            // by the parent app via lock/hide commands.
         }
 
         val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
