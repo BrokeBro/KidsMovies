@@ -74,7 +74,17 @@ class FamilyManager {
                 for (videoSnapshot in snapshot.children) {
                     val video = videoSnapshot.getValue(SyncedVideo::class.java)
                     if (video != null) {
-                        videos.add(ChildVideo(video, videoSnapshot.key ?: ""))
+                        // Manually read enabled/hidden to avoid Firebase Kotlin serialization
+                        // issues where getValue() may not correctly map field names to
+                        // constructor parameters (isEnabled vs enabled, isHidden vs hidden)
+                        val enabled = videoSnapshot.child("enabled").getValue(Boolean::class.java)
+                            ?: videoSnapshot.child("isEnabled").getValue(Boolean::class.java)
+                            ?: true
+                        val hidden = videoSnapshot.child("hidden").getValue(Boolean::class.java)
+                            ?: videoSnapshot.child("isHidden").getValue(Boolean::class.java)
+                            ?: false
+                        val fixedVideo = video.copy(enabled = enabled, hidden = hidden)
+                        videos.add(ChildVideo(fixedVideo, videoSnapshot.key ?: ""))
                     }
                 }
                 trySend(videos.sortedBy { it.video.title })
@@ -105,7 +115,17 @@ class FamilyManager {
                 for (collectionSnapshot in snapshot.children) {
                     val collection = collectionSnapshot.getValue(SyncedCollection::class.java)
                     if (collection != null) {
-                        collections.add(ChildCollection(collection, collectionSnapshot.key ?: ""))
+                        // Manually read enabled/hidden to avoid Firebase Kotlin serialization
+                        // issues where getValue() may not correctly map field names to
+                        // constructor parameters (isEnabled vs enabled, isHidden vs hidden)
+                        val enabled = collectionSnapshot.child("enabled").getValue(Boolean::class.java)
+                            ?: collectionSnapshot.child("isEnabled").getValue(Boolean::class.java)
+                            ?: true
+                        val hidden = collectionSnapshot.child("hidden").getValue(Boolean::class.java)
+                            ?: collectionSnapshot.child("isHidden").getValue(Boolean::class.java)
+                            ?: false
+                        val fixedCollection = collection.copy(enabled = enabled, hidden = hidden)
+                        collections.add(ChildCollection(fixedCollection, collectionSnapshot.key ?: ""))
                     }
                 }
                 trySend(collections.sortedBy { it.collection.name })
