@@ -1,9 +1,11 @@
 package com.kidsmovies.app.utils
 
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -142,29 +144,34 @@ object FileUtils {
     fun queryVideosFromMediaStore(context: Context): List<MediaStoreVideo> {
         val videos = mutableListOf<MediaStoreVideo>()
 
-        val projection = arrayOf(
+        val projection = mutableListOf(
             MediaStore.Video.Media._ID,
             MediaStore.Video.Media.DISPLAY_NAME,
-            MediaStore.Video.Media.DATA,
             MediaStore.Video.Media.DURATION,
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.DATE_ADDED,
             MediaStore.Video.Media.DATE_MODIFIED,
             MediaStore.Video.Media.MIME_TYPE
         )
+        // Use RELATIVE_PATH on Q+ (content URI for playback), fall back to DATA on older APIs
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            projection.add(MediaStore.Video.Media.RELATIVE_PATH)
+        } else {
+            @Suppress("DEPRECATION")
+            projection.add(MediaStore.Video.Media.DATA)
+        }
 
         val sortOrder = "${MediaStore.Video.Media.DISPLAY_NAME} ASC"
 
         context.contentResolver.query(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-            projection,
+            projection.toTypedArray(),
             null,
             null,
             sortOrder
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
             val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
-            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
@@ -172,11 +179,29 @@ object FileUtils {
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
 
             while (cursor.moveToNext()) {
+                val mediaStoreId = cursor.getLong(idColumn)
+                val contentUri = ContentUris.withAppendedId(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaStoreId
+                )
+
+                val filePath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val relativePath = cursor.getString(
+                        cursor.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH)
+                    ) ?: ""
+                    val displayName = cursor.getString(nameColumn)
+                    // Build a logical path from RELATIVE_PATH + DISPLAY_NAME
+                    "${Environment.getExternalStorageDirectory().absolutePath}/$relativePath$displayName"
+                } else {
+                    @Suppress("DEPRECATION")
+                    cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
+                }
+
                 videos.add(
                     MediaStoreVideo(
-                        id = cursor.getLong(idColumn),
+                        id = mediaStoreId,
                         displayName = cursor.getString(nameColumn),
-                        filePath = cursor.getString(dataColumn),
+                        filePath = filePath,
+                        contentUri = contentUri,
                         duration = cursor.getLong(durationColumn),
                         size = cursor.getLong(sizeColumn),
                         dateAdded = cursor.getLong(dateAddedColumn) * 1000,
@@ -194,6 +219,7 @@ object FileUtils {
         val id: Long,
         val displayName: String,
         val filePath: String,
+        val contentUri: Uri, // Content URI for playback via MediaStore
         val duration: Long,
         val size: Long,
         val dateAdded: Long,

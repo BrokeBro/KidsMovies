@@ -15,5 +15,6 @@ data class ScanFolder(
     val includeSubfolders: Boolean = true,
     val isEnabled: Boolean = true,
     val isDownloadFolder: Boolean = false,
-    val dateAdded: Long = System.currentTimeMillis()
+    val dateAdded: Long = System.currentTimeMillis(),
+    val treeUri: String? = null // Persisted SAF URI for scoped storage access
 ) : Parcelable

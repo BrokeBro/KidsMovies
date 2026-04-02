@@ -7,8 +7,10 @@ import com.google.firebase.database.IgnoreExtraProperties
  */
 @IgnoreExtraProperties
 data class SyncedVideo(
+    val localId: Long = 0, // Stable local database ID from child device
     val title: String = "",
     val collectionNames: List<String> = emptyList(),
+    val collectionIds: List<Long> = emptyList(), // Stable local collection IDs
     val isFavourite: Boolean = false,
     val isEnabled: Boolean = true, // Locked = visible but can't play
     val isHidden: Boolean = false, // Hidden = completely invisible to child
@@ -20,7 +22,7 @@ data class SyncedVideo(
     val remoteId: String? = null // Graph API item ID for remote videos
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", emptyList(), false, true, false, 0, 0, null, null, "local", null)
+    constructor() : this(0, "", emptyList(), emptyList(), false, true, false, 0, 0, null, null, "local", null)
 }
 
 /**
@@ -28,16 +30,18 @@ data class SyncedVideo(
  */
 @IgnoreExtraProperties
 data class SyncedCollection(
+    val localId: Long = 0, // Stable local database ID from child device
     val name: String = "",
     val type: String = "REGULAR", // REGULAR, TV_SHOW, SEASON
     val parentName: String? = null, // For seasons - parent TV show name
+    val parentId: Long? = null, // Stable parent collection ID
     val videoCount: Int = 0,
     val isEnabled: Boolean = true, // Locked = visible but can't access
     val isHidden: Boolean = false, // Hidden = completely invisible to child
     val thumbnailUrl: String? = null
 ) {
     // No-arg constructor for Firebase
-    constructor() : this("", "REGULAR", null, 0, true, false, null)
+    constructor() : this(0, "", "REGULAR", null, null, 0, true, false, null)
 }
 
 /**
@@ -77,7 +81,9 @@ data class SyncRequest(
 @IgnoreExtraProperties
 data class LockCommand(
     val videoTitle: String? = null,
+    val videoId: Long? = null, // Stable local video ID
     val collectionName: String? = null,
+    val collectionId: Long? = null, // Stable local collection ID
     val isLocked: Boolean = false,
     val lockedBy: String = "", // Parent UID
     val lockedAt: Long = 0,
@@ -85,7 +91,7 @@ data class LockCommand(
     val allowFinishCurrentVideo: Boolean = false // Allow child to finish current video before lock
 ) {
     // No-arg constructor for Firebase
-    constructor() : this(null, null, false, "", 0, 5, false)
+    constructor() : this(null, null, null, null, false, "", 0, 5, false)
 }
 
 /**

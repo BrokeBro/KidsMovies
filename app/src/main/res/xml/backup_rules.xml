@@ -2,6 +2,10 @@
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="sharedpref" path="." />
+    <exclude domain="database" path="pairing_state" />
+    <exclude domain="sharedpref" path="onedrive_config.xml" />
+    <exclude domain="sharedpref" path="com.microsoft.identity.client.xml" />
+    <exclude domain="sharedpref" path="pairing_prefs.xml" />
     <exclude domain="file" path="thumbnails/" />
     <exclude domain="cache" path="." />
 </full-backup-content>

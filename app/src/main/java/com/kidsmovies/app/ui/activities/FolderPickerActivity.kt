@@ -1,5 +1,6 @@
 package com.kidsmovies.app.ui.activities
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -132,6 +133,10 @@ class FolderPickerActivity : AppCompatActivity() {
     }
 
     private fun handleFolderSelected(uri: Uri) {
+        // Persist access permission across reboots
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        contentResolver.takePersistableUriPermission(uri, flags)
+
         // Get the actual path from the URI
         val path = getPathFromUri(uri)
         if (path != null) {
@@ -141,7 +146,8 @@ class FolderPickerActivity : AppCompatActivity() {
                         path = path,
                         name = FileUtils.getFolderName(path),
                         includeSubfolders = true,
-                        isEnabled = true
+                        isEnabled = true,
+                        treeUri = uri.toString()
                     )
                     app.settingsRepository.addFolder(folder)
                 }

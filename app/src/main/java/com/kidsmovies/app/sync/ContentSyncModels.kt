@@ -14,7 +14,9 @@ typealias LockCommand = com.kidsmovies.shared.models.LockCommand
  */
 data class PendingLock(
     val videoTitle: String? = null,
+    val videoId: Long? = null, // Stable local video ID
     val collectionName: String? = null,
+    val collectionId: Long? = null, // Stable local collection ID
     val appliesAt: Long, // Timestamp when lock should be applied
     val warningMinutes: Int,
     val allowFinishCurrentVideo: Boolean = false // Allow child to finish current video before lock

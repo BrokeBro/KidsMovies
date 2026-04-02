@@ -4,9 +4,12 @@ import android.os.Build
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 class PairingRepository(
@@ -80,34 +83,64 @@ class PairingRepository(
         Log.d(TAG, "Step 1 complete: Authenticated as $childUid")
 
         return try {
-            // Read the pairing code from Firebase
+            // Atomically claim the pairing code using a Firebase transaction
             onStatus?.invoke("Looking up pairing code...")
-            Log.d(TAG, "Step 2: Looking up pairing code $code")
+            Log.d(TAG, "Step 2: Atomically claiming pairing code $code")
             val codeRef = database.getReference("$PAIRING_CODES_PATH/$code")
-            val snapshot = codeRef.get().await()
-            Log.d(TAG, "Step 2 complete: Got snapshot, exists=${snapshot.exists()}")
 
-            if (!snapshot.exists()) {
+            val claimedCode = suspendCoroutine<PairingCode?> { cont ->
+                codeRef.runTransaction(object : Transaction.Handler {
+                    override fun doTransaction(currentData: MutableData): Transaction.Result {
+                        val existing = currentData.getValue(PairingCode::class.java)
+                            ?: return Transaction.success(currentData) // Code doesn't exist
+
+                        if (existing.used) {
+                            return Transaction.success(currentData) // Already claimed
+                        }
+
+                        // Mark as used atomically
+                        currentData.child("used").value = true
+                        currentData.child("usedBy").value = childUid
+                        return Transaction.success(currentData)
+                    }
+
+                    override fun onComplete(
+                        error: com.google.firebase.database.DatabaseError?,
+                        committed: Boolean,
+                        currentData: com.google.firebase.database.DataSnapshot?
+                    ) {
+                        if (error != null) {
+                            cont.resumeWithException(error.toException())
+                            return
+                        }
+                        val result = currentData?.getValue(PairingCode::class.java)
+                        cont.resume(result)
+                    }
+                })
+            }
+            Log.d(TAG, "Step 2 complete: Transaction finished")
+
+            if (claimedCode == null) {
                 onStatus?.invoke("Code not found")
                 return PairingResult.CodeInvalid
             }
 
-            val pairingCode = snapshot.getValue(PairingCode::class.java)
-            if (pairingCode == null) {
-                Log.e(TAG, "Failed to parse pairing code data")
-                onStatus?.invoke("Invalid code format")
+            // Check if someone else claimed it (usedBy is set but not to us)
+            if (claimedCode.used && claimedCode.usedBy != childUid) {
+                Log.w(TAG, "Pairing code was claimed by another device: ${claimedCode.usedBy}")
+                onStatus?.invoke("Code already used")
                 return PairingResult.CodeInvalid
             }
-            Log.d(TAG, "Pairing code parsed: familyId=${pairingCode.familyId}")
 
             // Check if code has expired
-            if (System.currentTimeMillis() > pairingCode.expiresAt) {
+            if (System.currentTimeMillis() > claimedCode.expiresAt) {
                 onStatus?.invoke("Code expired")
                 return PairingResult.CodeExpired
             }
 
-            val familyId = pairingCode.familyId
-            val parentUid = pairingCode.parentUid
+            val familyId = claimedCode.familyId
+            val parentUid = claimedCode.parentUid
+            Log.d(TAG, "Pairing code claimed: familyId=$familyId")
 
             // Register this device under the family (use 'children' path to match parent app)
             onStatus?.invoke("Registering device...")
@@ -123,7 +156,7 @@ class PairingRepository(
             deviceRef.setValue(deviceData).await()
             Log.d(TAG, "Step 3 complete: Device registered")
 
-            // Delete the pairing code (it's been used)
+            // Delete the used pairing code
             onStatus?.invoke("Finalizing...")
             Log.d(TAG, "Step 4: Deleting used pairing code")
             codeRef.removeValue().await()
