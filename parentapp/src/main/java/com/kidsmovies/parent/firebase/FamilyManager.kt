@@ -145,6 +145,7 @@ class FamilyManager {
         familyId: String,
         childUid: String,
         videoTitle: String,
+        videoId: Long,
         isLocked: Boolean,
         warningMinutes: Int = 5,
         allowFinishCurrentVideo: Boolean = false
@@ -153,6 +154,7 @@ class FamilyManager {
 
         val lockCommand = LockCommand(
             videoTitle = videoTitle,
+            videoId = videoId,
             collectionName = null,
             isLocked = isLocked,
             lockedBy = userId,
@@ -161,7 +163,8 @@ class FamilyManager {
             allowFinishCurrentVideo = allowFinishCurrentVideo
         )
 
-        val lockId = sanitizeFirebaseKey(videoTitle)
+        // Use stable ID as the lock key
+        val lockId = "v_$videoId"
 
         // Write lock command to locks path
         database.getReference("${FirebasePaths.childLocksPath(familyId, childUid)}/$lockId")
@@ -170,7 +173,8 @@ class FamilyManager {
 
         // Also update the video's enabled field directly for immediate effect
         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
-        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$lockId/enabled")
+        val videoKey = videoId.toString()
+        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$videoKey/enabled")
             .setValue(!isLocked)
             .await()
     }
@@ -185,6 +189,7 @@ class FamilyManager {
         familyId: String,
         childUid: String,
         collectionName: String,
+        collectionId: Long,
         isLocked: Boolean,
         warningMinutes: Int = 5,
         allowFinishCurrentVideo: Boolean = false
@@ -196,12 +201,13 @@ class FamilyManager {
         // Build all updates into a single atomic map
         val updates = mutableMapOf<String, Any?>()
 
-        // 1. Lock the collection itself
-        val collectionKey = sanitizeFirebaseKey(collectionName)
-        val collectionLockId = "collection_$collectionKey"
+        // 1. Lock the collection itself (keyed by stable local ID)
+        val collectionKey = collectionId.toString()
+        val collectionLockId = "c_$collectionId"
         updates["${FirebasePaths.COLLECTIONS}/$collectionKey/enabled"] = !isLocked
         updates["${FirebasePaths.LOCKS}/$collectionLockId"] = LockCommand(
             collectionName = collectionName,
+            collectionId = collectionId,
             isLocked = isLocked,
             lockedBy = userId,
             lockedAt = now,
@@ -215,17 +221,21 @@ class FamilyManager {
                 FirebasePaths.childCollectionsPath(familyId, childUid)
             ).get().await()
 
-            val childSeasonNames = mutableListOf<String>()
+            val childSeasonIds = mutableListOf<Long>()
             for (collectionSnapshot in collectionsSnapshot.children) {
                 val collection = collectionSnapshot.getValue(SyncedCollection::class.java) ?: continue
-                if (collection.parentName == collectionName) {
+                // Match by parentId (stable) or fall back to parentName (legacy)
+                val isChildSeason = (collection.parentId != null && collection.parentId == collectionId) ||
+                    (collection.parentId == null && collection.parentName == collectionName)
+                if (isChildSeason) {
                     val seasonKey = collectionSnapshot.key ?: continue
-                    childSeasonNames.add(collection.name)
+                    childSeasonIds.add(collection.localId)
 
-                    val seasonLockId = "collection_${sanitizeFirebaseKey(collection.name)}"
+                    val seasonLockId = "c_${collection.localId}"
                     updates["${FirebasePaths.COLLECTIONS}/$seasonKey/enabled"] = !isLocked
                     updates["${FirebasePaths.LOCKS}/$seasonLockId"] = LockCommand(
                         collectionName = collection.name,
+                        collectionId = collection.localId,
                         isLocked = isLocked,
                         lockedBy = userId,
                         lockedAt = now,
@@ -236,7 +246,7 @@ class FamilyManager {
             }
 
             // 3. Find videos in this collection or child seasons and add to atomic update
-            val allCollectionNames = mutableListOf(collectionName).apply { addAll(childSeasonNames) }
+            val allCollectionIds = mutableListOf(collectionId).apply { addAll(childSeasonIds) }
 
             val videosSnapshot = database.getReference(
                 FirebasePaths.childVideosPath(familyId, childUid)
@@ -246,12 +256,21 @@ class FamilyManager {
                 val video = videoSnapshot.getValue(SyncedVideo::class.java) ?: continue
                 val videoKey = videoSnapshot.key ?: continue
 
-                val belongsToLockedCollection = video.collectionNames.any { it in allCollectionNames }
+                // Match by collectionIds (stable) or fall back to collectionNames (legacy)
+                val belongsToLockedCollection = video.collectionIds.any { it in allCollectionIds } ||
+                    (video.collectionIds.isEmpty() && video.collectionNames.any { name ->
+                        // Legacy fallback: match by name
+                        collectionsSnapshot.children.any { snap ->
+                            val c = snap.getValue(SyncedCollection::class.java)
+                            c != null && c.name == name && c.localId in allCollectionIds
+                        }
+                    })
                 if (belongsToLockedCollection) {
-                    val videoLockId = sanitizeFirebaseKey(video.title)
+                    val videoLockId = "v_${video.localId}"
                     updates["${FirebasePaths.VIDEOS}/$videoKey/enabled"] = !isLocked
                     updates["${FirebasePaths.LOCKS}/$videoLockId"] = LockCommand(
                         videoTitle = video.title,
+                        videoId = video.localId,
                         isLocked = isLocked,
                         lockedBy = userId,
                         lockedAt = now,
@@ -275,10 +294,10 @@ class FamilyManager {
     suspend fun setVideoHidden(
         familyId: String,
         childUid: String,
-        videoTitle: String,
+        videoId: Long,
         isHidden: Boolean
     ) {
-        val key = sanitizeFirebaseKey(videoTitle)
+        val key = videoId.toString()
         // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
         database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$key/hidden")
             .setValue(isHidden)
@@ -291,10 +310,10 @@ class FamilyManager {
     suspend fun setCollectionHidden(
         familyId: String,
         childUid: String,
-        collectionName: String,
+        collectionId: Long,
         isHidden: Boolean
     ) {
-        val key = sanitizeFirebaseKey(collectionName)
+        val key = collectionId.toString()
         // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
         database.getReference("${FirebasePaths.childCollectionsPath(familyId, childUid)}/$key/hidden")
             .setValue(isHidden)
@@ -681,7 +700,10 @@ data class ChildDevice(
 data class ChildVideo(
     val video: SyncedVideo,
     val firebaseKey: String
-)
+) {
+    /** Stable local ID from the child device's database */
+    val localId: Long get() = video.localId
+}
 
 /**
  * Wrapper for child collection
@@ -689,4 +711,7 @@ data class ChildVideo(
 data class ChildCollection(
     val collection: SyncedCollection,
     val firebaseKey: String
-)
+) {
+    /** Stable local ID from the child device's database */
+    val localId: Long get() = collection.localId
+}

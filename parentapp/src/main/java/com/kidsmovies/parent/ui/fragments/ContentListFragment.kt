@@ -189,7 +189,9 @@ class ContentListFragment : Fragment() {
             if (isExpanded) {
                 // Find seasons for this TV show
                 val showSeasons = seasons.filter {
-                    it.collection.parentName == tvShow.collection.name
+                    // Match by stable parentId, falling back to parentName for legacy data
+                    (it.collection.parentId != null && it.collection.parentId == tvShow.localId) ||
+                        (it.collection.parentId == null && it.collection.parentName == tvShow.collection.name)
                 }.sortedBy { extractSeasonNumber(it.collection.name) }
 
                 for (season in showSeasons) {
@@ -209,9 +211,10 @@ class ContentListFragment : Fragment() {
                     )
 
                     if (seasonExpanded) {
-                        // Find episodes in this season
+                        // Find episodes in this season (by stable ID or name fallback)
                         val episodes = allVideos.filter { video ->
-                            video.video.collectionNames.contains(season.collection.name)
+                            video.video.collectionIds.contains(season.localId) ||
+                                (video.video.collectionIds.isEmpty() && video.video.collectionNames.contains(season.collection.name))
                         }
 
                         for (episode in episodes) {
@@ -240,9 +243,10 @@ class ContentListFragment : Fragment() {
             )
 
             if (isExpanded) {
-                // Find videos in this collection
+                // Find videos in this collection (by stable ID or name fallback)
                 val videos = allVideos.filter { video ->
-                    video.video.collectionNames.contains(collection.collection.name)
+                    video.video.collectionIds.contains(collection.localId) ||
+                        (video.video.collectionIds.isEmpty() && video.video.collectionNames.contains(collection.collection.name))
                 }
 
                 for (video in videos) {
@@ -359,6 +363,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             videoTitle = name,
+                            videoId = item.video.localId,
                             isLocked = true,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
@@ -369,6 +374,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             collectionName = name,
+                            collectionId = item.collection.localId,
                             isLocked = true,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
@@ -392,6 +398,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             videoTitle = name,
+                            videoId = item.video.localId,
                             isLocked = false
                         )
                     }
@@ -400,6 +407,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             collectionName = name,
+                            collectionId = item.collection.localId,
                             isLocked = false
                         )
                     }
@@ -476,6 +484,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             videoTitle = name,
+                            videoId = item.video.localId,
                             isLocked = true,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
@@ -486,6 +495,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             collectionName = name,
+                            collectionId = item.collection.localId,
                             isLocked = true,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishVideo
@@ -509,6 +519,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             videoTitle = name,
+                            videoId = item.video.localId,
                             isLocked = false
                         )
                     }
@@ -517,6 +528,7 @@ class ContentListFragment : Fragment() {
                             familyId = familyId,
                             childUid = childUid,
                             collectionName = name,
+                            collectionId = item.collection.localId,
                             isLocked = false
                         )
                     }

@@ -330,21 +330,29 @@ class ContentSyncManager(
                 coroutineScope.launch(Dispatchers.IO) {
                     for (videoSnapshot in snapshot.children) {
                         val videoKey = videoSnapshot.key ?: continue
-                        val title = videoSnapshot.child("title").getValue(String::class.java) ?: continue
                         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
                         val enabled = videoSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
                         val hidden = videoSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
 
-                        // Find video by title and update status
-                        val video = videoRepository.getVideoByTitle(title)
+                        // Resolve by stable local ID (key is the video's local ID)
+                        val localId = videoSnapshot.child("localId").getValue(Long::class.java)
+                            ?: videoKey.toLongOrNull()
+                        val video = if (localId != null) {
+                            videoRepository.getVideoById(localId)
+                        } else {
+                            // Fallback for legacy data keyed by sanitized title
+                            val title = videoSnapshot.child("title").getValue(String::class.java) ?: continue
+                            videoRepository.getVideoByTitle(title)
+                        }
+
                         if (video != null) {
                             if (video.isEnabled != enabled) {
                                 videoRepository.updateEnabled(video.id, enabled)
-                                Log.d(TAG, "Synced video enabled status from Firebase: $title, enabled=$enabled")
+                                Log.d(TAG, "Synced video enabled status from Firebase: ${video.title}, enabled=$enabled")
                             }
                             if (video.isHidden != hidden) {
                                 videoRepository.updateHidden(video.id, hidden)
-                                Log.d(TAG, "Synced video hidden status from Firebase: $title, hidden=$hidden")
+                                Log.d(TAG, "Synced video hidden status from Firebase: ${video.title}, hidden=$hidden")
                             }
                         }
                     }
@@ -370,21 +378,29 @@ class ContentSyncManager(
                 coroutineScope.launch(Dispatchers.IO) {
                     for (collectionSnapshot in snapshot.children) {
                         val collectionKey = collectionSnapshot.key ?: continue
-                        val name = collectionSnapshot.child("name").getValue(String::class.java) ?: continue
                         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
                         val enabled = collectionSnapshot.child("enabled").getValue(Boolean::class.java) ?: true
                         val hidden = collectionSnapshot.child("hidden").getValue(Boolean::class.java) ?: false
 
-                        // Find collection by name and update status
-                        val collection = collectionRepository.getCollectionByName(name)
+                        // Resolve by stable local ID (key is the collection's local ID)
+                        val localId = collectionSnapshot.child("localId").getValue(Long::class.java)
+                            ?: collectionKey.toLongOrNull()
+                        val collection = if (localId != null) {
+                            collectionRepository.getCollectionById(localId)
+                        } else {
+                            // Fallback for legacy data keyed by sanitized name
+                            val name = collectionSnapshot.child("name").getValue(String::class.java) ?: continue
+                            collectionRepository.getCollectionByName(name)
+                        }
+
                         if (collection != null) {
                             if (collection.isEnabled != enabled) {
                                 collectionRepository.updateEnabled(collection.id, enabled)
-                                Log.d(TAG, "Synced collection enabled status from Firebase: $name, enabled=$enabled")
+                                Log.d(TAG, "Synced collection enabled status from Firebase: ${collection.name}, enabled=$enabled")
                             }
                             if (collection.isHidden != hidden) {
                                 collectionRepository.updateHidden(collection.id, hidden)
-                                Log.d(TAG, "Synced collection hidden status from Firebase: $name, hidden=$hidden")
+                                Log.d(TAG, "Synced collection hidden status from Firebase: ${collection.name}, hidden=$hidden")
                             }
                         }
                     }
@@ -486,7 +502,9 @@ class ContentSyncManager(
         for (lockSnapshot in snapshot.children) {
             val lockId = lockSnapshot.key ?: continue
             val videoTitle = lockSnapshot.child("videoTitle").getValue(String::class.java)
+            val videoId = lockSnapshot.child("videoId").getValue(Long::class.java)
             val collectionName = lockSnapshot.child("collectionName").getValue(String::class.java)
+            val collectionId = lockSnapshot.child("collectionId").getValue(Long::class.java)
             // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
             val isLocked = lockSnapshot.child("locked").getValue(Boolean::class.java) ?: false
             val warningMinutes = lockSnapshot.child("warningMinutes").getValue(Int::class.java) ?: 5
@@ -502,7 +520,9 @@ class ContentSyncManager(
                         // Child is watching a video and allowed to finish - add to waiting list
                         val waitingLock = PendingLock(
                             videoTitle = videoTitle,
+                            videoId = videoId,
                             collectionName = collectionName,
+                            collectionId = collectionId,
                             appliesAt = appliesAt,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = true
@@ -525,7 +545,7 @@ class ContentSyncManager(
                         )
                     } else {
                         // Apply the lock immediately (no finish allowed, or not watching)
-                        applyLock(videoTitle, collectionName, true)
+                        applyLock(videoTitle, collectionName, true, videoId, collectionId)
                         // Remove the processed lock command
                         removeLockCommand(lockId)
                     }
@@ -534,7 +554,9 @@ class ContentSyncManager(
                     newPendingLocks.add(
                         PendingLock(
                             videoTitle = videoTitle,
+                            videoId = videoId,
                             collectionName = collectionName,
+                            collectionId = collectionId,
                             appliesAt = appliesAt,
                             warningMinutes = warningMinutes,
                             allowFinishCurrentVideo = allowFinishCurrentVideo
@@ -555,7 +577,7 @@ class ContentSyncManager(
                 }
             } else {
                 // Unlock command - apply immediately
-                applyLock(videoTitle, collectionName, false)
+                applyLock(videoTitle, collectionName, false, videoId, collectionId)
                 removeLockCommand(lockId)
             }
         }
@@ -578,27 +600,36 @@ class ContentSyncManager(
     /**
      * Apply lock/unlock to video or collection.
      * When locking a collection, also locks all videos within it.
+     * Resolves by stable ID first, falling back to title/name for legacy data.
      */
-    private suspend fun applyLock(videoTitle: String?, collectionName: String?, isLocked: Boolean) {
+    private suspend fun applyLock(
+        videoTitle: String?,
+        collectionName: String?,
+        isLocked: Boolean,
+        videoId: Long? = null,
+        collectionId: Long? = null
+    ) {
         val enabled = !isLocked
 
-        if (videoTitle != null) {
-            // Find video by title and update isEnabled
-            val video = videoRepository.getVideoByTitle(videoTitle)
+        if (videoTitle != null || videoId != null) {
+            // Resolve by ID first, fallback to title
+            val video = videoId?.let { videoRepository.getVideoById(it) }
+                ?: videoTitle?.let { videoRepository.getVideoByTitle(it) }
             if (video != null) {
                 videoRepository.updateEnabled(video.id, enabled)
-                Log.d(TAG, "Applied lock to video: $videoTitle, enabled=$enabled")
+                Log.d(TAG, "Applied lock to video: ${video.title} (id=${video.id}), enabled=$enabled")
             } else {
-                Log.w(TAG, "Video not found for lock: $videoTitle")
+                Log.w(TAG, "Video not found for lock: id=$videoId, title=$videoTitle")
             }
         }
 
-        if (collectionName != null) {
-            // Find collection by name and update isEnabled
-            val collection = collectionRepository.getCollectionByName(collectionName)
+        if (collectionName != null || collectionId != null) {
+            // Resolve by ID first, fallback to name
+            val collection = collectionId?.let { collectionRepository.getCollectionById(it) }
+                ?: collectionName?.let { collectionRepository.getCollectionByName(it) }
             if (collection != null) {
                 collectionRepository.updateEnabled(collection.id, enabled)
-                Log.d(TAG, "Applied lock to collection: $collectionName, enabled=$enabled")
+                Log.d(TAG, "Applied lock to collection: ${collection.name} (id=${collection.id}), enabled=$enabled")
 
                 // Also lock/unlock all videos in this collection
                 val videosInCollection = collectionRepository.getVideosInCollection(collection.id)
@@ -623,7 +654,7 @@ class ContentSyncManager(
                     }
                 }
             } else {
-                Log.w(TAG, "Collection not found for lock: $collectionName")
+                Log.w(TAG, "Collection not found for lock: id=$collectionId, name=$collectionName")
             }
         }
 
@@ -664,7 +695,7 @@ class ContentSyncManager(
                 } else {
                     // Timer expired - apply lock immediately
                     // This includes: not watching, or watching but not allowed to finish
-                    applyLock(lock.videoTitle, lock.collectionName, true)
+                    applyLock(lock.videoTitle, lock.collectionName, true, lock.videoId, lock.collectionId)
                     toRemove.add(lock)
 
                     // Signal that lock should be enforced now (minutesRemaining=0, not deferrable)
@@ -770,8 +801,10 @@ class ContentSyncManager(
             }
 
             val syncedVideo = SyncedVideo(
+                localId = video.id,
                 title = video.title,
                 collectionNames = videoCollections.map { it.name },
+                collectionIds = videoCollections.map { it.id },
                 isFavourite = video.isFavourite,
                 isEnabled = video.isEnabled,
                 isHidden = video.isHidden,
@@ -783,8 +816,8 @@ class ContentSyncManager(
                 remoteId = video.remoteId
             )
 
-            // Use sanitized title as key (Firebase doesn't allow certain characters)
-            val key = sanitizeFirebaseKey(video.title)
+            // Use stable local ID as Firebase key (unique and collision-free)
+            val key = video.id.toString()
             syncedVideos[key] = syncedVideo
         }
 
@@ -804,16 +837,19 @@ class ContentSyncManager(
             }
 
             val syncedCollection = SyncedCollection(
+                localId = collection.id,
                 name = collection.name,
                 type = collection.collectionType,
                 parentName = parentCollection?.name,
+                parentId = collection.parentCollectionId,
                 videoCount = videoCount,
                 isEnabled = collection.isEnabled,
                 isHidden = collection.isHidden,
                 thumbnailUrl = null
             )
 
-            val key = sanitizeFirebaseKey(collection.name)
+            // Use stable local ID as Firebase key (unique and collision-free)
+            val key = collection.id.toString()
             syncedCollections[key] = syncedCollection
         }
 
@@ -858,7 +894,7 @@ class ContentSyncManager(
         Log.d(TAG, "Video ended, applying ${waitingLocks.size} waiting locks")
 
         for (lock in waitingLocks) {
-            applyLock(lock.videoTitle, lock.collectionName, true)
+            applyLock(lock.videoTitle, lock.collectionName, true, lock.videoId, lock.collectionId)
         }
 
         // Clear waiting locks
@@ -878,11 +914,11 @@ class ContentSyncManager(
     /**
      * Update video's enabled status in Firebase after local change
      */
-    suspend fun syncVideoEnabledStatus(videoTitle: String, isEnabled: Boolean) {
+    suspend fun syncVideoEnabledStatus(videoId: Long, isEnabled: Boolean) {
         val familyId = currentFamilyId ?: return
         val childUid = currentChildUid ?: return
 
-        val key = sanitizeFirebaseKey(videoTitle)
+        val key = videoId.toString()
         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
         database.getReference("families/$familyId/children/$childUid/videos/$key/enabled")
             .setValue(isEnabled).await()
@@ -891,11 +927,11 @@ class ContentSyncManager(
     /**
      * Update collection's enabled status in Firebase after local change
      */
-    suspend fun syncCollectionEnabledStatus(collectionName: String, isEnabled: Boolean) {
+    suspend fun syncCollectionEnabledStatus(collectionId: Long, isEnabled: Boolean) {
         val familyId = currentFamilyId ?: return
         val childUid = currentChildUid ?: return
 
-        val key = sanitizeFirebaseKey(collectionName)
+        val key = collectionId.toString()
         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
         database.getReference("families/$familyId/children/$childUid/collections/$key/enabled")
             .setValue(isEnabled).await()
@@ -904,11 +940,11 @@ class ContentSyncManager(
     /**
      * Update video's hidden status in Firebase after local change
      */
-    suspend fun syncVideoHiddenStatus(videoTitle: String, isHidden: Boolean) {
+    suspend fun syncVideoHiddenStatus(videoId: Long, isHidden: Boolean) {
         val familyId = currentFamilyId ?: return
         val childUid = currentChildUid ?: return
 
-        val key = sanitizeFirebaseKey(videoTitle)
+        val key = videoId.toString()
         // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
         database.getReference("families/$familyId/children/$childUid/videos/$key/hidden")
             .setValue(isHidden).await()
@@ -917,11 +953,11 @@ class ContentSyncManager(
     /**
      * Update collection's hidden status in Firebase after local change
      */
-    suspend fun syncCollectionHiddenStatus(collectionName: String, isHidden: Boolean) {
+    suspend fun syncCollectionHiddenStatus(collectionId: Long, isHidden: Boolean) {
         val familyId = currentFamilyId ?: return
         val childUid = currentChildUid ?: return
 
-        val key = sanitizeFirebaseKey(collectionName)
+        val key = collectionId.toString()
         // Note: Firebase serializes 'isHidden' as 'hidden' (drops the 'is' prefix)
         database.getReference("families/$familyId/children/$childUid/collections/$key/hidden")
             .setValue(isHidden).await()
