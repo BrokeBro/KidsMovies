@@ -224,7 +224,7 @@ class ArtworkFetcher(
                     } else {
                         ContentRating.fromMovieCertification(cert)
                     }
-                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating)
+                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating, tmdbArtworkManager.allowUnrated)
                     if (shouldBlock != video.tmdbArtworkBlocked) {
                         videoDao?.updateTmdbArtworkBlocked(video.id, shouldBlock)
                         Log.d(TAG, "Re-evaluated video '${video.title}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")
@@ -240,7 +240,7 @@ class ArtworkFetcher(
                     } else {
                         ContentRating.fromMovieCertification(cert)
                     }
-                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating)
+                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating, tmdbArtworkManager.allowUnrated)
                     if (shouldBlock != collection.tmdbArtworkBlocked) {
                         collectionDao?.updateTmdbArtworkBlocked(collection.id, shouldBlock)
                         Log.d(TAG, "Re-evaluated collection '${collection.name}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")

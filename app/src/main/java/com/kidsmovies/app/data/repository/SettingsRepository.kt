@@ -16,12 +16,20 @@ class SettingsRepository(
     companion object {
         private const val PREF_MAX_CONTENT_RATING = "max_content_rating"
         private const val DEFAULT_MAX_CONTENT_RATING = "PG"
+        private const val PREF_SHOW_UNRATED_ARTWORK = "show_unrated_artwork"
     }
 
     /** Get the locally-set max content rating (child-controlled, unless parent overrides) */
     fun getMaxContentRating(): String {
         return prefs?.getString(PREF_MAX_CONTENT_RATING, DEFAULT_MAX_CONTENT_RATING)
             ?: DEFAULT_MAX_CONTENT_RATING
+    }
+
+    /** Whether to show artwork for titles with no rating (off by default) */
+    fun getShowUnratedArtwork(): Boolean = prefs?.getBoolean(PREF_SHOW_UNRATED_ARTWORK, false) ?: false
+
+    fun setShowUnratedArtwork(show: Boolean) {
+        prefs?.edit()?.putBoolean(PREF_SHOW_UNRATED_ARTWORK, show)?.apply()
     }
 
     /** Set the local max content rating */

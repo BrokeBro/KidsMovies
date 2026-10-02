@@ -42,13 +42,18 @@ enum class ContentRating(val level: Int, val label: String) {
             else -> null
         }
 
+        /** Stored certification for titles TMDB has no US/UK rating for, so they can be re-evaluated later */
+        const val UNRATED_CERT = "NR"
+
         /**
          * Whether artwork with this rating should be hidden under [maxRating].
-         * "No filtering" (NC-17) never blocks; a missing/unknown rating is blocked as a fail-safe otherwise.
+         * "No filtering" (NC-17) never blocks. Unrated titles are hidden unless [allowUnrated] is on.
+         * A null rating means the lookup failed, which is always blocked as a fail-safe.
          */
-        fun shouldBlock(rating: ContentRating?, maxRating: ContentRating): Boolean = when {
+        fun shouldBlock(rating: ContentRating?, maxRating: ContentRating, allowUnrated: Boolean = false): Boolean = when {
             maxRating == NC17 -> false
-            rating == null || rating == UNRATED -> true
+            rating == null -> true
+            rating == UNRATED -> !allowUnrated
             else -> !rating.isAllowedBy(maxRating)
         }
 

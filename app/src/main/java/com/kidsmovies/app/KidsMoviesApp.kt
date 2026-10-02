@@ -156,6 +156,7 @@ class KidsMoviesApp : Application() {
         // Apply initial content rating from local settings
         val localRating = settingsRepository.getMaxContentRating()
         tmdbArtworkManager.maxContentRating = ContentRating.fromLabel(localRating)
+        tmdbArtworkManager.allowUnrated = settingsRepository.getShowUnratedArtwork()
 
         // If paired, start listening for settings and schedule sync
         if (pairingState?.isPaired == true) {

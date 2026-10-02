@@ -262,6 +262,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Setup max rating spinner
         setupMaxRatingSpinner()
+        setupUnratedArtworkSwitch()
     }
 
     private fun setupMaxRatingSpinner() {
@@ -319,6 +320,18 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun setupUnratedArtworkSwitch() {
+        binding.unratedArtworkSwitch.isChecked = app.settingsRepository.getShowUnratedArtwork()
+        binding.unratedArtworkSwitch.setOnCheckedChangeListener { _, checked ->
+            app.settingsRepository.setShowUnratedArtwork(checked)
+            app.tmdbArtworkManager.allowUnrated = checked
+            // Hide/show already-downloaded artwork, then download any that was skipped while hidden
+            app.artworkFetcher.reEvaluateArtworkRatings(app.tmdbArtworkManager.maxContentRating)
+            if (checked) app.artworkFetcher.fetchAllMissing()
+        }
+        binding.unratedArtworkOption.setOnClickListener { binding.unratedArtworkSwitch.toggle() }
     }
 
     private fun fetchArtwork() {

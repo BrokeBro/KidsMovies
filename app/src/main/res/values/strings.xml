@@ -279,6 +279,8 @@
     <string name="artwork_cache_cleared">Artwork cache cleared</string>
     <string name="max_poster_rating">Max Poster Rating</string>
     <string name="max_poster_rating_desc">Only show posters for content rated up to this level</string>
+    <string name="show_unrated_artwork">Show Unrated Posters</string>
+    <string name="show_unrated_artwork_desc">Show posters for titles with no age rating (hidden by default)</string>
     <string name="max_rating_set_by_parent">Set by parent: %s</string>
 
     <!-- Plurals -->
