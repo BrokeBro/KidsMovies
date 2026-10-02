@@ -328,6 +328,8 @@ class ContentSyncManager(
         videosStatusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 coroutineScope.launch(Dispatchers.IO) {
+                    // Locks still in their warning period are applied by the pending-lock timer, not here
+                    val deferred = readDeferredLockIds(familyId, childUid)
                     for (videoSnapshot in snapshot.children) {
                         val videoKey = videoSnapshot.key ?: continue
                         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
@@ -346,7 +348,8 @@ class ContentSyncManager(
                         }
 
                         if (video != null) {
-                            if (video.isEnabled != enabled) {
+                            val deferLock = !enabled && video.id in deferred.videoIds
+                            if (video.isEnabled != enabled && !deferLock) {
                                 videoRepository.updateEnabled(video.id, enabled)
                                 Log.d(TAG, "Synced video enabled status from Firebase: ${video.title}, enabled=$enabled")
                             }
@@ -376,6 +379,7 @@ class ContentSyncManager(
         collectionsStatusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 coroutineScope.launch(Dispatchers.IO) {
+                    val deferred = readDeferredLockIds(familyId, childUid)
                     for (collectionSnapshot in snapshot.children) {
                         val collectionKey = collectionSnapshot.key ?: continue
                         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
@@ -394,7 +398,8 @@ class ContentSyncManager(
                         }
 
                         if (collection != null) {
-                            if (collection.isEnabled != enabled) {
+                            val deferLock = !enabled && collection.id in deferred.collectionIds
+                            if (collection.isEnabled != enabled && !deferLock) {
                                 collectionRepository.updateEnabled(collection.id, enabled)
                                 Log.d(TAG, "Synced collection enabled status from Firebase: ${collection.name}, enabled=$enabled")
                             }
@@ -599,7 +604,9 @@ class ContentSyncManager(
 
     /**
      * Apply lock/unlock to video or collection.
-     * When locking a collection, also locks all videos within it.
+     * A collection lock cascades to its videos (and a TV show's seasons/episodes), but each child takes
+     * the parent app's per-item state from Firebase when known. That preserves videos the parent
+     * individually unlocked inside a locked collection (and vice versa) instead of overwriting them.
      * Resolves by stable ID first, falling back to title/name for legacy data.
      */
     private suspend fun applyLock(
@@ -631,26 +638,30 @@ class ContentSyncManager(
                 collectionRepository.updateEnabled(collection.id, enabled)
                 Log.d(TAG, "Applied lock to collection: ${collection.name} (id=${collection.id}), enabled=$enabled")
 
-                // Also lock/unlock all videos in this collection
-                val videosInCollection = collectionRepository.getVideosInCollection(collection.id)
-                for (video in videosInCollection) {
-                    videoRepository.updateEnabled(video.id, enabled)
-                    Log.d(TAG, "Applied collection lock to video: ${video.title}, enabled=$enabled")
+                val remoteVideos = readRemoteEnabled("videos")
+                val remoteCollections = readRemoteEnabled("collections")
+
+                suspend fun cascadeToVideos(ofCollectionId: Long) {
+                    for (video in collectionRepository.getVideosInCollection(ofCollectionId)) {
+                        val target = remoteVideos[video.id] ?: enabled
+                        if (video.isEnabled != target) {
+                            videoRepository.updateEnabled(video.id, target)
+                            Log.d(TAG, "Cascaded lock to video: ${video.title}, enabled=$target")
+                        }
+                    }
                 }
 
-                // If this is a TV show, also lock all seasons and their episodes
-                if (collection.isTvShow()) {
-                    val seasons = collectionRepository.getSubCollections(collection.id)
-                    for (season in seasons) {
-                        collectionRepository.updateEnabled(season.id, enabled)
-                        Log.d(TAG, "Applied lock to season: ${season.name}, enabled=$enabled")
+                cascadeToVideos(collection.id)
 
-                        // Lock episodes in this season
-                        val episodes = collectionRepository.getVideosInCollection(season.id)
-                        for (episode in episodes) {
-                            videoRepository.updateEnabled(episode.id, enabled)
-                            Log.d(TAG, "Applied season lock to episode: ${episode.title}, enabled=$enabled")
+                // If this is a TV show, also cascade to its seasons and their episodes
+                if (collection.isTvShow()) {
+                    for (season in collectionRepository.getSubCollections(collection.id)) {
+                        val target = remoteCollections[season.id] ?: enabled
+                        if (season.isEnabled != target) {
+                            collectionRepository.updateEnabled(season.id, target)
+                            Log.d(TAG, "Cascaded lock to season: ${season.name}, enabled=$target")
                         }
+                        cascadeToVideos(season.id)
                     }
                 }
             } else {
@@ -696,6 +707,8 @@ class ContentSyncManager(
                     // Timer expired - apply lock immediately
                     // This includes: not watching, or watching but not allowed to finish
                     applyLock(lock.videoTitle, lock.collectionName, true, lock.videoId, lock.collectionId)
+                    // Remove the command, otherwise it lingers and is re-applied on every later lock change
+                    removeLockCommand(lock.lockId())
                     toRemove.add(lock)
 
                     // Signal that lock should be enforced now (minutesRemaining=0, not deferrable)
@@ -788,73 +801,112 @@ class ContentSyncManager(
             .setValue(deviceInfo).await()
     }
 
+    /**
+     * Upload the video list. Lock/hide flags are owned by the parent app once a video exists in
+     * Firebase, so existing entries only have their descriptive fields updated; overwriting the whole
+     * node used to replace the parent's locks with this device's (possibly stale) local state.
+     */
     private suspend fun uploadVideoList(familyId: String, childUid: String) {
         val videos = videoRepository.getAllVideos()
         val collections = collectionRepository.getAllCollections()
+        val collectionsById = collections.associateBy { it.id }
+        val videosRef = database.getReference("families/$familyId/children/$childUid/videos")
+        val remoteKeys = videosRef.get().await().children.mapNotNull { it.key }.toSet()
 
-        val syncedVideos = mutableMapOf<String, SyncedVideo>()
+        val updates = mutableMapOf<String, Any?>()
+        val localKeys = mutableSetOf<String>()
 
         for (video in videos) {
-            // Get collections this video belongs to
-            val videoCollections = collections.filter { collection ->
-                collectionRepository.isVideoInCollection(video.id, collection.id)
-            }
-
-            val syncedVideo = SyncedVideo(
-                localId = video.id,
-                title = video.title,
-                collectionNames = videoCollections.map { it.name },
-                collectionIds = videoCollections.map { it.id },
-                isFavourite = video.isFavourite,
-                isEnabled = video.isEnabled,
-                isHidden = video.isHidden,
-                duration = video.duration,
-                playbackPosition = video.playbackPosition,
-                lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
-                thumbnailUrl = null, // Thumbnails are local, not synced
-                sourceType = video.sourceType,
-                remoteId = video.remoteId
-            )
-
-            // Use stable local ID as Firebase key (unique and collision-free)
+            val videoCollections = collectionRepository.getCollectionsForVideo(video.id)
             val key = video.id.toString()
-            syncedVideos[key] = syncedVideo
+            localKeys.add(key)
+
+            if (key in remoteKeys) {
+                val base = "$key/"
+                updates[base + "localId"] = video.id
+                updates[base + "title"] = video.title
+                updates[base + "collectionNames"] = videoCollections.map { it.name }
+                updates[base + "collectionIds"] = videoCollections.map { it.id }
+                updates[base + "favourite"] = video.isFavourite
+                updates[base + "duration"] = video.duration
+                updates[base + "playbackPosition"] = video.playbackPosition
+                updates[base + "lastWatched"] = if (video.playbackPosition > 0) video.dateModified else null
+                updates[base + "sourceType"] = video.sourceType
+                updates[base + "remoteId"] = video.remoteId
+            } else {
+                // New video: inherit the lock of any locked collection (or locked parent show) it belongs to
+                val inheritsLock = videoCollections.any { c ->
+                    !c.isEnabled || c.parentCollectionId?.let { collectionsById[it]?.isEnabled == false } == true
+                }
+                val enabled = video.isEnabled && !inheritsLock
+                if (enabled != video.isEnabled) videoRepository.updateEnabled(video.id, enabled)
+
+                updates[key] = SyncedVideo(
+                    localId = video.id,
+                    title = video.title,
+                    collectionNames = videoCollections.map { it.name },
+                    collectionIds = videoCollections.map { it.id },
+                    isFavourite = video.isFavourite,
+                    isEnabled = enabled,
+                    isHidden = video.isHidden,
+                    duration = video.duration,
+                    playbackPosition = video.playbackPosition,
+                    lastWatched = if (video.playbackPosition > 0) video.dateModified else null,
+                    thumbnailUrl = null, // Thumbnails are local, not synced
+                    sourceType = video.sourceType,
+                    remoteId = video.remoteId
+                )
+            }
         }
 
-        database.getReference("families/$familyId/children/$childUid/videos")
-            .setValue(syncedVideos).await()
+        // Remove videos no longer on this device
+        (remoteKeys - localKeys).forEach { updates[it] = null }
+
+        if (updates.isNotEmpty()) videosRef.updateChildren(updates).await()
     }
 
+    /** Upload the collection list, preserving the parent's lock/hide flags on existing entries. */
     private suspend fun uploadCollectionList(familyId: String, childUid: String) {
         val collections = collectionRepository.getAllCollections()
+        val collectionsById = collections.associateBy { it.id }
+        val collectionsRef = database.getReference("families/$familyId/children/$childUid/collections")
+        val remoteKeys = collectionsRef.get().await().children.mapNotNull { it.key }.toSet()
 
-        val syncedCollections = mutableMapOf<String, SyncedCollection>()
+        val updates = mutableMapOf<String, Any?>()
+        val localKeys = mutableSetOf<String>()
 
         for (collection in collections) {
             val videoCount = collectionRepository.getVideoCountInCollection(collection.id)
-            val parentCollection = collection.parentCollectionId?.let {
-                collectionRepository.getCollectionById(it)
-            }
-
-            val syncedCollection = SyncedCollection(
-                localId = collection.id,
-                name = collection.name,
-                type = collection.collectionType,
-                parentName = parentCollection?.name,
-                parentId = collection.parentCollectionId,
-                videoCount = videoCount,
-                isEnabled = collection.isEnabled,
-                isHidden = collection.isHidden,
-                thumbnailUrl = null
-            )
-
-            // Use stable local ID as Firebase key (unique and collision-free)
+            val parentCollection = collection.parentCollectionId?.let { collectionsById[it] }
             val key = collection.id.toString()
-            syncedCollections[key] = syncedCollection
+            localKeys.add(key)
+
+            if (key in remoteKeys) {
+                val base = "$key/"
+                updates[base + "localId"] = collection.id
+                updates[base + "name"] = collection.name
+                updates[base + "type"] = collection.collectionType
+                updates[base + "parentName"] = parentCollection?.name
+                updates[base + "parentId"] = collection.parentCollectionId
+                updates[base + "videoCount"] = videoCount
+            } else {
+                updates[key] = SyncedCollection(
+                    localId = collection.id,
+                    name = collection.name,
+                    type = collection.collectionType,
+                    parentName = parentCollection?.name,
+                    parentId = collection.parentCollectionId,
+                    videoCount = videoCount,
+                    isEnabled = collection.isEnabled,
+                    isHidden = collection.isHidden,
+                    thumbnailUrl = null
+                )
+            }
         }
 
-        database.getReference("families/$familyId/children/$childUid/collections")
-            .setValue(syncedCollections).await()
+        (remoteKeys - localKeys).forEach { updates[it] = null }
+
+        if (updates.isNotEmpty()) collectionsRef.updateChildren(updates).await()
     }
 
     /**
@@ -895,6 +947,7 @@ class ContentSyncManager(
 
         for (lock in waitingLocks) {
             applyLock(lock.videoTitle, lock.collectionName, true, lock.videoId, lock.collectionId)
+            removeLockCommand(lock.lockId())
         }
 
         // Clear waiting locks
@@ -962,6 +1015,62 @@ class ContentSyncManager(
         database.getReference("families/$familyId/children/$childUid/collections/$key/hidden")
             .setValue(isHidden).await()
     }
+
+    private data class DeferredLockIds(val videoIds: Set<Long>, val collectionIds: Set<Long>)
+
+    /**
+     * IDs with a lock command still in its warning period, or waiting for the current video to end.
+     * Read from Firebase (not the in-memory pending list) because the status listeners can fire
+     * before the locks listener for the same parent update.
+     */
+    private suspend fun readDeferredLockIds(familyId: String, childUid: String): DeferredLockIds {
+        val videoIds = mutableSetOf<Long>()
+        val collectionIds = mutableSetOf<Long>()
+        val now = System.currentTimeMillis()
+        try {
+            val locks = database.getReference("families/$familyId/children/$childUid/locks").get().await()
+            for (lock in locks.children) {
+                // Note: Firebase serializes 'isLocked' as 'locked' (drops the 'is' prefix)
+                if (lock.child("locked").getValue(Boolean::class.java) != true) continue
+                val warningMinutes = lock.child("warningMinutes").getValue(Int::class.java) ?: 5
+                val lockedAt = lock.child("lockedAt").getValue(Long::class.java) ?: now
+                val allowFinish = lock.child("allowFinishCurrentVideo").getValue(Boolean::class.java) ?: false
+                val deferred = lockedAt + warningMinutes * 60_000L > now || (allowFinish && isWatchingVideo)
+                if (!deferred) continue
+                lock.child("videoId").getValue(Long::class.java)?.let { videoIds.add(it) }
+                lock.child("collectionId").getValue(Long::class.java)?.let { collectionIds.add(it) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read lock commands", e)
+        }
+        _locksWaitingForVideoEnd.value.forEach { lock ->
+            lock.videoId?.let { videoIds.add(it) }
+            lock.collectionId?.let { collectionIds.add(it) }
+        }
+        return DeferredLockIds(videoIds, collectionIds)
+    }
+
+    /** Parent-set enabled flags from Firebase ("videos" or "collections"), keyed by local ID. */
+    private suspend fun readRemoteEnabled(node: String): Map<Long, Boolean> {
+        val familyId = currentFamilyId ?: return emptyMap()
+        val childUid = currentChildUid ?: return emptyMap()
+        return try {
+            database.getReference("families/$familyId/children/$childUid/$node").get().await()
+                .children.mapNotNull { item ->
+                    val id = item.child("localId").getValue(Long::class.java)
+                        ?: item.key?.toLongOrNull() ?: return@mapNotNull null
+                    val enabled = item.child("enabled").getValue(Boolean::class.java) ?: return@mapNotNull null
+                    id to enabled
+                }.toMap()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read remote $node state", e)
+            emptyMap()
+        }
+    }
+
+    /** Firebase key of the lock command this pending lock came from (matches the parent app's keys). */
+    private fun PendingLock.lockId(): String =
+        videoId?.let { "v_$it" } ?: collectionId?.let { "c_$it" } ?: ""
 
     private fun sanitizeFirebaseKey(key: String): String {
         // Firebase keys cannot contain . $ # [ ] /

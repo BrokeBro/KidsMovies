@@ -25,7 +25,9 @@ sealed class HierarchicalItem {
         override val depth: Int = 0,
         val parentLocked: Boolean = false // If parent collection is locked
     ) : HierarchicalItem() {
-        override val isLocked: Boolean get() = !video.video.isEnabled || parentLocked
+        // The item's own state, which is what the kids app enforces. A locked collection writes a lock to
+        // every child, so an unlocked child inside a locked parent is a deliberate exception.
+        override val isLocked: Boolean get() = !video.video.isEnabled
         override val name: String get() = video.video.title
     }
 
@@ -38,7 +40,7 @@ sealed class HierarchicalItem {
         val isSeason: Boolean = false,
         val parentLocked: Boolean = false
     ) : HierarchicalItem() {
-        override val isLocked: Boolean get() = !collection.collection.isEnabled || parentLocked
+        override val isLocked: Boolean get() = !collection.collection.isEnabled
         override val name: String get() = collection.collection.name
     }
 }
@@ -82,21 +84,20 @@ class HierarchicalContentAdapter(
                 is HierarchicalItem.Collection -> bindCollection(item)
             }
 
-            // Lock status UI - use combined isLocked (includes parent lock) for visual indicators
+            // Lock status UI - own state, dimmed when an exception inside a locked parent
             val parentLocked = when (item) {
                 is HierarchicalItem.Video -> item.parentLocked
                 is HierarchicalItem.Collection -> item.parentLocked
             }
             updateLockUI(item.isLocked, parentLocked)
 
-            // Lock switch - show effective combined state (own + parent)
-            // but keep interactive so parents can exception-unlock individual items
+            // Lock switch shows the item's own state, matching what the kids app enforces
             val isOwnLocked = when (item) {
                 is HierarchicalItem.Video -> !item.video.video.isEnabled
                 is HierarchicalItem.Collection -> !item.collection.collection.isEnabled
             }
             binding.lockSwitch.setOnCheckedChangeListener(null)
-            binding.lockSwitch.isChecked = item.isLocked // Combined state: own OR parent
+            binding.lockSwitch.isChecked = item.isLocked
             binding.lockSwitch.alpha = if (parentLocked && !isOwnLocked) 0.6f else 1.0f
             binding.lockSwitch.setOnCheckedChangeListener { _, checked ->
                 onLockToggle(item, checked)
@@ -130,9 +131,9 @@ class HierarchicalContentAdapter(
             binding.typeBadge.visibility = View.VISIBLE
             binding.typeBadge.text = "VIDEO"
 
-            // If this is an episode within a locked parent, show special badge
+            // Unlocked as an exception inside a locked collection/season
             if (item.parentLocked && video.isEnabled) {
-                binding.typeBadge.text = "UNLOCKED EPISODE"
+                binding.typeBadge.text = "UNLOCKED"
                 binding.typeBadge.setBackgroundResource(R.drawable.badge_unlocked_background)
             } else {
                 binding.typeBadge.setBackgroundResource(R.drawable.badge_type_background)

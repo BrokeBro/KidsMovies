@@ -163,19 +163,15 @@ class FamilyManager {
             allowFinishCurrentVideo = allowFinishCurrentVideo
         )
 
-        // Use stable ID as the lock key
-        val lockId = "v_$videoId"
-
-        // Write lock command to locks path
-        database.getReference("${FirebasePaths.childLocksPath(familyId, childUid)}/$lockId")
-            .setValue(lockCommand)
-            .await()
-
-        // Also update the video's enabled field directly for immediate effect
+        // Write the lock command and the video's enabled flag in one atomic update, so the kids app
+        // never sees the flag change without the command that carries its warning period.
         // Note: Firebase serializes 'isEnabled' as 'enabled' (drops the 'is' prefix)
-        val videoKey = videoId.toString()
-        database.getReference("${FirebasePaths.childVideosPath(familyId, childUid)}/$videoKey/enabled")
-            .setValue(!isLocked)
+        val updates = mapOf<String, Any?>(
+            "${FirebasePaths.LOCKS}/v_$videoId" to lockCommand,
+            "${FirebasePaths.VIDEOS}/$videoId/enabled" to !isLocked
+        )
+        database.getReference(FirebasePaths.childPath(familyId, childUid))
+            .updateChildren(updates)
             .await()
     }
 
