@@ -224,14 +224,9 @@ class TmdbArtworkManager(
         val certString = details?.releaseDates?.let { tmdbService.extractMovieCertification(it) }
         val rating = certString?.let { ContentRating.fromMovieCertification(it) }
 
-        // Block if rating exceeds threshold (UNRATED also blocked as fail-safe)
-        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
-            Log.d(TAG, "Movie '$title' rated $certString exceeds max ${maxContentRating.label}, skipping artwork")
-            return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title, certString)
-        }
-        if (rating == null || rating == ContentRating.UNRATED) {
-            // No certification found - block as fail-safe for kids
-            Log.d(TAG, "Movie '$title' has no certification, blocking artwork as fail-safe")
+        // Block if the rating exceeds the threshold, or is unknown (fail-safe), unless filtering is off
+        if (ContentRating.shouldBlock(rating, maxContentRating)) {
+            Log.d(TAG, "Movie '$title' rating=${rating?.label ?: "none"} blocked under max ${maxContentRating.label}")
             return ArtworkResult(null, movie.id, ContentType.MOVIE, movie.title, certString)
         }
 
@@ -251,13 +246,9 @@ class TmdbArtworkManager(
         val ratingString = tmdbService.extractTvRating(ratingsResponse)
         val rating = ratingString?.let { ContentRating.fromTvRating(it) }
 
-        // Block if rating exceeds threshold
-        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
-            Log.d(TAG, "TV show '$title' rated $ratingString exceeds max ${maxContentRating.label}, skipping artwork")
-            return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name, ratingString)
-        }
-        if (rating == null || rating == ContentRating.UNRATED) {
-            Log.d(TAG, "TV show '$title' has no rating, blocking artwork as fail-safe")
+        // Block if the rating exceeds the threshold, or is unknown (fail-safe), unless filtering is off
+        if (ContentRating.shouldBlock(rating, maxContentRating)) {
+            Log.d(TAG, "TV show '$title' rating=${rating?.label ?: "none"} blocked under max ${maxContentRating.label}")
             return ArtworkResult(null, show.id, ContentType.TV_SHOW, show.name, ratingString)
         }
 
@@ -307,12 +298,9 @@ class TmdbArtworkManager(
         val ratingString = tmdbService.extractTvRating(ratingsResponse)
         val rating = ratingString?.let { ContentRating.fromTvRating(it) }
 
-        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
-            Log.d(TAG, "TV season '$showName' S$seasonNumber rated $ratingString exceeds max, skipping artwork")
-            return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name, ratingString)
-        }
-        if (rating == null || rating == ContentRating.UNRATED) {
-            Log.d(TAG, "TV season '$showName' S$seasonNumber has no rating, blocking artwork as fail-safe")
+        // Block if the rating exceeds the threshold, or is unknown (fail-safe), unless filtering is off
+        if (ContentRating.shouldBlock(rating, maxContentRating)) {
+            Log.d(TAG, "TV season '$showName' S$seasonNumber rating=${rating?.label ?: "none"} blocked under max ${maxContentRating.label}")
             return ArtworkResult(null, show.id, ContentType.TV_SEASON, show.name, ratingString)
         }
 
@@ -352,12 +340,9 @@ class TmdbArtworkManager(
         val ratingString = tmdbService.extractTvRating(ratingsResponse)
         val rating = ratingString?.let { ContentRating.fromTvRating(it) }
 
-        if (rating != null && !rating.isAllowedBy(maxContentRating)) {
-            Log.d(TAG, "TV episode '$showName' rated $ratingString exceeds max, skipping artwork")
-            return ArtworkResult(null, show.id, ContentType.TV_EPISODE, show.name, ratingString)
-        }
-        if (rating == null || rating == ContentRating.UNRATED) {
-            Log.d(TAG, "TV episode '$showName' has no rating, blocking artwork as fail-safe")
+        // Block if the rating exceeds the threshold, or is unknown (fail-safe), unless filtering is off
+        if (ContentRating.shouldBlock(rating, maxContentRating)) {
+            Log.d(TAG, "TV episode '$showName' rating=${rating?.label ?: "none"} blocked under max ${maxContentRating.label}")
             return ArtworkResult(null, show.id, ContentType.TV_EPISODE, show.name, ratingString)
         }
 

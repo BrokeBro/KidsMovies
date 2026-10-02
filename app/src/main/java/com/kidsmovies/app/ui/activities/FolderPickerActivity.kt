@@ -20,6 +20,7 @@ import com.kidsmovies.app.R
 import com.kidsmovies.app.data.database.entities.ScanFolder
 import com.kidsmovies.app.databinding.ActivityFolderPickerBinding
 import com.kidsmovies.app.databinding.ItemFolderBinding
+import com.kidsmovies.app.services.VideoScannerService
 import com.kidsmovies.app.utils.FileUtils
 import com.kidsmovies.app.utils.ThemeManager
 import kotlinx.coroutines.flow.collectLatest
@@ -68,11 +69,13 @@ class FolderPickerActivity : AppCompatActivity() {
             onEnableChanged = { folder, enabled ->
                 lifecycleScope.launch {
                     app.settingsRepository.setFolderEnabled(folder.id, enabled)
+                    if (enabled) VideoScannerService.startScan(this@FolderPickerActivity)
                 }
             },
             onSubfoldersChanged = { folder, include ->
                 lifecycleScope.launch {
                     app.settingsRepository.updateFolder(folder.copy(includeSubfolders = include))
+                    if (include) VideoScannerService.startScan(this@FolderPickerActivity)
                 }
             },
             onDeleteClick = { folder ->
@@ -150,6 +153,9 @@ class FolderPickerActivity : AppCompatActivity() {
                         treeUri = uri.toString()
                     )
                     app.settingsRepository.addFolder(folder)
+                    // Scan straight away so the new videos appear without a manual refresh
+                    VideoScannerService.startScan(this@FolderPickerActivity)
+                    Toast.makeText(this@FolderPickerActivity, R.string.scanning_videos, Toast.LENGTH_SHORT).show()
                 }
             }
         }

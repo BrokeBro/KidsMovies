@@ -11,6 +11,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -29,8 +31,12 @@ class ArtworkFetcher(
     private val pendingVideos = mutableSetOf<Long>()
     private val pendingCollections = mutableSetOf<Long>()
 
+    // Limit simultaneous TMDB lookups; firing one per video at once causes timeouts and rate limiting
+    private val requestLimit = Semaphore(MAX_CONCURRENT_LOOKUPS)
+
     companion object {
         private const val TAG = "ArtworkFetcher"
+        private const val MAX_CONCURRENT_LOOKUPS = 4
     }
 
     /**
@@ -48,7 +54,9 @@ class ArtworkFetcher(
 
             try {
                 Log.d(TAG, "Fetching artwork for video: ${video.title}")
-                val result = tmdbArtworkManager.getVideoArtwork(video.title, collectionName)
+                val result = requestLimit.withPermit {
+                    tmdbArtworkManager.getVideoArtwork(video.title, collectionName)
+                }
 
                 // Save certification regardless of whether artwork was downloaded
                 if (result.certification != null) {
@@ -101,7 +109,9 @@ class ArtworkFetcher(
                     else -> null
                 }
 
-                val result = tmdbArtworkManager.getCollectionArtwork(collection.name, parentName)
+                val result = requestLimit.withPermit {
+                    tmdbArtworkManager.getCollectionArtwork(collection.name, parentName)
+                }
 
                 // Save certification regardless of whether artwork was downloaded
                 if (result.certification != null) {
@@ -214,7 +224,7 @@ class ArtworkFetcher(
                     } else {
                         ContentRating.fromMovieCertification(cert)
                     }
-                    val shouldBlock = !rating.isAllowedBy(maxRating) || rating == ContentRating.UNRATED
+                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating)
                     if (shouldBlock != video.tmdbArtworkBlocked) {
                         videoDao?.updateTmdbArtworkBlocked(video.id, shouldBlock)
                         Log.d(TAG, "Re-evaluated video '${video.title}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")
@@ -230,7 +240,7 @@ class ArtworkFetcher(
                     } else {
                         ContentRating.fromMovieCertification(cert)
                     }
-                    val shouldBlock = !rating.isAllowedBy(maxRating) || rating == ContentRating.UNRATED
+                    val shouldBlock = ContentRating.shouldBlock(rating, maxRating)
                     if (shouldBlock != collection.tmdbArtworkBlocked) {
                         collectionDao?.updateTmdbArtworkBlocked(collection.id, shouldBlock)
                         Log.d(TAG, "Re-evaluated collection '${collection.name}': blocked=$shouldBlock (cert=$cert, max=${maxRating.label})")

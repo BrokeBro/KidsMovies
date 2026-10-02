@@ -23,6 +23,35 @@ enum class ContentRating(val level: Int, val label: String) {
             else -> UNRATED
         }
 
+        /** Map a UK (BBFC) certification to the US-equivalent movie certification */
+        fun ukToUsMovieCertification(cert: String): String? = when (cert.uppercase().trim()) {
+            "U" -> "G"
+            "PG" -> "PG"
+            "12", "12A" -> "PG-13"
+            "15" -> "R"
+            "18", "R18" -> "NC-17"
+            else -> null
+        }
+
+        /** Map a UK TV certification to the US-equivalent TV rating */
+        fun ukToUsTvRating(rating: String): String? = when (rating.uppercase().trim()) {
+            "U" -> "TV-G"
+            "PG" -> "TV-PG"
+            "12", "12A" -> "TV-14"
+            "15", "18" -> "TV-MA"
+            else -> null
+        }
+
+        /**
+         * Whether artwork with this rating should be hidden under [maxRating].
+         * "No filtering" (NC-17) never blocks; a missing/unknown rating is blocked as a fail-safe otherwise.
+         */
+        fun shouldBlock(rating: ContentRating?, maxRating: ContentRating): Boolean = when {
+            maxRating == NC17 -> false
+            rating == null || rating == UNRATED -> true
+            else -> !rating.isAllowedBy(maxRating)
+        }
+
         /** Map a US TV rating string to a ContentRating */
         fun fromTvRating(rating: String): ContentRating = when (rating.uppercase().trim()) {
             "TV-Y", "TV-G" -> G

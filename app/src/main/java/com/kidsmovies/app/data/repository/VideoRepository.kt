@@ -84,6 +84,8 @@ class VideoRepository(private val videoDao: VideoDao) {
 
     suspend fun updatePlaybackPosition(videoId: Long, position: Long) = videoDao.updatePlaybackPosition(videoId, position)
 
+    suspend fun updateDuration(videoId: Long, duration: Long) = videoDao.updateDuration(videoId, duration)
+
     suspend fun updateThumbnail(videoId: Long, thumbnailPath: String?) = videoDao.updateThumbnail(videoId, thumbnailPath)
 
     suspend fun updateCustomThumbnail(videoId: Long, thumbnailPath: String?) = videoDao.updateCustomThumbnail(videoId, thumbnailPath)

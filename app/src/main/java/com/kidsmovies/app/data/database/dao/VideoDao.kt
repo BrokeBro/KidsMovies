@@ -37,6 +37,9 @@ interface VideoDao {
     @Query("UPDATE videos SET customThumbnailPath = :thumbnailPath WHERE id = :videoId")
     suspend fun updateCustomThumbnail(videoId: Long, thumbnailPath: String?)
 
+    @Query("UPDATE videos SET duration = :duration WHERE id = :videoId")
+    suspend fun updateDuration(videoId: Long, duration: Long)
+
     @Query("UPDATE videos SET thumbnailPath = :thumbnailPath WHERE id = :videoId")
     suspend fun updateThumbnail(videoId: Long, thumbnailPath: String?)
 

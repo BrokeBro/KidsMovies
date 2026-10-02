@@ -438,12 +438,17 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
         releaseDates: ReleaseDatesResponse?,
         countryCode: String = "US"
     ): String? {
-        val country = releaseDates?.results?.find { it.country == countryCode } ?: return null
-        // Prefer theatrical (3) > digital (4) > any non-empty
-        val preferred = country.releaseDates
-            .filter { it.certification.isNotBlank() }
-            .sortedBy { when (it.type) { 3 -> 0; 4 -> 1; else -> 2 } }
-        return preferred.firstOrNull()?.certification
+        fun certFor(code: String): String? {
+            val country = releaseDates?.results?.find { it.country == code } ?: return null
+            // Prefer theatrical (3) > digital (4) > any non-empty
+            return country.releaseDates
+                .filter { it.certification.isNotBlank() }
+                .sortedBy { when (it.type) { 3 -> 0; 4 -> 1; else -> 2 } }
+                .firstOrNull()?.certification
+        }
+        // Many titles (especially UK releases) have no US certification; fall back to the UK one
+        return certFor(countryCode)
+            ?: certFor("GB")?.let { ContentRating.ukToUsMovieCertification(it) }
     }
 
     /**
@@ -453,10 +458,12 @@ class TmdbService(private val apiKey: String = DEFAULT_API_KEY) {
         contentRatings: TvContentRatingsResponse?,
         countryCode: String = "US"
     ): String? {
-        return contentRatings?.results
-            ?.find { it.country == countryCode }
+        fun ratingFor(code: String) = contentRatings?.results
+            ?.find { it.country == code }
             ?.rating
             ?.takeIf { it.isNotBlank() }
+        return ratingFor(countryCode)
+            ?: ratingFor("GB")?.let { ContentRating.ukToUsTvRating(it) }
     }
 
     /**

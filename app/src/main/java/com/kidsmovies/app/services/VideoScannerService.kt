@@ -22,7 +22,10 @@ import com.kidsmovies.app.utils.EpisodeParser
 import com.kidsmovies.app.utils.FileUtils
 import com.kidsmovies.app.utils.ThumbnailUtils
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class VideoScannerService : Service() {
 
@@ -35,6 +38,12 @@ class VideoScannerService : Service() {
         const val EXTRA_VIDEOS_REMOVED = "videos_removed"
         const val EXTRA_PROGRESS = "progress"
         const val EXTRA_CURRENT_FILE = "current_file"
+
+        // Thumbnail/duration extraction is I/O-bound; a few in parallel is much faster than one at a time
+        private const val METADATA_PARALLELISM = 3
+
+        private val isScanning = AtomicBoolean(false)
+        @Volatile private var rescanRequested = false
 
         fun startScan(context: Context) {
             val intent = Intent(context, VideoScannerService::class.java)
@@ -58,12 +67,24 @@ class VideoScannerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(Constants.NOTIFICATION_SCAN_SERVICE, createNotification("Starting scan..."))
 
+        // A scan already running picks up the new request when it finishes, avoiding duplicate inserts
+        if (!isScanning.compareAndSet(false, true)) {
+            rescanRequested = true
+            return START_NOT_STICKY
+        }
+
         serviceScope.launch {
             try {
-                scanVideos()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error scanning videos", e)
+                do {
+                    rescanRequested = false
+                    try {
+                        scanVideos()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error scanning videos", e)
+                    }
+                } while (rescanRequested)
             } finally {
+                isScanning.set(false)
                 stopSelf()
             }
         }
@@ -122,28 +143,42 @@ class VideoScannerService : Service() {
         // Track folders containing new videos for hierarchy detection
         val foldersWithNewVideos = mutableSetOf<String>()
 
-        // Add new videos
+        // Pass 1: add every new video straight away (cheap file info only) so they show up immediately
         val totalNew = newVideoFiles.size
-        newVideoFiles.forEachIndexed { index, file ->
+        val inserted = mutableListOf<Pair<Long, File>>()
+        newVideoFiles.forEach { file ->
             try {
-                updateNotification("Scanning: ${file.name} (${index + 1}/$totalNew)")
-                sendProgressBroadcast(index + 1, totalNew, file.name)
-
-                val video = createVideoFromFile(file)
-                val videoId = videoRepository.insertVideo(video)
-
-                // Generate thumbnail
-                val thumbnailPath = ThumbnailUtils.generateThumbnail(this, file.absolutePath, videoId)
-                if (thumbnailPath != null) {
-                    videoRepository.updateThumbnail(videoId, thumbnailPath)
-                }
-
-                // Track the folder for hierarchy detection
+                val videoId = videoRepository.insertVideo(createVideoFromFile(file))
+                inserted.add(videoId to file)
                 file.parent?.let { foldersWithNewVideos.add(it) }
-
                 addedCount++
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding video: ${file.absolutePath}", e)
+            }
+        }
+
+        // Pass 2: read duration and generate thumbnails, a few at a time
+        if (inserted.isNotEmpty()) {
+            val semaphore = Semaphore(METADATA_PARALLELISM)
+            var processed = 0
+            coroutineScope {
+                inserted.forEach { (videoId, file) ->
+                    launch {
+                        semaphore.withPermit {
+                            try {
+                                val duration = ThumbnailUtils.getVideoDuration(file.absolutePath)
+                                if (duration > 0) videoRepository.updateDuration(videoId, duration)
+                                ThumbnailUtils.generateThumbnail(this@VideoScannerService, file.absolutePath, videoId)
+                                    ?.let { videoRepository.updateThumbnail(videoId, it) }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error reading metadata: ${file.absolutePath}", e)
+                            }
+                            val done = synchronized(this@VideoScannerService) { ++processed }
+                            updateNotification("Preparing: ${file.name} ($done/$totalNew)")
+                            sendProgressBroadcast(done, totalNew, file.name)
+                        }
+                    }
+                }
             }
         }
 
@@ -158,6 +193,11 @@ class VideoScannerService : Service() {
         if (settings?.autoCreateFranchiseCollections == true) {
             updateNotification("Detecting movie franchises...")
             app.franchiseCollectionManager.detectAndCreateFranchises()
+        }
+
+        // Look up TMDB artwork for anything that doesn't have it yet (runs in the app scope, after the scan)
+        if (addedCount > 0) {
+            app.artworkFetcher.fetchAllMissing()
         }
 
         // Update last scan time
@@ -180,15 +220,15 @@ class VideoScannerService : Service() {
     ) {
         // Group videos by their parent folders to detect season structures
         val folderToVideos = mutableMapOf<String, MutableList<Video>>()
+        // Load once rather than per folder
+        val videosByFolder = videoRepository.getAllVideos().groupBy { File(it.filePath).parent }
 
         for (folderPath in foldersWithVideos) {
             val folder = File(folderPath)
             if (!folder.exists()) continue
 
             // Get videos in this folder
-            val videosInFolder = videoRepository.getAllVideos().filter {
-                File(it.filePath).parent == folderPath
-            }
+            val videosInFolder = videosByFolder[folderPath].orEmpty()
             if (videosInFolder.isNotEmpty()) {
                 folderToVideos[folderPath] = videosInFolder.toMutableList()
             }
@@ -389,13 +429,12 @@ class VideoScannerService : Service() {
     }
 
     private fun createVideoFromFile(file: File): Video {
-        val duration = ThumbnailUtils.getVideoDuration(file.absolutePath)
         val title = FileUtils.getFileNameWithoutExtension(file.absolutePath)
 
         return Video(
             title = title,
             filePath = file.absolutePath,
-            duration = duration,
+            duration = 0, // Filled in by the metadata pass
             size = file.length(),
             dateAdded = System.currentTimeMillis(),
             dateModified = file.lastModified(),
