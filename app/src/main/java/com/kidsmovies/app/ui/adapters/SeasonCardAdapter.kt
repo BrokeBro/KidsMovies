@@ -35,6 +35,9 @@ class SeasonCardAdapter(
         return SeasonViewHolder(binding)
     }
 
+    // Distinct view type so holders in a shared RecycledViewPool are never cross-bound
+    override fun getItemViewType(position: Int): Int = R.layout.item_season_card
+
     override fun onBindViewHolder(holder: SeasonViewHolder, position: Int) {
         holder.bind(getItem(position))
     }

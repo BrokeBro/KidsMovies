@@ -330,6 +330,8 @@ class AllVideosFragment : Fragment() {
     }
 
     private fun updateDisplay() {
+        // Can be called from search or bottom sheet callbacks after the view is destroyed
+        if (_binding == null) return
         val filteredVideos = if (currentQuery.isBlank()) {
             allVideos
         } else {

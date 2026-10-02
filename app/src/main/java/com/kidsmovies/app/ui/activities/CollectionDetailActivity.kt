@@ -68,10 +68,8 @@ class CollectionDetailActivity : AppCompatActivity() {
                 settings?.let {
                     if (it.gridColumns != currentGridColumns) {
                         currentGridColumns = it.gridColumns
+                        // Setting spanCount re-lays out the grid; notifyDataSetChanged() would race pending DiffUtil updates
                         gridLayoutManager?.spanCount = currentGridColumns
-                        if (!isTvShow) {
-                            videoAdapter.notifyDataSetChanged()
-                        }
                     }
                 }
             }

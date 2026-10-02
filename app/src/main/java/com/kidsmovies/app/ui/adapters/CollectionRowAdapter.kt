@@ -1,7 +1,9 @@
 package com.kidsmovies.app.ui.adapters
 
+import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -47,8 +49,12 @@ class CollectionRowAdapter(
     private val onVideoLongClick: ((Video) -> Unit)? = null
 ) : ListAdapter<CollectionRowItem, CollectionRowAdapter.CollectionViewHolder>(CollectionDiffCallback()) {
 
-    // Cache for RecyclerView pools to improve performance
+    // Shared pool for the nested carousels. VideoCarouselAdapter and SeasonCardAdapter
+    // return distinct view types, so holders are never handed to the wrong adapter.
     private val viewPool = RecyclerView.RecycledViewPool()
+
+    // Horizontal scroll position per row, so rows keep their place when scrolled off-screen
+    private val scrollStates = mutableMapOf<Long, Parcelable?>()
 
     // Enum to track which adapter type is currently set on the RecyclerView
     private enum class AdapterType { VIDEO, SEASON }
@@ -62,6 +68,11 @@ class CollectionRowAdapter(
 
     override fun onBindViewHolder(holder: CollectionViewHolder, position: Int) {
         holder.bind(getItem(position))
+    }
+
+    override fun onViewRecycled(holder: CollectionViewHolder) {
+        super.onViewRecycled(holder)
+        holder.saveScrollState()
     }
 
     inner class CollectionViewHolder(
@@ -89,8 +100,13 @@ class CollectionRowAdapter(
 
         init {
             binding.videosRecyclerView.apply {
-                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false).apply {
+                    initialPrefetchItemCount = 4
+                    recycleChildrenOnDetach = true
+                }
                 setRecycledViewPool(viewPool)
+                isNestedScrollingEnabled = false
+                itemAnimator = null
                 // Set default adapter - will be swapped if needed in bind
                 adapter = videoAdapter
 
@@ -127,8 +143,16 @@ class CollectionRowAdapter(
             currentAdapterType = AdapterType.VIDEO
         }
 
+        fun saveScrollState() {
+            currentCollection?.let {
+                scrollStates[it.id] = binding.videosRecyclerView.layoutManager?.onSaveInstanceState()
+            }
+        }
+
         fun bind(rowItem: CollectionRowItem) {
             val collection = rowItem.collection
+            val isNewRow = currentCollection?.id != collection.id
+            if (isNewRow) saveScrollState()
             currentCollection = collection
 
             binding.collectionName.text = collection.name
@@ -138,16 +162,25 @@ class CollectionRowAdapter(
                 is CollectionRowItem.SeasonsRow -> bindSeasonsRow(rowItem)
             }
 
-            // Click on collection header to view full collection/TV show
-            binding.collectionHeader.setOnClickListener {
-                onCollectionClick(collection)
+            if (isNewRow) {
+                val state = scrollStates[collection.id]
+                val lm = binding.videosRecyclerView.layoutManager
+                if (state != null) lm?.onRestoreInstanceState(state) else lm?.scrollToPosition(0)
             }
+
+            // Virtual rows (e.g. Continue Watching) have no detail page
+            val isVirtual = collection.id < 0
+            binding.headerChevron.visibility = if (isVirtual) View.GONE else View.VISIBLE
+            binding.collectionHeader.isClickable = !isVirtual
+            binding.collectionHeader.setOnClickListener(
+                if (isVirtual) null else View.OnClickListener { onCollectionClick(collection) }
+            )
         }
 
         private fun bindVideosRow(row: CollectionRowItem.VideosRow) {
             val context = binding.root.context
 
-            binding.videoCount.text = context.getString(
+            binding.videoCount.text = if (row.collection.id < 0) "" else context.getString(
                 R.string.videos_in_collection,
                 row.videos.size
             )
@@ -158,7 +191,7 @@ class CollectionRowAdapter(
                 currentAdapterType = AdapterType.VIDEO
             }
 
-            videoAdapter.submitList(row.videos.toList())
+            videoAdapter.submitList(row.videos)
         }
 
         private fun bindSeasonsRow(row: CollectionRowItem.SeasonsRow) {
@@ -178,7 +211,7 @@ class CollectionRowAdapter(
                 currentAdapterType = AdapterType.SEASON
             }
 
-            seasonAdapter.submitList(row.seasons.toList())
+            seasonAdapter.submitList(row.seasons)
         }
     }
 

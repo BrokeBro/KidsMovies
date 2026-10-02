@@ -118,6 +118,7 @@
             android:background="@color/progress_red"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="@id/videoThumbnail"
+            app:layout_constraintEnd_toEndOf="@id/videoThumbnail"
             app:layout_constraintStart_toStartOf="@id/videoThumbnail" />
 
         <!-- Video title -->

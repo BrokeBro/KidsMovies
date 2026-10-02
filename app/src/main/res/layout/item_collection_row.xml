@@ -36,6 +36,7 @@
             android:textSize="14sp" />
 
         <ImageView
+            android:id="@+id/headerChevron"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_marginStart="4dp"

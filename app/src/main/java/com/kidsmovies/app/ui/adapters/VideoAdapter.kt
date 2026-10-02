@@ -92,9 +92,9 @@ class VideoAdapter(
             binding.videoTitle.text = video.title
             binding.durationBadge.text = video.getFormattedDuration()
 
-            // Load thumbnail
+            // Load thumbnail. Missing files fall through to the error drawable, so no disk check on the UI thread
             val thumbnailPath = video.getDisplayThumbnail()
-            if (thumbnailPath != null && File(thumbnailPath).exists()) {
+            if (thumbnailPath != null) {
                 Glide.with(binding.videoThumbnail)
                     .load(File(thumbnailPath))
                     .transform(CenterCrop(), RoundedCorners(16))
@@ -102,6 +102,7 @@ class VideoAdapter(
                     .error(R.drawable.bg_thumbnail_placeholder)
                     .into(binding.videoThumbnail)
             } else {
+                Glide.with(binding.videoThumbnail).clear(binding.videoThumbnail)
                 binding.videoThumbnail.setImageResource(R.drawable.bg_thumbnail_placeholder)
             }
 
@@ -122,14 +123,9 @@ class VideoAdapter(
             if (video.playbackPosition > 0 && video.duration > 0) {
                 val progressPercent = (video.playbackPosition.toFloat() / video.duration.toFloat()).coerceIn(0f, 1f)
                 binding.progressBar.visibility = View.VISIBLE
-                // Set width as percentage of parent
-                binding.progressBar.post {
-                    val parentWidth = (binding.progressBar.parent as? View)?.width ?: 0
-                    val progressWidth = (parentWidth * progressPercent).toInt()
-                    binding.progressBar.layoutParams = binding.progressBar.layoutParams.apply {
-                        width = progressWidth
-                    }
-                }
+                // Scale rather than resize: no extra layout pass and no stale posted runnables on recycled views
+                binding.progressBar.pivotX = 0f
+                binding.progressBar.scaleX = progressPercent
             } else {
                 binding.progressBar.visibility = View.GONE
             }

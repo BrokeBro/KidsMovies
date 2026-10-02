@@ -25,9 +25,13 @@ import com.kidsmovies.app.ui.activities.VideoPlayerActivity
 import com.kidsmovies.app.ui.adapters.CollectionIconAdapter
 import com.kidsmovies.app.ui.adapters.CollectionRowAdapter
 import com.kidsmovies.app.ui.adapters.CollectionRowItem
-import com.kidsmovies.app.ui.adapters.CollectionWithVideos
 import com.kidsmovies.app.ui.adapters.SeasonWithCount
+import com.kidsmovies.app.cloud.VideoDownloadManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -43,7 +47,7 @@ class CollectionsFragment : Fragment() {
 
     private var pendingThumbnailCollection: VideoCollection? = null
     private var allCollections: List<VideoCollection> = emptyList()
-    private var collectionsWithVideos: List<CollectionWithVideos> = emptyList()
+    private var loadJob: Job? = null
 
     private val thumbnailPicker = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -76,31 +80,32 @@ class CollectionsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         // Reload videos to get fresh playback positions after returning from video player
-        refreshCollectionVideos()
+        if (allCollections.isNotEmpty()) loadRows(allCollections)
     }
 
-    private fun refreshCollectionVideos() {
-        if (allCollections.isEmpty()) return
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val rowItems = buildRowItems(allCollections)
-
-            val newCollectionsWithVideos = allCollections.mapNotNull { collection ->
-                if (collection.isTvShow()) {
-                    null
-                } else {
-                    val videos = app.collectionRepository.getVideosInCollection(collection.id)
-                    if (videos.isNotEmpty()) {
-                        CollectionWithVideos(collection, videos)
-                    } else {
-                        null
-                    }
-                }
+    /** Builds and submits rows, cancelling any in-flight load so stale results never overwrite newer ones. */
+    private fun loadRows(collections: List<VideoCollection>) {
+        loadJob?.cancel()
+        loadJob = viewLifecycleOwner.lifecycleScope.launch {
+            val rowItems = buildContinueWatchingRow() + buildRowItems(collections)
+            if (_binding == null) return@launch
+            if (collections.isEmpty() && rowItems.isEmpty()) {
+                showEmptyState()
+            } else {
+                showCollections(collections, rowItems)
             }
-
-            collectionsWithVideos = newCollectionsWithVideos
-            collectionRowAdapter.submitList(rowItems.toList())
         }
+    }
+
+    private suspend fun buildContinueWatchingRow(): List<CollectionRowItem> {
+        val inProgress = app.videoRepository.getRecentlyPlayed(CONTINUE_WATCHING_LIMIT).filter { video ->
+            video.isEnabled && video.duration > 0 &&
+                video.playbackPosition > 0 &&
+                video.playbackPosition < video.duration * FINISHED_THRESHOLD
+        }
+        if (inProgress.isEmpty()) return emptyList()
+        val row = VideoCollection(id = CONTINUE_WATCHING_ID, name = getString(R.string.continue_watching))
+        return listOf(CollectionRowItem.VideosRow(row, inProgress))
     }
 
     private fun setupCollectionIcons() {
@@ -198,37 +203,8 @@ class CollectionsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             app.collectionRepository.getAllCollectionsFlow().collectLatest { collections ->
                 // Filter to only top-level collections (not seasons)
-                val topLevelCollections = collections.filter { it.parentCollectionId == null }
-                allCollections = topLevelCollections
-
-                if (topLevelCollections.isEmpty()) {
-                    showEmptyState()
-                } else {
-                    // Build row items based on collection type
-                    val rowItems = buildRowItems(topLevelCollections)
-                    // Also build CollectionWithVideos for backward compatibility
-                    val newCollectionsWithVideos = topLevelCollections.mapNotNull { collection ->
-                        if (collection.isTvShow()) {
-                            // For TV shows, we don't use CollectionWithVideos
-                            null
-                        } else {
-                            val videos = app.collectionRepository.getVideosInCollection(collection.id)
-                            if (videos.isNotEmpty()) {
-                                CollectionWithVideos(collection, videos)
-                            } else {
-                                null
-                            }
-                        }
-                    }
-
-                    collectionsWithVideos = newCollectionsWithVideos
-
-                    if (rowItems.isEmpty()) {
-                        showEmptyState()
-                    } else {
-                        showCollections(topLevelCollections, rowItems)
-                    }
-                }
+                allCollections = collections.filter { it.parentCollectionId == null }
+                loadRows(allCollections)
             }
         }
     }
@@ -276,6 +252,7 @@ class CollectionsFragment : Fragment() {
     }
 
     private fun showEmptyState() {
+        if (_binding == null) return
         binding.emptyState.visibility = View.VISIBLE
         binding.contentLayout.visibility = View.GONE
     }
@@ -286,6 +263,7 @@ class CollectionsFragment : Fragment() {
     ) {
         binding.emptyState.visibility = View.GONE
         binding.contentLayout.visibility = View.VISIBLE
+        binding.collectionsHeaderCard.visibility = if (collections.isEmpty()) View.GONE else View.VISIBLE
 
         // Show all top-level collections in the icon row (even empty ones)
         collectionIconAdapter.submitList(collections.toList())
@@ -386,10 +364,12 @@ class CollectionsFragment : Fragment() {
 
     private fun observeDownloadStates() {
         viewLifecycleOwner.lifecycleScope.launch {
-            app.videoDownloadManager?.downloadStates?.collectLatest {
-                // Force re-bind of visible carousel items to update download spinners
-                refreshCollectionVideos()
-            }
+            // Only reload when the set of downloading videos changes, not on every progress tick
+            app.videoDownloadManager?.downloadStates
+                ?.map { states -> states.filterValues { it is VideoDownloadManager.DownloadState.Downloading }.keys }
+                ?.distinctUntilChanged()
+                ?.drop(1)
+                ?.collectLatest { loadRows(allCollections) }
         }
     }
 
@@ -427,8 +407,11 @@ class CollectionsFragment : Fragment() {
     private fun playVideo(video: Video, collection: VideoCollection) {
         val intent = Intent(requireContext(), VideoPlayerActivity::class.java).apply {
             putExtra(VideoPlayerActivity.EXTRA_VIDEO, video)
-            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_ID, collection.id)
-            putExtra(VideoPlayerActivity.EXTRA_COLLECTION_NAME, collection.name)
+            // Continue Watching is virtual; play the video on its own
+            if (collection.id != CONTINUE_WATCHING_ID) {
+                putExtra(VideoPlayerActivity.EXTRA_COLLECTION_ID, collection.id)
+                putExtra(VideoPlayerActivity.EXTRA_COLLECTION_NAME, collection.name)
+            }
         }
         startActivity(intent)
     }
@@ -443,6 +426,13 @@ class CollectionsFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        loadJob = null
         _binding = null
+    }
+
+    companion object {
+        private const val CONTINUE_WATCHING_ID = -1L
+        private const val CONTINUE_WATCHING_LIMIT = 20
+        private const val FINISHED_THRESHOLD = 0.95
     }
 }

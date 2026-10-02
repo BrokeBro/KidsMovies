@@ -122,7 +122,7 @@
             <!-- Watch progress bar at bottom -->
             <View
                 android:id="@+id/progressBar"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="3dp"
                 android:layout_gravity="bottom"
                 android:background="@color/progress_red"

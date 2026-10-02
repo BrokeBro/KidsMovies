@@ -155,6 +155,7 @@
     <string name="create_collection_hint">Create a collection to group related movies together</string>
     <string name="collection_deleted">Collection deleted</string>
     <string name="videos_in_collection">%d videos</string>
+    <string name="continue_watching">Continue Watching</string>
     <string name="manage_collections">Manage Collections</string>
     <string name="reorder_collections">Reorder Collections</string>
     <string name="reorder_mode_enabled">Drag to reorder collections</string>
